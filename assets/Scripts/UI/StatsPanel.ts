@@ -1,4 +1,5 @@
 import { Node, Label } from 'cc';
+import { MILESTONES } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { t } from '../Core/Locale';
 import { fmt, fmtTime } from '../Core/Util';
@@ -18,6 +19,15 @@ export function openStats(parent: Node) {
         { key: 'total_caps', get: () => fmt(G.data.stats.capsEarned) },
         { key: 'highest_flip', get: () => '$' + fmt(G.data.stats.best) },
         { key: 'per_sec', get: () => '$' + fmt(G.data.eps) },
+        // 里程碑（GDD §7，24 阶真实阈值）——它同时决定升级面板里能看到几条词条
+        { key: 'milestone', get: () => 'M' + G.milestone + ' / ' + MILESTONES.length },
+        {
+            key: 'ms_next',
+            get: () => {
+                const nx = G.msNext;
+                return nx ? 'M' + nx.n + '  ' + fmt(G.msProgress) + '/' + fmt(nx.need) : t('ms_max', G.lang);
+            },
+        },
     ];
 
     const labels: Array<{ lb: Label, get: () => string }> = [];

@@ -1,8 +1,8 @@
-import { Node, Label, Sprite } from 'cc';
+import { Node, Label, Sprite, tween, UIOpacity } from 'cc';
 import { G } from '../Core/State';
 import { t } from '../Core/Locale';
 import { Res } from '../Core/Res';
-import { button, img, label, nd, popIn, rect, roundedPanel, setSize, tint } from './UIKit';
+import { button, img, label, MASK_SIZE, nd, popIn, popOut, rect, roundedPanel, setSize, tint } from './UIKit';
 import { openPanel, rowCard } from './Panel';
 import { clearSave } from '../Core/Save';
 
@@ -132,13 +132,19 @@ function refreshVol() {
 }
 
 function confirmNewGame(parent: Node) {
-    const root = nd(parent, 'confirm', 760, 700, 0, 0);
-    rect(root, 900, 1500, 0, 0, '#000000CC', 'm');
-    const p = roundedPanel(root, 600, 380, 0, 0, '#1B2230F7', 26, '#C8A44A', 5);
+    const root = nd(parent, 'confirm', MASK_SIZE.w, MASK_SIZE.h, 0, 0);
+    const rootOp = root.addComponent(UIOpacity);
+    rootOp.opacity = 0;
+    rect(root, MASK_SIZE.w, MASK_SIZE.h, 0, 0, '#000000CC', 'm');
+    const p = roundedPanel(root, 600, 380, 0, 0, '#1B2230', 26, '#C8A44A', 5);
     label(p, t('delete_confirm', G.lang), 0, 60, 520, 190, { size: 30, color: '#FFFFFF', overflow: 'clamp' });
     button(p, {
         w: 220, h: 82, x: -140, y: -120, tex: 'ui/btn_long_inactive', inset: [46, 46, 24, 24],
-        text: t('cancel', G.lang), fontSize: 28, sound: 'click', onClick: () => root.destroy(),
+        text: t('cancel', G.lang), fontSize: 28, sound: 'click',
+        onClick: () => {
+            tween(rootOp).to(0.14, { opacity: 0 }).start();
+            popOut(p, 0.14, () => root.destroy());
+        },
     });
     button(p, {
         w: 220, h: 82, x: 140, y: -120, tex: 'ui/btn2_red_inactive', inset: [40, 40, 26, 26],
@@ -151,6 +157,7 @@ function confirmNewGame(parent: Node) {
             (globalThis as any).__tb_reload?.();
         },
     });
+    tween(rootOp).to(0.15, { opacity: 255 }).start();
     popIn(p);
     void img;
 }

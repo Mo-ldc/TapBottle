@@ -1,7 +1,6 @@
 import { _decorator, Component, Node, Sprite, Color, Label } from 'cc';
 import { CHIP_TINT, LAYOUT, MACHINE, POOL } from '../Core/GameConfig';
 import { G } from '../Core/State';
-import { t } from '../Core/Locale';
 import { fmt } from '../Core/Util';
 import { FxLayer } from './Fx';
 import { label, nd, rect, roundedPanel, setFrame } from '../UI/UIKit';
@@ -59,7 +58,12 @@ export class CapMachine extends Component {
     private churn = 0;
 
     onLoad() { CapMachine.I = this; }
-    start() { this.build(); }
+    start() {
+        this.build();
+        // 没装机器时整个节点是 active=false（连 update 都不跑），
+        // 所以必须靠这条全局监听把自己「叫醒」——商店买下机器会 notify()。
+        G.addListener(() => this.refreshLock());
+    }
 
     /* ---------------- 搭建 ---------------- */
     private build() {
@@ -118,7 +122,12 @@ export class CapMachine extends Component {
         this.refreshLock(true);
     }
 
-    /** 锁定状态变化时才改颜色/显隐（原实现每帧 new Color，纯浪费） */
+    /**
+     * 锁定状态变化时才改颜色/显隐。
+     *
+     * ★ 原版开局：桌台下方**什么都没有** —— 未买瓶盖机器时不是「变暗的履带」，
+     *   而是整块不存在。所以这里直接切 `node.active`，连履带框/料斗/+N 文本一起隐掉。
+     */
     private refreshLock(force = false) {
         const on = G.hasMachine;
         const gate = on && G.hasGate;
@@ -126,15 +135,14 @@ export class CapMachine extends Component {
         this.beltOn = on;
         this.gateOn = gate;
 
+        this.node.active = on;
+        if (!on) { this.releaseAll(); return; }
+
         const sp = this.beltNode ? this.beltNode.getComponent(Sprite) : null;
         // 压暗履带底色，让瓶盖在带上更醒目
-        if (sp) { sp.color = on ? new Color(146, 158, 182, 255) : new Color(84, 92, 112, 255); }
+        if (sp) { sp.color = new Color(146, 158, 182, 255); }
         if (this.gateNode) { this.gateNode.active = gate; }
-        if (this.hintLb && this.hintLb.isValid) {
-            this.hintLb.node.active = !on;
-            this.hintLb.string = on ? '' : t('belt_locked', G.lang);
-        }
-        if (!on) { this.releaseAll(); }
+        if (this.hintLb && this.hintLb.isValid) { this.hintLb.node.active = false; this.hintLb.string = ''; }
     }
 
     /* ---------------- 投料 ---------------- */
@@ -225,7 +233,7 @@ export class CapMachine extends Component {
             this.binLb.string = '+' + fmt(pend);
         }
 
-        const speed = MACHINE.beltSpeed * (1 + G.conveyorMul);
+        const speed = MACHINE.beltSpeed * G.conveyorMul;
         const bot = LAYOUT.beltBottom;
         const top = LAYOUT.beltTop;
         const span = top - bot;

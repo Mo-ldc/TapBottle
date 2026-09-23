@@ -3,7 +3,7 @@ import { LAYOUT } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { t } from '../Core/Locale';
 import { fmt } from '../Core/Util';
-import { button, img, label, nd, popIn, rect, roundedPanel, sizeOf, tint } from './UIKit';
+import { button, img, label, MASK_SIZE, nd, popIn, popOut, rect, roundedPanel, sizeOf, tint } from './UIKit';
 
 const { ccclass } = _decorator;
 
@@ -119,7 +119,7 @@ export class Hud extends Component {
         // 狂暴 / 决意
         let txt = '';
         if (G.berserkFlips > 0) {
-            txt = t('berserk_active', G.lang) + `  ×${G.berserkFlips}   +${Math.round(G.berserkBonus * 100)}%`;
+            txt = t('berserk_active', G.lang) + `  ×${G.berserkFlips}   ×${G.berserkMult.toFixed(1)}`;
         } else if (G.berserkUnlocked) {
             txt = t('berserk_combo', G.lang) + `  ${G.berserkStreak}/${G.berserkNeed}`;
         }
@@ -155,12 +155,13 @@ export class Hud extends Component {
         }
     }
 
-    /** 离线收益结算（GDD §6.2） */
+    /** 离线收益结算（GDD §6.2）—— 中央 Q 弹弹出，收起是缩放回去 */
     showOffline(money: number, caps: number, seconds: number) {
-        const root = nd(this.node, 'offline', 900, 1500, 0, 0);
-        root.addComponent(UIOpacity);
-        rect(root, 900, 1500, 0, 0, '#000000AA', 'm');
-        const p = roundedPanel(root, 600, 430, 0, 0, '#1B2230F5', 26, '#C8A44A', 5);
+        const root = nd(this.node, 'offline', MASK_SIZE.w, MASK_SIZE.h, 0, 0);
+        const rootOp = root.addComponent(UIOpacity);
+        rootOp.opacity = 0;
+        rect(root, MASK_SIZE.w, MASK_SIZE.h, 0, 0, '#000000AA', 'm');
+        const p = roundedPanel(root, 600, 430, 0, 0, '#1B2230', 26, '#C8A44A', 5);
         label(p, t('welcome_back', G.lang), 0, 148, 550, 48, { size: 30, color: '#FFE9A8' });
         img(p, 'ui/icon_save', 90, 90, 0, 52);
         label(p, '$ ' + fmt(money) + '   +   ' + fmt(caps) + ' 瓶盖', 0, -30, 540, 54, { size: 34, color: '#FFD75E' });
@@ -169,9 +170,12 @@ export class Hud extends Component {
         button(p, {
             w: 260, h: 84, x: 0, y: -152, tex: 'ui/btn_long_active', inset: [46, 46, 24, 24],
             text: t('ok', G.lang), fontSize: 30, sound: 'click',
-            onClick: () => root.destroy(),
+            onClick: () => {
+                tween(rootOp).to(0.16, { opacity: 0 }).start();
+                popOut(p, 0.16, () => root.destroy());
+            },
         });
+        tween(rootOp).to(0.15, { opacity: 255 }).start();
         popIn(p);
-        void tween;
     }
 }

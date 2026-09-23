@@ -22,7 +22,7 @@ export class HelperHands extends Component {
         const sp = n.addComponent(Sprite);
         setFrame(sp, 'env/hand', 62, 88);
         n.setScale(0.95, 0.95, 1);
-        return { node: n, t: Math.random() * HAND.interval, busy: 0 };
+        return { node: n, t: Math.random() * G.handInterval, busy: 0 };
     }
 
     update(dt: number) {
@@ -33,7 +33,8 @@ export class HelperHands extends Component {
 
         if (!G.hasHelper || G.data.hands <= 0) { return; }
 
-        let rate = 1 + G.handSpeed;
+        // 移速 4.0 → 7.0（h_speed 每级 +0.2），换算成「工作节奏倍率」（基准就是 4.0）
+        let rate = Math.max(0.4, G.handSpeed / HAND.speedBase);
         if (G.hasIdle && G.idleOn) { rate *= (G.idleStamina > 0 ? 1.7 : 0.35); }
 
         const hideHand = G.data.settings.hideHand;
@@ -43,13 +44,13 @@ export class HelperHands extends Component {
             if (hideHand) { continue; }
             if (h.busy > 0) { h.busy -= dt; continue; }
             h.t -= dt * rate;
-            if (h.t <= 0) { h.t = HAND.interval; this.handAct(h); }
+            if (h.t <= 0) { h.t = G.handInterval; this.handAct(h); }
         }
 
         // 超出可见上限的助手直接静默结算，避免节点爆炸
         const hidden = Math.max(0, G.data.hands - HAND.visibleMax);
         if (hidden > 0) {
-            this.hiddenAcc += dt * rate * hidden / HAND.interval;
+            this.hiddenAcc += dt * rate * hidden / G.handInterval;
             let guard = 0;
             while (this.hiddenAcc >= 1 && guard < 60) {
                 this.hiddenAcc -= 1; guard++;
@@ -61,10 +62,11 @@ export class HelperHands extends Component {
     private handAct(h: Hand) {
         const field = BottleField.I;
         if (!field || field.bottles.length === 0) { return; }
-        const idle = field.bottles.filter(b => b.idle);
+        // ★ 只抓「该阶已购助手自动化许可」的瓶子（§5.1 分支 3，T1 天生允许）
+        const idle = field.bottles.filter(b => b.idle && G.helperAllowed(b.tier));
         if (idle.length === 0) { h.t = 0.25; return; }
         const target = idle[Math.floor(Math.random() * idle.length)];
-        h.busy = HAND.interval * 0.8;
+        h.busy = G.handInterval * 0.8;
         const p = target.node.position;
         const to = new Vec3(p.x, p.y + LAYOUT.bottleH * 0.60, 0);
         const back = new Vec3(LAYOUT.tableX + (Math.random() - 0.5) * 380,
@@ -79,13 +81,14 @@ export class HelperHands extends Component {
             })
             .delay(0.16)
             .to(0.30, { position: back }, { easing: 'quadInOut' })
-            .call(() => { h.t = HAND.interval * 0.4; h.busy = 0; })
+            .call(() => { h.t = G.handInterval * 0.4; h.busy = 0; })
             .start();
     }
 
     private directFlip() {
         const owned: number[] = [];
         for (let t = 0; t < 7; t++) {
+            if (!G.helperAllowed(t)) { continue; }          // 无自动化许可的阶数不参与挂机结算
             for (let i = 0; i < G.data.bottles[t]; i++) { owned.push(t); }
         }
         if (owned.length === 0) { return; }

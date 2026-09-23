@@ -1,9 +1,9 @@
 import { _decorator, Component, Node, UITransform, Sprite, Vec3, tween, UIOpacity, input, Input, view, ResolutionPolicy, director, profiler, sys } from 'cc';
-import { DESIGN_H, DESIGN_W, LAYOUT, SAFE_BLOCKS, WORLD_ENV } from './Core/GameConfig';
+import { BOTTLE_STATS, DESIGN_H, DESIGN_W, LAYOUT, MILESTONES, SAFE_BLOCKS, WORLD_ENV } from './Core/GameConfig';
 import { G } from './Core/State';
 import { Res } from './Core/Res';
 import { t } from './Core/Locale';
-import { button, img, label, nd, rect, setFrame, setSize } from './UI/UIKit';
+import { button, img, label, MASK_SIZE, nd, rect, setFrame, setSize } from './UI/UIKit';
 import { Toast } from './UI/Toast';
 import { Hud } from './UI/Hud';
 import { NavBar } from './UI/NavBar';
@@ -80,9 +80,23 @@ export class GameRoot extends Component {
 
         G.onAch = (id) => Toast.I?.achievement(id);
         G.onBerserk = () => {
-            Toast.I?.show(t('berserk_active', G.lang) + '  +' + Math.round(G.berserkBonus * 100) + '%', '#FF9E7A');
+            Toast.I?.show(t('berserk_active', G.lang) + '  ×' + G.berserkMult.toFixed(1), '#FF9E7A');
             FxLayer.I?.flash('#FF7A3A', 70, 0.4);
         };
+        // 里程碑达成（GDD §7 的 24 阶）：提示阶段 + 本阶解锁掉哪条瓶子词条
+        G.onMilestone = (n) => {
+            const m = MILESTONES[n - 1];
+            if (!m) { return; }
+            const unlocked = BOTTLE_STATS.filter((s) => s.ms === n).map((s) => t(s.name, G.lang));
+            let txt = t('ms_reached', G.lang)
+                .replace('{n}', String(n))
+                .replace('{t}', G.lang === 'zh' ? m.zh : m.en);
+            if (unlocked.length) { txt += '  ·  ' + t('ms_unlock_stat', G.lang) + ' ' + unlocked.join(' / '); }
+            Toast.I?.show(txt, '#FFE9A8');
+            FxLayer.I?.flash('#FFD75E', 60, 0.35);
+        };
+        // 读档：把「已播报」阶段直接对齐到当前进度，避免进游戏一次性弹十几条
+        G.syncMilestones(true);
         (globalThis as any).__tb_reload = () => { director.loadScene('Main'); };
         // 调试/自动化测试入口
         (globalThis as any).__tb = { G, res: Res, director, field: BottleField, abil: Abilities, drawer: Drawer };
@@ -131,6 +145,14 @@ export class GameRoot extends Component {
         nd(this.worldLayer, 'hands', DESIGN_W, DESIGN_H, 0, 0).addComponent(HelperHands);
         // 左侧竖向瓶盖履带（局部坐标以履带中线为原点）
         nd(this.worldLayer, 'caps', 320, 1000, LAYOUT.railX, 0).addComponent(CapMachine);
+
+        // ★ fxLayer 必须排到世界层**末尾**。
+        //   fxLayer 是在 onLoad() 里建的（挂世界层是为了和世界坐标一起缩放/平移对得上），
+        //   而 table / bottles / hands / caps 都是这里才建的 → 兄弟序上 fx 一直是最底层：
+        //   实测 `worldLayer.children = fxLayer#0, table#1, bottles#2, hands#3, caps#4`，
+        //   于是所有飘字（+$N 金币、扣盖、MISS、处决 +600%…）全被桌面挡住，
+        //   在桌面上战斗时一个字都看不到。放到末尾即可，仍在 shakeHolder 内保持坐标一致。
+        this.fxLayer.setSiblingIndex(this.worldLayer.children.length - 1);
     }
 
     /* ---------------- UI ---------------- */
@@ -151,8 +173,8 @@ export class GameRoot extends Component {
         this.quickBuy.build();
 
         const nav = this.navRoot.addComponent(NavBar);
-        // 抽屉（在 UI 之上、模态之下）
-        const drawerNode = nd(this.drawerLayer, 'drawer', DESIGN_W, LAYOUT.drawerH, 0, LAYOUT.drawerClosedY);
+        // 升级面板（居中 Q 弹模态，与模态面板同层但排在 panelLayer 之下）
+        const drawerNode = nd(this.drawerLayer, 'drawer', DESIGN_W, LAYOUT.drawerH, 0, 0);
         this.drawer = drawerNode.addComponent(Drawer);
         this.drawer.build();
 
@@ -162,10 +184,9 @@ export class GameRoot extends Component {
         });
         this.nav = nav;
 
-        // 抽屉加高后底沿会盖住主界面底栏，打开期间干脆把底栏整块收起来，
-        // 由抽屉头部自带的页签接管切换（关闭时复位）。
+        // 升级面板现在是屏幕中间的模态卡（自带全屏遮罩），底栏不再被盖住，
+        // 所以打开期间保持底栏可见，只同步一下高亮。
         this.drawer.onOpenChanged = (o: boolean) => {
-            this.navRoot.active = !o;
             this.nav.highlight(o ? this.drawer.tab : null);
         };
 
@@ -226,7 +247,12 @@ export class GameRoot extends Component {
         const navDY = (-vhE / 2 + padBottom) - SAFE_BLOCKS.botBottomY;
         if (this.hudRoot && this.hudRoot.isValid) { this.hudRoot.setPosition(0, hudDY, 0); }
         if (this.navRoot && this.navRoot.isValid) { this.navRoot.setPosition(0, navDY, 0); }
-        if (this.drawerLayer && this.drawerLayer.isValid) { this.drawerLayer.setPosition(0, navDY, 0); }
+        // 升级面板已改成屏幕正中的模态卡：整层不跟随底栏位移，遮罩才正好盖住整屏
+        if (this.drawerLayer && this.drawerLayer.isValid) { this.drawerLayer.setPosition(0, 0, 0); }
+
+        // 模态遮罩尺寸跟着可见区走（宽屏 / 超高屏都要盖满，否则边缘露白）
+        MASK_SIZE.w = Math.max(1000, vwE + 80);
+        MASK_SIZE.h = Math.max(1600, vhE + 80);
 
         // ---- 2) 中部舞台：等比缩放 + 居中 ----
         const bandTop = SAFE_BLOCKS.topBottomY + hudDY;

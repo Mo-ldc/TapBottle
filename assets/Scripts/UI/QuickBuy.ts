@@ -32,6 +32,14 @@ export class QuickBuy extends Component {
         this.cards.push(this.makeCard(-160, y, w, h, () => {
             const tier = topOwnedTier();
             if (G.buyBottle(tier)) { return true; }
+            // 满上限 / 下一阶还没研发：给一句明确指引（返回 true = 已提示，跳过通用「资源不足」）
+            if (G.data.bottles[tier] >= G.tierCap(tier)) {
+                const nx = tier + 1;
+                Toast.I?.show(nx < 7 && !G.tierResearched(nx)
+                    ? (G.lang === 'zh' ? '需先在「瓶子科技」里研发下一阶瓶子' : 'Research the next tier in Bottle Tech first')
+                    : (G.lang === 'zh' ? '该阶已达同屏上限' : 'Tier limit reached'), '#FFD98A');
+                return true;
+            }
             return false;
         }));
         this.cards.push(this.makeCard(160, y, w, h, () => G.buyHand()));

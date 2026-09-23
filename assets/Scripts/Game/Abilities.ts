@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Sprite, UIOpacity, Vec3, tween, Label } from 'cc';
+import { _decorator, Component, Node, Sprite, Tween, UIOpacity, Vec3, tween, Label } from 'cc';
 import { ABILITY, LAYOUT } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { Res } from '../Core/Res';
@@ -179,32 +179,59 @@ export class Abilities extends Component {
         Toast.I?.show(t('samurai_ready', G.lang), '#FF9E7A');
     }
 
+    /**
+     * 状态特效一律「贴着能力条上的按钮烧」，不再铺到游戏区中间。
+     *
+     * ⚠️ 原来狂暴火焰是 220×290 摆在 (-230, navY+250)，处决光环是 700×900 巨幅武士刀铺满屏幕 ——
+     * 两者都把桌面、瓶子和快捷购买卡盖住了（用户截图反馈「挡住游戏了」）。
+     *
+     * 现在：① 尺寸收敛到按钮外一圈（176×224）；② 位置每帧跟随按钮；
+     * ③ 挂成 navRoot 的**第 0 个子节点** —— 它排在快捷购买卡与底部导航之前，
+     *    所以火焰只会从按钮四周的缝隙里透出来，**永远不会盖住任何 UI 或瓶子**。
+     */
     private refreshFx() {
-        // 狂暴火焰
-        if (G.berserkFlips > 0 && !this.berserkFx) {
-            this.berserkFx = nd(this.node, 'berserkFx', 220, 290, -230, LAYOUT.navY + 250);
-            const sp = this.berserkFx.addComponent(Sprite);
-            setFrame(sp, 'ability/berserk', 220, 290);
-            const op = this.berserkFx.addComponent(UIOpacity);
-            op.opacity = 210;
-            const s = this.berserkFx;
-            tween(s).repeatForever(
-                tween(s).to(0.35, { scale: new Vec3(1.08, 0.94, 1) })
+        if (!this.bar || !this.bar.isValid) { return; }
+
+        /* ---- 狂暴：火焰贴在「狂暴」按钮后面 ---- */
+        const berBtn = this.btns['berserk'];
+        const berOn = G.berserkFlips > 0;
+        if (berOn && (!this.berserkFx || !this.berserkFx.isValid)) {
+            const n = nd(this.node, 'berserkFx', 176, 224, 0, LAYOUT.abilityY);
+            setFrame(n.addComponent(Sprite), 'ability/berserk', 176, 224);
+            n.addComponent(UIOpacity).opacity = 235;
+            n.setSiblingIndex(0);                       // 排到所有 UI 之下 → 只发光、不遮挡
+            tween(n).repeatForever(
+                tween(n).to(0.35, { scale: new Vec3(1.08, 0.94, 1) })
                     .to(0.35, { scale: new Vec3(0.95, 1.06, 1) })).start();
-        } else if (G.berserkFlips <= 0 && this.berserkFx) {
-            this.berserkFx.destroy(); this.berserkFx = null;
+            this.berserkFx = n;
+        } else if (!berOn && this.berserkFx) {
+            Tween.stopAllByTarget(this.berserkFx);
+            this.berserkFx.destroy(); this.berserkFx = null!;
         }
-        // 处决光环
-        if (G.samuraiActive && !this.samuraiFx) {
-            this.samuraiFx = nd(this.node, 'samuraiFx', 700, 900, 0, 40);
-            const sp = this.samuraiFx.addComponent(Sprite);
-            setFrame(sp, 'ability/katana', 700, 900);
-            sp.color.set(255, 120, 90, 60);
-            const op = this.samuraiFx.addComponent(UIOpacity);
-            op.opacity = 120;
-            tween(op).to(0.25, { opacity: 200 }).to(0.25, { opacity: 120 }).union().repeatForever().start();
-        } else if (!G.samuraiActive && this.samuraiFx) {
-            this.samuraiFx.destroy(); this.samuraiFx = null;
+        if (this.berserkFx && this.berserkFx.isValid && berBtn && berBtn.isValid) {
+            this.berserkFx.setPosition(berBtn.position.x, LAYOUT.abilityY, 0);
+        }
+
+        /* ---- 处决：武士刀贴在「武士」按钮后面（原来是 700×900 铺满屏） ---- */
+        const samBtn = this.btns['samurai'];
+        const samOn = G.samuraiActive;
+        if (samOn && (!this.samuraiFx || !this.samuraiFx.isValid)) {
+            const n = nd(this.node, 'samuraiFx', 160, 184, 0, LAYOUT.abilityY);
+            // 染色走 setFrame 的 color 参数（新建 Color 整体赋值）；
+            // 千万不要 sp.color.set(...) —— 就地改内部 _color 不触发顶点色刷新（见 UIKit.tint 注释）
+            setFrame(n.addComponent(Sprite), 'ability/katana', 160, 184, '#FF9678');
+            const op = n.addComponent(UIOpacity);
+            op.opacity = 150;
+            n.setSiblingIndex(0);
+            tween(op).to(0.25, { opacity: 235 }).to(0.25, { opacity: 140 }).union().repeatForever().start();
+            this.samuraiFx = n;
+        } else if (!samOn && this.samuraiFx) {
+            const op = this.samuraiFx.getComponent(UIOpacity);
+            if (op) { Tween.stopAllByTarget(op); }
+            this.samuraiFx.destroy(); this.samuraiFx = null!;
+        }
+        if (this.samuraiFx && this.samuraiFx.isValid && samBtn && samBtn.isValid) {
+            this.samuraiFx.setPosition(samBtn.position.x, LAYOUT.abilityY, 0);
         }
     }
 }

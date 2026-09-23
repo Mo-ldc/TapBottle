@@ -1,6 +1,8 @@
-import { Color, Label, LabelOutline, Node, Sprite, SpriteFrame, UIOpacity, UITransform, Vec3, tween, BlockInputEvents, Widget, Layout, ScrollView, Mask, Graphics } from 'cc';
+import { _decorator, Component, Color, Label, LabelOutline, Node, Sprite, SpriteFrame, Tween, UIOpacity, UITransform, Vec3, tween, BlockInputEvents, Widget, Layout, ScrollView, Mask, Graphics } from 'cc';
 import { Res } from '../Core/Res';
 import { hex } from '../Core/Util';
+
+const { ccclass } = _decorator;
 
 export const WHITE = new Color(255, 255, 255, 255);
 
@@ -225,12 +227,21 @@ export function bar(parent: Node, w: number, h: number, x: number, y: number, fi
     return { root, fill, set: draw };
 }
 
+/**
+ * 模态遮罩的基准尺寸（设计区局部单位）。
+ * 由 GameRoot.applySafeLayout 按当前可见设计区写入 —— 宽屏（s<1，可见设计宽 1800+）
+ * 与超高屏（vhE>1280）都要盖满，写死 900×1500 会在边缘露出没被压暗的游戏画面。
+ */
+export const MASK_SIZE = { w: 1000, h: 1600 };
+
 /** 模态遮罩 + 拦截输入 */
 export function modalMask(parent: Node, onClickOutside?: () => void): Node {
-    const n = nd(parent, 'mask', 900, 1500, 0, 0);
+    const n = nd(parent, 'mask', MASK_SIZE.w, MASK_SIZE.h, 0, 0);
     const sp = n.addComponent(Sprite);
-    setFrame(sp, 'ui/px_white2', 900, 1500);
-    sp.color = new Color(0, 0, 0, 170);
+    setFrame(sp, 'ui/px_white2', MASK_SIZE.w, MASK_SIZE.h);
+    // 遮罩压暗到 ~78%：面板底色已改成全不透明，遮罩再厚一点，
+    // 底下的 HUD 就彻底不参与视觉了（这就是用户说的「文本层级被挡住」）。
+    sp.color = new Color(0, 0, 0, 200);
     n.addComponent(BlockInputEvents);
     if (onClickOutside) { n.on(Node.EventType.TOUCH_END, onClickOutside); }
     return n;
@@ -243,13 +254,112 @@ export function fadeIn(n: Node, dur = 0.18) {
     tween(op).to(dur, { opacity: 255 }).start();
 }
 
-/** 弹入（缩放） */
-export function popIn(n: Node, dur = 0.22) {
-    n.setScale(0.85, 0.85, 1);
-    tween(n).to(dur, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
+/**
+ * 清掉节点上正在跑的缩放/淡入淡出 tween。
+ * 开/关被打断时（连点导航）必须做，否则旧的 popOut 会在 popIn 途中
+ * 把缩放硬拉回 1、把透明度拉到 0，出现「弹一半就消失」。
+ */
+function clearPopTween(n: Node) {
+    Tween.stopAllByTarget(n);
+    const op = n.getComponent(UIOpacity);
+    if (op) { Tween.stopAllByTarget(op); op.opacity = 255; }
+}
+
+/**
+ * 「Q 弹」弹入：在屏幕中间从 0.72 放大过头到 1.07，再回落到 1。
+ *
+ * 所有面板/弹窗都用它出场（不再从屏幕下方滑入）：
+ *  - 0.72 起步 → 视觉上就是「从中间鼓出来」，不会有位移方向感；
+ *  - 中间过冲到 1.07 是 Q 弹的关键，纯 backOut 到 1 的弹感太弱；
+ *  - 收尾用 sineInOut 让回落是「软着陆」，不是硬停。
+ * 注意调用前节点必须是可见（active）状态，否则 tween 不跑。
+ */
+export function popIn(n: Node, dur = 0.32) {
+    clearPopTween(n);
+    n.setScale(0.72, 0.72, 1);
+    tween(n)
+        .to(dur * 0.58, { scale: new Vec3(1.07, 1.07, 1) }, { easing: 'backOut' })
+        .to(dur * 0.42, { scale: new Vec3(1, 1, 1) }, { easing: 'sineInOut' })
+        .start();
+}
+
+/**
+ * 「缩放回去」消失：1 → 0.78 并淡出，动画结束后执行 onDone（默认销毁）。
+ * 与 popIn 严格互逆，所以关掉再打开不会有残影。
+ * 若节点还没有 UIOpacity 会补一个（用 UIOpacity 而非 Sprite.color，才不会破坏合批）。
+ */
+export function popOut(n: Node, dur = 0.16, onDone?: () => void) {
+    clearPopTween(n);
+    const op = n.getComponent(UIOpacity) || n.addComponent(UIOpacity);
+    tween(n).to(dur, { scale: new Vec3(0.78, 0.78, 1) }, { easing: 'quadIn' }).start();
+    tween(op).to(dur, { opacity: 0 }).call(() => {
+        // 复位缩放，避免下次 popIn 从 0.78 起步时叠加
+        if (n.isValid) { n.setScale(1, 1, 1); }
+        if (onDone) { onDone(); } else if (n.isValid) { n.destroy(); }
+    }).start();
+}
+
+/** 遮罩淡入（配合 popIn 用，遮罩只淡入不缩放，否则整屏会「涨大」） */
+export function maskIn(n: Node, dur = 0.16) {
+    const op = n.getComponent(UIOpacity) || n.addComponent(UIOpacity);
+    Tween.stopAllByTarget(op);
+    op.opacity = 0;
+    tween(op).to(dur, { opacity: 255 }).start();
+}
+
+/** 遮罩淡出 */
+export function maskOut(n: Node, dur = 0.14) {
+    const op = n.getComponent(UIOpacity) || n.addComponent(UIOpacity);
+    Tween.stopAllByTarget(op);
+    tween(op).to(dur, { opacity: 0 }).start();
 }
 
 /** 滚动容器 */
+/**
+ * 滚动指示条。
+ *
+ * 之前所有滚动列表都没有任何「下面还有内容」的提示，最后一行常常半截被遮罩
+ * 裁掉，读起来就像「文字被挡住了」。这里给每个 ScrollView 配一条细指示条，
+ * 自己盯着 content 高度与滚动偏移，只有变了才重排（每帧两次 getter，无开销）。
+ */
+@ccclass('UIScrollBar')
+export class UIScrollBar extends Component {
+    sv: ScrollView = null!;
+    content: Node = null!;
+    thumb: Node = null!;
+    trackH = 0;
+    viewH = 0;
+    private lastH = -1;
+    private lastOff = -999;
+
+    update() {
+        const c = this.content;
+        if (!c || !c.isValid || !this.thumb || !this.thumb.isValid || !this.sv || !this.sv.isValid) { return; }
+        const ct = c.getComponent(UITransform);
+        if (!ct) { return; }
+        const ch = ct.height;
+        const off = Math.round(this.sv.getScrollOffset().y);
+        if (ch === this.lastH && off === this.lastOff) { return; }
+        this.lastH = ch; this.lastOff = off;
+
+        // 内容比视口矮 → 没有可滚动的，整条指示条收起来
+        if (ch <= this.viewH + 2) { this.thumb.active = false; return; }
+        this.thumb.active = true;
+
+        const th = Math.max(36, this.trackH * (this.viewH / ch));
+        const maxOff = ch - this.viewH;
+        const t = maxOff > 0 ? Math.max(0, Math.min(1, off / maxOff)) : 0;
+        const span = this.trackH - th;
+        const tu = this.thumb.getComponent(UITransform);
+        if (tu) { tu.setContentSize(6, th); }
+        this.thumb.setPosition(0, span / 2 - t * span, 0);
+    }
+}
+
+/**
+ * 带遮罩的竖向滚动区 + 右侧滚动指示条。
+ * 指示条是 `parent` 的子节点（在视口外侧），所以既不会被遮罩裁掉、也不跟着内容滚。
+ */
 export function scrollView(parent: Node, w: number, h: number, x: number, y: number): { root: Node, content: Node, sv: ScrollView } {
     const root = nd(parent, 'scroll', w, h, x, y);
     const view = nd(root, 'view', w, h, 0, 0);
@@ -264,6 +374,25 @@ export function scrollView(parent: Node, w: number, h: number, x: number, y: num
     sv.brake = 0.72;
     sv.elastic = true;
     sv.bounceDuration = 0.2;
+
+    const trackH = h - 24;
+    const track = nd(parent, 'sbar', 6, trackH, x + w / 2 + 12, y);
+    const trSp = track.addComponent(Sprite);
+    setFrame(trSp, 'ui/px_white2', 6, trackH);
+    trSp.color = new Color(255, 255, 255, 28);
+
+    const thumb = nd(track, 'thumb', 6, 48, 0, 0);
+    const thSp = thumb.addComponent(Sprite);
+    setFrame(thSp, 'ui/px_white2', 6, 48);
+    thSp.color = hex('#C8A44A');
+    thumb.active = false;
+
+    const bar = root.addComponent(UIScrollBar);
+    bar.sv = sv;
+    bar.content = content;
+    bar.thumb = thumb;
+    bar.trackH = trackH;
+    bar.viewH = h;
     return { root, content, sv };
 }
 

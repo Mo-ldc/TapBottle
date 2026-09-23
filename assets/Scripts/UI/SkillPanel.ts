@@ -1,6 +1,7 @@
 import { Node, Label, Sprite, UITransform, Graphics, ScrollView, UIOpacity, Vec2, tween } from 'cc';
 import {
-    ABILITY_GRAPH, NODE_SIZE, NODE_STEP_X, NODE_STEP_Y, SKILL_GRAPH, SkillNodeDef,
+    ABILITY_GRAPH, HELPER_GRAPH, NODE_SIZE, NODE_STEP_X, NODE_STEP_Y, PLAYER_GRAPH, SKILL_GRAPH,
+    SkillNodeDef,
 } from '../Core/GameConfig';
 import { G, SKILL_BY_ID } from '../Core/State';
 import { Res } from '../Core/Res';
@@ -24,19 +25,31 @@ import { skillDesc } from './DrawerContent';
 
 interface PageDef { id: string; titleKey: string; graph: SkillNodeDef[]; }
 
+/** 四大分支各一页（对照原版 Bottle Flip Inc 的四个科技树页签） */
 const PAGES: PageDef[] = [
     { id: 'bottle', titleKey: 'tree_page_bottle', graph: SKILL_GRAPH },
+    { id: 'player', titleKey: 'tree_page_player', graph: PLAYER_GRAPH },
+    { id: 'helper', titleKey: 'tree_page_helper', graph: HELPER_GRAPH },
     { id: 'ability', titleKey: 'tree_page_ability', graph: ABILITY_GRAPH },
 ];
 
 const CANVAS_W = 640;
 
-/** 面板内布局（frame 局部坐标，frame 高 1080 → ±540） */
+/**
+ * 面板内布局（frame 局部坐标，frame 高 1080 → ±540）
+ *
+ * ⚠️ SCROLL_H 不是随便取的 620：节点在内容里按 NODE_STEP_Y(124) 排格，
+ * 首个节点中心距内容顶 = padTop(84) + NODE_SIZE/2(56) = 140。
+ * 视口下沿能落进「行间隙」的条件是 SCROLL_H ≡ 140 + 124/2 = 202 ≡ 78 (mod 124)。
+ * 620 ≡ 0 (mod 124) → 下沿正好切在节点中心下方 16px，也就是**从名称文字中间划过去**，
+ * 这就是用户看到的「文本被挡住了」。改成 574（574 ≡ 78）后，下沿落进行间隙，
+ * 最近的一整行节点下沿还留 6px，一眼看上去就是「这里本来还有一行」。
+ */
 const TITLE_Y = 484;
 const CAPS_Y = 420;
 const TAB_Y = 342;
-const SCROLL_H = 620;
-const SCROLL_Y = -10;
+const SCROLL_H = 574;
+const SCROLL_Y = -15;
 const INFO_H = 192;
 const INFO_Y = -428;
 
@@ -87,6 +100,9 @@ export function openSkill(parent: Node) {
 
     const svNode = frame.getChildByName('scroll');
     if (svNode) { svNode.setPosition(0, SCROLL_Y, 0); }
+    // 滚动指示条是 frame 的兄弟节点，不跟着 scroll 走，要手动同步 Y
+    const sbarNode = frame.getChildByName('sbar');
+    if (sbarNode) { sbarNode.setPosition(sbarNode.position.x, SCROLL_Y, 0); }
     const sv = svNode ? svNode.getComponent(ScrollView) : null;
 
     /* ---------------- 顶部：瓶盖余额 ---------------- */
@@ -106,10 +122,11 @@ export function openSkill(parent: Node) {
     cardSprite(strip, 'bg', 648, 80, '#0D1420', 32);
 
     for (let i = 0; i < PAGES.length; i++) {
-        const bx = (i - (PAGES.length - 1) / 2) * 322;
-        const n = nd(strip, 'tab_' + PAGES[i].id, 308, 64, bx, 0);
-        const bg = cardSprite(n, 'bg', 308, 64, '#22304A', 30);
-        const lb = label(n, t(PAGES[i].titleKey, G.lang), 0, 1, 280, 46, { size: 26, color: '#C9D6E6' });
+        // 4 个页签挤在 648 宽的条里：152 宽 / 间距 160
+        const bx = (i - (PAGES.length - 1) / 2) * 160;
+        const n = nd(strip, 'tab_' + PAGES[i].id, 152, 64, bx, 0);
+        const bg = cardSprite(n, 'bg', 152, 64, '#22304A', 30);
+        const lb = label(n, t(PAGES[i].titleKey, G.lang), 0, 1, 146, 46, { size: 21, color: '#C9D6E6', overflow: 'shrink' });
         tabUis.push({ bg, lb });
         n.on(Node.EventType.TOUCH_END, () => { if (page !== i) { page = i; rebuild(); } });
     }
@@ -182,7 +199,10 @@ export function openSkill(parent: Node) {
 
         if (sv && focus) {
             const maxOff = Math.max(0, canvasH - SCROLL_H);
-            const off = Math.min(maxOff, Math.max(0, Math.abs(focus.pos.y) - SCROLL_H / 2));
+            let off = Math.abs(focus.pos.y) - SCROLL_H / 2;
+            // 对齐到行格：初始位置的下沿落进「行间隙」，底部那行不会被遮罩从名称中间切开
+            off = Math.round(off / NODE_STEP_Y) * NODE_STEP_Y;
+            off = Math.min(maxOff, Math.max(0, off));
             sv.scrollToOffset(new Vec2(0, off));
         }
     }
@@ -212,17 +232,22 @@ export function openSkill(parent: Node) {
         const ring = cardSprite(nd(root, 'ring', S + 8, S + 8), 'bg', S + 8, S + 8, '#39435A', 30);
         const card = cardSprite(nd(root, 'card', S, S), 'bg', S, S, '#1A2130', 30);
 
-        const icNode = nd(root, 'ic', 54, 54, 0, 20);
-        const icon = setFrame(icNode.addComponent(Sprite), def.icon, 54, 54);
+        // 卡内三级文本层级（纵向预算，卡片 112 → ±56）：
+        //   图标 44@y=28   →  6 … 50
+        //   名称 30@y=-16  → -31 … -1   （可放两行，行高 15；长名在 Locale 里用 \n 手动断行）
+        //   状态 22@y=-42  → -53 … -31
+        // 三段首尾相接、零重叠。原来图标 54@20 伸到 -7 而名称顶在 0，图标底 7px 压在字上。
+        const icNode = nd(root, 'ic', 44, 44, 0, 28);
+        const icon = setFrame(icNode.addComponent(Sprite), def.icon, 44, 44);
 
-        const name = label(root, '', 0, -12, 104, 24, { size: 16, color: '#FFFFFF', overflow: 'shrink' });
-        name.lineHeight = 18;
+        const name = label(root, '', 0, -16, 106, 30, { size: 14, color: '#FFFFFF', overflow: 'shrink' });
+        name.lineHeight = 15;
 
-        const botIcon = nd(root, 'botIcon', 20, 18, -26, -38);
-        setFrame(botIcon.addComponent(Sprite), 'bottle/capchip_6', 20, 18);
+        const botIcon = nd(root, 'botIcon', 18, 16, -24, -42);
+        setFrame(botIcon.addComponent(Sprite), 'bottle/capchip_6', 18, 16);
         botIcon.active = false;
 
-        const bot = label(root, '', 8, -38, 88, 26, { size: 17, color: '#9FE3FF' });
+        const bot = label(root, '', 8, -42, 92, 22, { size: 15, color: '#9FE3FF' });
 
         const badge = nd(root, 'st', 34, 34, 42, 42);
         const badgeSp = setFrame(badge.addComponent(Sprite), 'stat/locked', 30, 40);
@@ -281,22 +306,22 @@ export function openSkill(parent: Node) {
         // 底部：价格 / 等级 / MAX / 未解锁
         if (st === 'locked') {
             ui.botIcon.active = false;
-            ui.bot.node.setPosition(0, -38, 0);
+            ui.bot.node.setPosition(0, -42, 0);
             ui.bot.string = t('locked', G.lang);
             tint(ui.bot, '#5E6A82');
         } else if (maxed) {
             ui.botIcon.active = false;
-            ui.bot.node.setPosition(0, -38, 0);
+            ui.bot.node.setPosition(0, -42, 0);
             ui.bot.string = t('max', G.lang);
             tint(ui.bot, '#7CE38B');
         } else if (lv > 0) {
             ui.botIcon.active = false;
-            ui.bot.node.setPosition(0, -38, 0);
+            ui.bot.node.setPosition(0, -42, 0);
             ui.bot.string = t('level', G.lang) + ' ' + lv + '/' + (def ? def.max : 1);
             tint(ui.bot, '#C9D6E6');
         } else {
             ui.botIcon.active = true;
-            ui.botIcon.setPosition(-26, -38, 0);
+            ui.botIcon.setPosition(-24, -42, 0);
             ui.bot.node.setPosition(12, -38, 0);
             ui.bot.string = fmt(cost);
             tint(ui.bot, st === 'buy' ? '#FFE9A8' : '#E8765A');
@@ -347,7 +372,8 @@ export function openSkill(parent: Node) {
         const lv = G.skLv(d.id);
         const maxed = G.skMax(d.id);
 
-        infoName.string = t(def ? def.name : d.id, G.lang);
+        // 节点名里可能有为卡片排版的 \n，信息条是单行，换成空格
+        infoName.string = t(def ? def.name : d.id, G.lang).replace(/\n/g, ' ');
         tint(infoName, SKIN[st].name);
         infoLv.string = t('level', G.lang) + ' ' + lv + '/' + (def ? def.max : 1);
 

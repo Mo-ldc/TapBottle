@@ -103,7 +103,7 @@ TS 里用了一个没 import 的函数名，`strict: false` 下不一定会让�
 | 3 | `UI/SettingsPanel.ts` | `toggle()`/`stepper()` 是**模块级**函数却调用 `openSettings()` 内部的 `refreshAll()` → 作用域不可见，点开关/音量抛 ReferenceError | ✅ 已修（`refresh` 改为入参） |
 | 4 | `Core/GameConfig.ts` | `p_cursor` 图标 `'env/cursorwhite'` 未登记 → 空白 | ✅ 已修（改用 `'env/cursor'`） |
 | 5 | `Core/GameConfig.ts` | `LAYOUT` 缺 `abilityY` → `Abilities` 读到 undefined，能力条坐标 NaN | ✅ 已修 |
-| 6 | `UI/DrawerContent.ts` | `BottleStatDef` 无 `base` 字段却被读 → 词条描述全 NaN | ✅ 已修（落地成功率改为叠加在 `TIERS[tier].success` 上） |
+| 6 | `UI/DrawerContent.ts` | `BottleStatDef` 无 `base` 字段却被读 → 词条描述全 NaN | ✅ 已修（**2026-09-23 已整体重构**：词条矩阵进 `BottleStatDef.tiers[]`，描述改由 `等级×step` 推导，`TIERS[].success` 字段已随角度制判定一并删除） |
 
 ### 本轮新增坑（已补充到正文对应章节）
 
@@ -396,14 +396,370 @@ export function skinBtn(btn: Node, lb: Label, st: BtnState) { tint(bg, BTN_SKIN[
 
 九宫格纯色底在任何尺寸都不糊，状态色一眼可辨，也顺带砍掉了几张贴图。
 
-### 坑 36 · 抽屉面板「长高后盖住底部导航」——z-order 与 tab 归属要一起改
+### 坑 36 · 面板「长高后盖住底部导航」——z-order 与 tab 归属要一起改（**2026-09-23 已作废，见坑 37**）
 
-抽屉从 430 长到 600 后，`drawerLayer` 的渲染顺序在 `navRoot` **之上**，展开态直接糊在底部导航条上。
-只调 `drawerY` 没用（位置对了，但导航还被盖着）。正确做法是**双管齐下**：
-① 把 tab（瓶子/助手）从底部导航**挪进抽屉自己的头部**（面板内可点，不依赖被盖住的导航）；
-② 打开/关闭时隐藏导航：`this.drawer.onOpenChanged = (o) => { this.navRoot.active = !o; ... }`。
-自检用无头脚本读 `navRoot.active` 与 `drawer.position.y`：开 `-288 / nav=false`，关 `-856 / nav=true`。
-（另：抽屉变高要同步调 `LAYOUT.drawerOpenY/drawerClosedY` 与 `drawerH`，三者是一组。）
+> 历史记录：抽屉从 430 长到 600 时，`drawerLayer` 渲染顺序在 `navRoot` **之上**，展开态直接糊在底部导航条上，
+> 当时的解法是「tab 挪进抽屉头部 + 打开时 `navRoot.active = !o`」。
+> **2026-09-23 用户要求「UI 一律从屏幕中间 Q 弹出现、收起是缩放回去」后，升级面板已改成居中模态卡，
+> 底栏不再被盖住 → `navRoot.active` 那套已删除，只保留高亮同步**。此坑仅作「z-order 与交互归属要一起考虑」的案例保留。
+
+---
+
+## J. 面板出场动效：中央 Q 弹 + 缩放消失（2026-09-23 定稿）
+
+> 用户明确要求：**任何面板都不许从下方滑入，要「Q 弹中间出现」，隐藏时「缩放回去」**。
+> 全部收敛到 `UI/UIKit.ts` 的 4 个函数，别在业务代码里手写 tween。
+
+```ts
+/** Q 弹弹入：0.72 → 过冲 1.07 → 回落 1 */
+export function popIn(n: Node, dur = 0.32) {
+    clearPopTween(n);
+    n.setScale(0.72, 0.72, 1);
+    tween(n).to(dur * 0.58, { scale: new Vec3(1.07, 1.07, 1) }, { easing: 'backOut' })
+            .to(dur * 0.42, { scale: new Vec3(1, 1, 1) },     { easing: 'sineInOut' }).start();
+}
+/** 缩放消失：1 → 0.78 + 淡出 → 回调（默认 destroy） */
+export function popOut(n: Node, dur = 0.16, onDone?: () => void) { /* 同时 tween scale 与 UIOpacity */ }
+```
+
+### 坑 37 · 位移滑入 → 缩放弹出的三个必改点
+
+1. **遮罩绝不能跟着缩放**。整屏遮罩必须单独一个节点、只做 `maskIn/maskOut` 透明度；
+   若和面板一起 `popIn`，画面会像「整屏黑幕涨大」。
+2. **面板节点必须先 `active = true` 再起 tween**：tween 挂在非激活节点上不执行，
+   表现为「点了没反应」（本项目 Drawer 改成 `active=false` 收起后立刻踩到）。
+3. **居中定位与自适应层解耦**。`drawerLayer` 原本跟着 `navDY` 贴底，模态卡居中后必须把该层钉回 `(0,0)`；
+   模态遮罩尺寸也不能写死 `900×1500` —— 宽屏（s<1，可见设计宽 1800+）与超高屏（vhE>1600）都会露出没压暗的边缘。
+   对策：`UIKit.MASK_SIZE` 由 `applySafeLayout()` 按 `vwE/vhE` 动态写入。
+
+### 坑 38 · `popOut` 会把 `UIOpacity` 复位成 255 → 对「已经淡到 0」的节点用会闪一下
+
+`clearPopTween()` 的职责是让动画可被打断（连点导航时 `popIn`/`popOut` 互踩会出现「弹一半就消失」），
+所以它把 opacity 强行拉到 255。**若节点此刻已经是 0（例如 Toast 的停留结束），再调 `popOut` 会先闪一帧**。
+Toast 这类「自己控制全生命周期」的物件要**内联**写缩放+淡出，不要复用 `popOut`。
+
+### 坑 39 · 无头脚本里 `window.cc` 没有全部类，且 `__tb` 暴露的是类不是实例
+
+- `window.cc` 在构建产物里**不含** `cc.UITransform` / `cc.UIOpacity`（`cc.view` / `cc.director` 有）→
+  诊断脚本一律用字符串形式 `n.getComponent('cc.UITransform')`，否则 `getComponent: Type must be non-nil`。
+- `(globalThis as any).__tb = { field: BottleField, drawer: Drawer }` 暴露的是**类**，实例在静态字段：
+  `__tb.field.I` / `__tb.drawer.I`。
+
+### 坑 40 · 用「采样缩放曲线」而不是截图来验证弹感
+
+截图抓不到 0.3s 的过冲（驱动脚本每条指令额外 `pump(0.25)`，等拍到时动画早结束）。可靠做法是让页面自己采样：
+
+```js
+window.__SAM = [];
+window.__SAMPLE = function (fn, ms) {
+    var t0 = performance.now(); window.__SAM = [];
+    (function tick() {
+        var n = __F('cardUI');
+        if (n) window.__SAM.push(Math.round(performance.now() - t0) + ':' + n.getScale().x.toFixed(3));
+        if (performance.now() - t0 < ms) requestAnimationFrame(tick);
+    })();
+    fn();                       // 先开采样，再触发动画
+    return 'go';
+};
+```
+
+实测输出 `0:1.000, 43:0.720, 107:1.104, 174:1.075, 230:1.058, 286:1.015, 339:1.000`
+→ 0.72 起步、峰值 1.104、340ms 收敛，Q 弹成立。
+**顺带一个免费的自证手段**：关闭后的截图与基线截图**字节数完全相同**，说明遮罩与卡片确实收干净了（没有残留压暗）。
+对应脚本：`E:\LDC_Fby\_testui.tpl` + `_runui.py`（四比例）。
+
+---
+
+## K. 全屏/大尺寸「状态特效」是遮挡重灾区（2026-09-23）
+
+### 坑 41 · 把「范围半径」直接用大贴图当指示器 → 一只巨手糊在游戏区中间
+
+`BottleField` 的光标原来这样写：
+
+```ts
+this.cursor = nd(this.node, 'cursor', 76, 76, 0, -999);
+setFrame(sp, 'env/cursor', 76, 76);
+const r = 70 * G.cursorSize;      // 升级后 r 最大 154
+setSize(this.cursor, r * 2, r * 2);   // ← 把「手指」贴图拉到 308×308
+```
+
+用户截图反馈「这么大的图挡住游戏了」。**范围/光圈绝不能用「语义贴图放大」来表达**，正确做法是拆两层：
+容器（只负责跟随手指）→ 子节点 `ring`（`env/areacircle` 这类纯圆，低 opacity 当范围）+ `pin`（固定 60px 的手指指针）。
+容器记得 `setSiblingIndex(0)` 压到瓶子层之下当地贴，`Modal.open` 时整体隐藏。
+
+同类问题：**状态特效挂在 UI 层又摆在游戏区**。本项目狂暴火焰 220×290 摆在 `(-230, navY+250)`、处决刀 700×900 铺满屏，
+都把桌面和瓶子盖住了。收敛原则：
+1. 尺寸只比触发它的按钮大一圈（104×104 的按钮 → 特效 ~170×220）；
+2. 位置每帧跟随按钮（能力条会按解锁数量重排，`btn.position.x`）；
+3. **`setSiblingIndex(0)` 排到所有 UI 之下** —— 特效只会从按钮四周的缝隙透出来，永远不会盖住任何东西。
+   注意代价：底部 UI 很密（快捷卡 / 能力条 / 体力条 / 导航四层），可透出的可视窗口只有 ~120px 高，
+   想要「大字大图」型的指示就老实放到 HUD 文字行里，别指望一个巨幅贴图。
+
+### 坑 42 · `CocosCreator.exe --build` 的 exit code 会骗人（有编辑器会话在跑时）
+
+命令行构建返回 **exit 36**，日志里出现：
+
+```
+Error: Exit process with code:null, signal:SIGTERM in task build-script
+```
+
+但同一份日志结尾是 `build Task (web-mobile) Finished in (15 s)`、`Asset DB is resume!`，
+**产物其实已经写好**（连注释都在，因为 debug 构建不压缩）。
+诱因：本机同时开着**手动启动的 Cocos 编辑器会话**（它占住 `127.0.0.1:3000` 的 MCP 端口，
+日志里表现为 `[cocos-creator-mcp] Auto-start failed: listen EADDRINUSE`），两个实例抢 asset-db / 编译子进程时被打 SIGTERM。
+
+**判定构建成功的正确口径**（别只看 exit code）：
+```python
+s = open('build/web-mobile/assets/main/index.js', encoding='utf-8', errors='replace').read()
+for k in ['env/areacircle', '#FF9678']:      # 换成本次新增的独有字符串
+    print('OK  ' if k in s else 'MISS', k)
+```
+再加日志里的 `Finished`；两条都对就是成功。日志文件在 `.workbuddy/build_last.log`。
+
+---
+
+## L. 模态面底色 & 滚动区几何（2026-09-23 第三轮）
+
+用户原话是「**文本层级貌似被挡住了**」——听着像 z-order，实际是两个独立成因，
+两个都得量化才能定位，别靠肉眼猜。
+
+### 坑 43 · 模态面板底色留了 3% 透明 → 背后 HUD 文字/图标透出来
+
+`roundedPanel(root, w, h, x, y, '#171E2BF7', ...)` —— alpha `F7` = 247 = 96.9%。
+剩那 3% 正好够背后 HUD 的金色金额、设置/奖杯图标变成一层鬼影，
+看起来就是「面板里还有一层文字被压住了」。
+
+定位手法（可复用）：
+1. 把面板内部那块区域裁出来放大 3 倍，鬼影肉眼可见；
+2. 逐行取样 `ImageStat.Stat(im.crop((x, y, x+70, y+4))).mean`，
+   鬼影行比干净底高 **+6~10 灰阶**（3% × 亮字 ≈ 这个量级）。
+
+规矩：**模态面板/弹窗底色一律 6 位 hex（alpha=FF）**，遮罩用 `#000000C8` 左右。
+只有「盖在游戏画面上、本来就想半透」的元素（HUD 条、快捷购买卡）才允许留 alpha。
+
+### 坑 44 · ScrollView 视口下沿切在节点文字上（「内容被挡住」的另一种成因）
+
+节点是**按固定步长排格**的：节点中心距内容顶 `P = padTop + NODE_SIZE/2`，
+相邻行中心相距 `NODE_STEP_Y`。视口下沿若切在节点中心下方一点点，
+就会**从节点名称文字中间划过去**——用户看到的就是「文字被挡了一半」。
+
+判据：要让下沿落进行间隙，必须
+```
+SCROLL_H ≡ P + NODE_STEP_Y / 2   (mod NODE_STEP_Y)
+```
+本项目 `padTop=84 / NODE_SIZE=112 / STEP_Y=124` → `P=140` → 需 `SCROLL_H ≡ 78`。
+原来写死 620，而 `620 mod 124 = 0`，节点中心 ≡ 140 ≡ 16 (mod 124) →
+下沿永远切在节点中心下方 **16px**，正是名称那行。
+
+**两个动作一起做才有效**：
+1. 改 `SCROLL_H` 满足上面的同余式（本例 620 → 574）；
+2. 初始 `sv.scrollToOffset()` 的 offset **对齐到 `NODE_STEP_Y` 的整数倍**，
+   否则任意 offset 又会把节点切在别处。
+
+自检：dump 每个节点的世界 Y 与视口下沿，最近的一个应当是「整行都在下沿之上」。
+
+### 坑 45 · 滚动列表没有指示条 → 用户不知道下面还有内容
+
+`ScrollView` 默认不画滚动条。做法是给 `UIKit.scrollView()` 加一条，
+挂在 **`parent`**（视口外）而不是 view 里面：既不参与滚动，也不会被 Mask 裁掉。
+用一个每帧只比对 `content.height` 与 `sv.getScrollOffset().y` 的小 Component 驱动，
+变了才重排 —— 零调用点改动，重建内容（Wizard/分页）也不用通知它。
+
+```ts
+@ccclass('UIScrollBar') export class UIScrollBar extends Component {
+  sv: ScrollView = null!; content: Node = null!; thumb: Node = null!;
+  trackH = 0; viewH = 0;
+  private lastH = -1; private lastOff = -999;
+  update() {
+    const ch = this.content.getComponent(UITransform)!.height;
+    const off = Math.round(this.sv.getScrollOffset().y);
+    if (ch === this.lastH && off === this.lastOff) { return; }
+    this.lastH = ch; this.lastOff = off;
+    if (ch <= this.viewH + 2) { this.thumb.active = false; return; }
+    this.thumb.active = true;
+    const th = Math.max(36, this.trackH * (this.viewH / ch));
+    const span = this.trackH - th;
+    const t = Math.max(0, Math.min(1, off / Math.max(1, ch - this.viewH)));
+    this.thumb.setPosition(0, span / 2 - t * span, 0);
+  }
+}
+```
+
+⚠️ 指示条是 `parent` 的兄弟节点：**谁 override 了滚动区的 Y，谁就要顺手把指示条搬过去**
+（`frame.getChildByName('sbar')`），否则视口移动时指示条留在原地。
+
+### 坑 46 · 固定尺寸卡片里塞长文本：先挤死，再溢出，最后被裁
+
+同一个症状（「文字像被挡住」）在固定尺寸卡片里有三种表现，按顺序排查：
+
+| 现象 | 数量级 | 修法 |
+|---|---|---|
+| 图标/角标压住文字 | 几 px 重叠 | 重排纵向预算，三段首尾相接 + 留 1~2px 缝 |
+| 长名被 `overflow:'shrink'` 缩成蚂蚁字 | 字号被压到 <11px | 名字压到 ≤ `盒宽/字号` 个汉字；实在要长就在文案里用 `\n` 手动断行（Label 认 `\n`），并把名称盒高度做成两行 |
+| 末字（如收尾的「）」）被挤到第二行当孤字、或被卡片下沿/描边切掉 | 溢出 1 行 | 加宽描述盒 + 加高行高；滚动区下沿再往内收 `bottomPad`，别让卡片描边正好压在行的中段 |
+
+单行展示同一份文案时（信息条）记得 `.replace(/\n/g, ' ')`。
+
+---
+
+## M. 「指针/光标」类 UI：层级 & 输入路由（2026-09-23 第四轮）
+
+症状一句话就能概括：「解锁后图片不在上层、被挡住了、也没出现在手指点击处」——
+**三个独立成因**，别当成一个 bug 猜。
+
+### 坑 47 · 指针类节点要按用途拆层级，别整块 `setSiblingIndex(0)`
+
+一个「手指 + 范围圈」的光标，两部分的层级需求是**相反**的：
+
+| 部件 | 用途 | 层级 |
+|---|---|---|
+| 范围圈 | 地面落点指示 | `setSiblingIndex(0)`，压在影子/物体**之下** |
+| 手指指针 | 指针本体 | 追加到子节点**末尾**，永远在最上 |
+
+原来两者共用一个容器、整容器 `setSiblingIndex(0)`，手指跟着一起沉到瓶子层下面 → 被挡住。
+改成两个独立节点，各管各的索引即可。
+
+自检（无头脚本）：
+```
+kids=cursorRing#0,shadows#1,bottles#2,label#3,cursorPin#4
+ring sib=0 / pin sib=<children.length-1>
+```
+
+### 坑 48 · 投影必须做成**子节点**：同节点的 Sprite 先画、子节点后画
+
+想给指针加一层黑影，如果写成「pin 自己的 Sprite + 一个 shadow 子节点」，
+子节点会**盖在**父节点自己的 Sprite 上 —— 实测整只手被染成灰色。
+Cocos 的 UI 渲染是深度优先：**节点自身的渲染组件先执行，子节点后执行**。
+正确结构 = 无渲染的容器 + 阴影子节点 + 本体子节点（顺序即层序）。
+
+### 坑 49 · 桌面浏览器的「按下」不是 `TOUCH_START`（`input` 级）
+
+`input.on(Input.EventType.TOUCH_MOVE)` 能收到鼠标拖动，但**鼠标按下派发的是
+`MOUSE_DOWN`、不是 `TOUCH_START`**。所以只监听 `TOUCH_MOVE` 的指针逻辑在桌面上会表现为
+「拖动才动、只点不拖完全不动」。
+
+而且 **节点级 `TOUCH_START` 会被子节点截断**：`Bottle.enableTouch` 里
+`e.propagationStopped = true`，点在瓶子上时事件不会冒泡到父节点。
+所以「按下即定位」必须同时在 `input` 级接 `MOUSE_DOWN` + `TOUCH_START`：
+
+```ts
+const aimTouch = (e: EventTouch) => this.aim(e.getUILocation().x, e.getUILocation().y);
+const aimMouse = (e: EventMouse) => this.aim(e.getUILocation().x, e.getUILocation().y);
+this.node.on(Node.EventType.TOUCH_START, aimTouch, this);   // 空白处按下 / 真机触摸
+this.node.on(Node.EventType.TOUCH_MOVE,  aimTouch, this);
+input.on(Input.EventType.TOUCH_START,   aimTouch, this);    // 真机
+input.on(Input.EventType.TOUCH_MOVE,    aimTouch, this);
+input.on(Input.EventType.MOUSE_DOWN,    aimMouse, this);    // 桌面按下
+input.on(Input.EventType.MOUSE_MOVE,    aimMouse, this);    // 桌面跟随
+```
+
+### 坑 50 · 坐标映射先验证，再改代码（本例映射本来是对的）
+
+`e.getUILocation()` + `UITransform.convertToNodeSpaceAR()` 是否匹配，**取决于本工程的
+UI 世界原点位置**，不要凭记忆下结论。一行探针就能判定：
+
+```js
+ut.convertToNodeSpaceAR(node.getWorldPosition())   // ≈ (0,0) 说明「世界坐标」就是这个空间
+```
+若结果 ≈ (0,0)，则 `convertToNodeSpaceAR(getUILocation())` 正确；
+若 ≈ (−W/2, −H/2)（半屏），才需要先加半个可见尺寸。
+（本项目实测 = (0,0)，即 UI 世界原点就在可见设计区左下角。）
+
+### 坑 51 · 让「指尖」而不是「贴图中心」落在触摸点
+
+指针贴图的笔尖通常不在中心。用 PIL 量最上面几行不透明像素的重心：
+
+```python
+xs = [x for y in range(miny, miny+6) for x in range(W) if px[x, y][3] > 16]
+tipx = sum(xs)/len(xs)
+# anchor(0.5,0.5) 下，笔尖相对中心的偏移（本地坐标，+y 朝上）
+ox, oy = tipx - W/2, H/2 - miny
+```
+然后 `pin.position = pointer + (−ox, −oy)`（按贴图显示尺寸等比换算）。
+本项目 `env/cursor.png` 73×78 量得 `(−0.048, +0.487)`，原来只摆 `(0,-6)`，
+笔尖比触摸点高约 23px —— 这也是「没出现在点击处」的一部分。
+
+### 坑 52 · 「点物体」和「点空白」用同一套事件会翻倍触发
+
+如果物体（这里是一张卡片/瓶子）在 **TOUCH_START** 里自己做响应并 `propagationStopped = true`，
+而父容器把「空白处点击」的逻辑挂在 **TOUCH_END** 上，那么点物体就会**两条路都走**：
+
+```
+点瓶子 → 瓶子的 TOUCH_START 触发（翻转 + 阻断冒泡）
+       → TOUCH_END 没有那层阻断，冒泡到父容器 → 「空白处」逻辑再随机翻一只
+       = 一次点击翻两只
+```
+
+**规矩：父容器判断「是否点在空白处」要用与子节点同一个阶段（TOUCH_START）**，
+这样 `propagationStopped` 才能真正把它挡住。顺带响应也从「抬手」提前到「按下」，更跟手。
+
+自检（无头）：给个计数器，单次点击前后各读一次；`+2` 就是踩了这个坑。
+
+### 坑 53 · 「建得早 = 画得早」——特效/飘字层被后来建的内容压住
+
+2D UI 的绘制顺序 = 父节点下**子节点的数组顺序**（后加的画在上面），而不是任何 z 值。
+所以「在 `onLoad` 里建层、在后面的 `build()` 里建内容」这个很自然的写法会直接错位：
+
+```
+onLoad():      worldLayer.addChild(fxLayer)          // fx 先来 → index 0
+buildWorld():  worldLayer.addChild(table)            // 桌子后到 → index 1 → 画在 fx 之上
+结果：worldLayer.children = fxLayer#0, table#1, bottles#2, caps#3
+      → 所有飘字（+$N / MISS / 扣盖）全被桌面挡住，一个都看不见
+```
+
+判据（一行就够）：
+```js
+worldLayer.children.map((c, i) => c.name + '#' + i).join(',')
+```
+
+修法：**等所有内容都 addChild 完之后，再把这个层顶到末尾**：
+```ts
+this.fxLayer.setSiblingIndex(this.worldLayer.children.length - 1);
+```
+
+通用规则：任何「容器/特效层」都不要在 `onLoad` 里建完就以为完事了 ——
+只要还有人会往同一个父节点 `addChild`，就要在全部建完之后重新排序一次。
+
+**验证时的坑（会骗人）**：`FxLayer.floatText` 的默认参数是 `dur=0.85`、`fadeStart=0.42`，
+即**只有前 0.36 秒是满不透明**，之后一路淡出。抓帧要卡在「落地后 0.2~0.4s」，
+抓晚了会看到空白并误判成「根本没渲染」。更稳的做法是直接调一次
+`floatText(x, y, 'TEST', '#B7F7A6', 30, 82, 4.0)`（把时长拉到 4 秒）再截图 —— 与真实调用同一个 API，
+不受动画时序影响。
+
+### 坑 54 · 节点 `UITransform` 和「看得见的图」不一致 → 点击打空 / 点 A 却影响 B
+
+`UITransform` 的尺寸就是**点击命中矩形**，但它跟子节点里那张 Sprite 的尺寸没有任何绑定关系。
+典型错法（本项目真实踩过）：
+
+```ts
+const n = nd(parent, 'bottle' + tier, 100, 200, x, y);      // 命中框：100×200（再乘 node.scale）
+const bn = nd(n, 'art', 150, 375, 0, 0, 0.5, 0.34);         // 看得见的瓶身：150×375
+```
+
+缩放后命中框只有 53×107 世界单位，而瓶子是 80×200 —— **点瓶口、点瓶底全部打空**。
+如果这时场地还挂着「空白处按下 → 随机处理一个」的兜底逻辑，就变成
+「**点 A 结果 B 有反应**」这种极难从代码上看出来的手感 bug。
+
+**两条口径**：
+1. 想让节点自带事件准：把 `UITransform` 尺寸/锚点设成与那张 Sprite 一致
+   （`nd(parent, name, ART_W, ART_H, x, y, 0.5, ART_AY)`）—— 改尺寸/锚点不会移动既有子节点，安全。
+2. 想要「矩形重叠时互不阻挡 / 可穿透」，就别用节点事件（它只会派给最上层那个），
+   改在父层自己做命中：
+```ts
+hitTest(worldX: number, worldY: number): boolean {   // 放在物体自己的组件里
+    const ut = this.node.getComponent(UITransform)!;
+    const p = ut.convertToNodeSpaceAR(tmpVec3(worldX, worldY));   // 逆矩阵，旋转/缩放自动算进去
+    return p.x >= -ART_W * 0.5 && p.x <= ART_W * 0.5
+        && p.y >= -ART_H * ART_AY && p.y <= ART_H * (1 - ART_AY);
+}
+```
+父层遍历所有物体，**命中的全部处理**，就得到「不阻挡 / 穿透」的手感。
+
+**两个配套的坑（会让改动直接失效）**：
+- 存指针坐标的 `aim()` 里**不要**带任何「功能是否解锁」的 gate（如 `if (!hasCursor) return;`）——
+  指针同时是点击命中的输入源，带了 gate 会导致未解锁时**点击整个失灵**（表现为计数器恒为 0）。
+- 指针坐标是**父节点本地坐标**（悬停半径判定用），而 `convertToNodeSpaceAR` 要**世界坐标**，
+  中间差着父节点自身的位移/缩放 → 必须先 `ut.convertToWorldSpaceAR(tmp)` 换算一次。
 
 ---
 

@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Sprite, tween, Tween, Vec3, Color, UIOpacity, Enum } from 'cc';
+import { _decorator, Component, Node, Sprite, tween, Tween, Vec3, Color, UIOpacity, Enum, UITransform } from 'cc';
 import { LAYOUT, TIERS } from '../Core/GameConfig';
 import { Res } from '../Core/Res';
 import { hex } from '../Core/Util';
@@ -8,7 +8,10 @@ import { img, nd, setFrame, setSize } from '../UI/UIKit';
 
 const { ccclass } = _decorator;
 
-export const BOTTLE_SCALE = LAYOUT.bottleH / 375;
+/** 瓶身贴图尺寸与锚点（build() 的 setFrame 与 hitTest 共用这一组，别再写魔数） */
+const ART_W = 150, ART_H = 375, ART_AY = 0.34;
+
+export const BOTTLE_SCALE = LAYOUT.bottleH / ART_H;
 
 /** 影子相对「瓶身静止基准点」的下移量：贴在瓶底、再往上一点（值越小越贴近瓶子） */
 const SHADOW_DY = LAYOUT.bottleH * 0.375;
@@ -52,9 +55,9 @@ export class Bottle extends Component {
         this.shadow.setScale(1, 1, 1);
 
         // 瓶身（锚点在瓶底偏上，便于绕“瓶底”翻转）
-        const bn = nd(this.node, 'art', 150, 375, 0, 0, 0.5, 0.34);
+        const bn = nd(this.node, 'art', ART_W, ART_H, 0, 0, 0.5, ART_AY);
         this.body = bn.addComponent(Sprite);
-        setFrame(this.body, 'bottle/body_' + TIERS[tier].art, 150, 375);
+        setFrame(this.body, 'bottle/body_' + TIERS[tier].art, ART_W, ART_H);
 
         // 贴图本身画的是「瓶口朝下」，所以静置默认要转 180° 才是瓶口朝上
         this.node.angle = 180;
@@ -62,17 +65,29 @@ export class Bottle extends Component {
         this.applyRest(false);
     }
 
-    /** 让节点可点 */
-    enableTouch(cb: (b: Bottle) => void) {
-        this.node.on(Node.EventType.TOUCH_START, (e: any) => {
-            e.propagationStopped = true;
-            cb(this);
-        });
+    /**
+     * 点是否落在**这只瓶子的瓶身**上（参数为世界层局部坐标）。
+     *
+     * 为什么要自己算、不用节点自带的 touch：
+     *  ① 节点 UITransform 原来是 100×200（再乘 BOTTLE_SCALE≈0.53 → 世界只有 53×107），
+     *     而可见瓶身贴图是 150×375（世界 80×200）—— 命中框比看得见的瓶子小一半多，
+     *     点瓶口/瓶底经常打空，事件回落到场地被「空白处」逻辑接住 → 玩家点 A 结果 B 翻了；
+     *  ② 瓶子矩形互相重叠时节点事件只有最上面那只收得到，被压住的那只永远点不到。
+     * 所以统一改成「把点逆变换到节点本地，再判瓶身贴图矩形」，姿态旋转（180°/0°/±93°）也被正确考虑。
+     */
+    hitTest(wx: number, wy: number): boolean {
+        if (!this.node || !this.node.isValid) { return false; }
+        const ut = this.node.getComponent(UITransform);
+        if (!ut) { return false; }
+        const p = ut.convertToNodeSpaceAR(new Vec3(wx, wy, 0));
+        // art 子节点：ART_W×ART_H、锚点 (0.5, ART_AY)，且固定在节点本地原点
+        return p.x >= -ART_W * 0.5 && p.x <= ART_W * 0.5
+            && p.y >= -ART_H * ART_AY && p.y <= ART_H * (1 - ART_AY);
     }
 
     /** 刷新外观（换档时） */
     refresh() {
-        setFrame(this.body, 'bottle/body_' + TIERS[this.tier].art, 150, 375);
+        setFrame(this.body, 'bottle/body_' + TIERS[this.tier].art, ART_W, ART_H);
     }
 
     /** 是否处于可翻转的静止状态 */

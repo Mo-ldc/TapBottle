@@ -22,3 +22,9 @@ node_modules/
 # WebStorm
 #//////////////////////////
 .idea/
+
+#//////////////////////////
+# WorkBuddy 一次性排查产物
+#//////////////////////////
+.workbuddy/*.txt
+.workbuddy/*.log
