@@ -18,7 +18,10 @@ export class HelperHands extends Component {
     private hiddenAcc = 0;
 
     private makeHand(i: number): Hand {
-        const n = nd(this.node, 'hand' + i, 62, 88, LAYOUT.tableX - 190 + i * 60, PLAY_AREA.y1 + 96);
+        // 机械手排在活动区上方：每行 5 只、最多 2 行，整体水平居中（新布局的桌面上方留白）
+        const col = i % 5, row = Math.floor(i / 5);
+        const n = nd(this.node, 'hand' + i, 62, 88,
+            -150 + col * 75, PLAY_AREA.y1 - 26 - row * 72);
         const sp = n.addComponent(Sprite);
         setFrame(sp, 'env/hand', 62, 88);
         n.setScale(0.95, 0.95, 1);
@@ -62,15 +65,15 @@ export class HelperHands extends Component {
     private handAct(h: Hand) {
         const field = BottleField.I;
         if (!field || field.bottles.length === 0) { return; }
-        // ★ 只抓「该阶已购助手自动化许可」的瓶子（§5.1 分支 3，T1 天生允许）
-        const idle = field.bottles.filter(b => b.idle && G.helperAllowed(b.tier));
+        // ★ 用户口径：助手之手不挑阶 —— 不看「助手许可」（h_bronze..），场上所有 idle 瓶子都能翻
+        const idle = field.bottles.filter(b => b.idle);
         if (idle.length === 0) { h.t = 0.25; return; }
         const target = idle[Math.floor(Math.random() * idle.length)];
         h.busy = G.handInterval * 0.8;
         const p = target.node.position;
         const to = new Vec3(p.x, p.y + LAYOUT.bottleH * 0.60, 0);
-        const back = new Vec3(LAYOUT.tableX + (Math.random() - 0.5) * 380,
-            PLAY_AREA.y1 + 50 + Math.random() * 56, 0);
+        const back = new Vec3((Math.random() - 0.5) * 380,
+            PLAY_AREA.y1 - 30 + Math.random() * 40, 0);
 
         tween(h.node)
             .to(0.20, { position: to }, { easing: 'quadOut' })
@@ -88,7 +91,7 @@ export class HelperHands extends Component {
     private directFlip() {
         const owned: number[] = [];
         for (let t = 0; t < 7; t++) {
-            if (!G.helperAllowed(t)) { continue; }          // 无自动化许可的阶数不参与挂机结算
+            // ★ 用户口径：静默结算同样不看许可，所有在手阶数都参与
             for (let i = 0; i < G.data.bottles[t]; i++) { owned.push(t); }
         }
         if (owned.length === 0) { return; }
@@ -96,10 +99,10 @@ export class HelperHands extends Component {
         const r = G.doFlipResult(tier, G.rollOutcome(tier));
         if (r.deferred && r.caps > 0) {
             CapMachine.I?.spawnChips(r.caps, tier,
-                LAYOUT.tableX + (Math.random() - 0.5) * 420, LAYOUT.rowBaseline[1]);
+                (Math.random() - 0.5) * 300, PLAY_AREA.y0 + 60);
         }
         if (r.success && !G.data.settings.hideIncome && Math.random() < 0.05 && FxLayer.I) {
-            FxLayer.I.floatText(LAYOUT.tableX + (Math.random() - 0.5) * 380, PLAY_AREA.y1 + 120,
+            FxLayer.I.floatText((Math.random() - 0.5) * 380, PLAY_AREA.y1 - 30,
                 '$' + r.amount.toFixed(0), '#9EE8B0', 22, 60, 0.7);
         }
     }

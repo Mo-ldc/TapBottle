@@ -25,6 +25,8 @@ export const L: Record<string, Entry> = {
     back:             { zh: '返回', en: 'Back' },
     not_enough:       { zh: '资源不足', en: 'Not enough' },
     maxed:            { zh: '已升至最高等级', en: 'Max level' },
+    all_done:         { zh: '本类目已全部解锁', en: 'All unlocked here' },
+    tag_new:          { zh: '新', en: 'NEW' },
 
     /* 导航 */
     shop:             { zh: '商店', en: 'Shop' },
@@ -304,6 +306,9 @@ export const L: Record<string, Entry> = {
     tab_player:       { zh: '玩家科技', en: 'Player' },
     tab_helper:       { zh: '助手强化', en: 'Helpers' },
     tab_tree:         { zh: '技能树', en: 'Skill Tree' },
+    nav_shop:         { zh: '商店', en: 'Shop' },
+    nav_upgrade:      { zh: '升级', en: 'Upgrade' },
+    nav_skill:        { zh: '技能树', en: 'Skill Tree' },
     drawer_hint:      { zh: '⌃ 上滑展开升级列表', en: '⌃ Swipe up to expand' },
 
     /* ---- 瓶盖履带 ---- */
@@ -322,7 +327,9 @@ export const L: Record<string, Entry> = {
     sk_root_d:        { zh: '技能树的起点，免费激活后解锁全部支线', en: 'Skill tree root — free, opens every branch' },
     owned_n:          { zh: '拥有 {n}/{m}', en: 'Owned {n}/{m}' },
     unlock_next:      { zh: '解锁下一阶', en: 'Unlock next tier' },
-    locked_tier:      { zh: '需先解锁前一阶', en: 'Unlock previous tier first' },
+    /* 「需先解锁前一阶」是错的引导：T2~T7 不是靠买前一阶解锁的，
+     * 而是在「技能树 · 瓶子科技」花瓶盖**研发**。所以这句话必须指向去处。 */
+    locked_tier:      { zh: '需在「技能树 · 瓶子科技」研发', en: 'Research it in Bottle Tech' },
     buy_bottle:       { zh: '购买瓶子', en: 'Buy Bottle' },
     crit_landing:     { zh: '扣盖暴击！', en: 'CAP LANDING!' },
     berserk_combo:    { zh: '狂暴连击', en: 'Berserk combo' },
@@ -333,6 +340,60 @@ export const L: Record<string, Entry> = {
     buy_hand:         { zh: '雇佣助手', en: 'Hire Hand' },
     hand_price:       { zh: '价格', en: 'Price' },
     max_hands:        { zh: '容量上限', en: 'Capacity' },
+
+    /* ---- 购买引导：点不动的时候必须说清「差什么、去哪拿」 ----
+     * 用户反馈「未解锁的选项点击的时候提示却是金币不足，引导性不足」——
+     * 所以这里把「资源不够」拆成带**具体差额**的两种，并把「没研发 / 没买设施」
+     * 单独成句、指明去处。 */
+    short_money:      { zh: '金币不足，还差 ${n}', en: 'Need ${n} more coins' },
+    short_caps:       { zh: '瓶盖不足，还差 {n} 枚', en: 'Need {n} more caps' },
+    research_in_tree: { zh: '先去「技能树 · {tree}」研发「{name}」（{cost} 瓶盖）', en: 'Research "{name}" in {tree} first ({cost} caps)' },
+    need_machine:     { zh: '先去「商城」花 $1,000 买下瓶盖机器', en: 'Buy the Cap Machine in the shop first ($1,000)' },
+    go_research:      { zh: '去研发', en: 'Research' },
+    go_install:       { zh: '去安装', en: 'Install' },
+    need_parent_n:    { zh: '需先解锁「{name}」', en: 'Unlock "{name}" first' },
+    next_goal:        { zh: '下一步', en: 'Next step' },
+    goal_machine:     { zh: '在商城花 $1,000 买下瓶盖机器 —— 装好后扣盖才开始产出瓶盖', en: 'Buy the Cap Machine in the shop ($1,000) — caps only drop once it is installed' },
+    goal_bottles:     { zh: '先买几只瓶子、把「金币基础收益」升上去，攒够 $1,000 买瓶盖机器', en: 'Buy bottles and level Income, then save $1,000 for the Cap Machine' },
+    goal_research:    { zh: '在「技能树 · 瓶子科技」花 {cost} 瓶盖研发 T{t} {name}', en: 'Research T{t} {name} in Bottle Tech for {cost} caps' },
+    goal_buy_tier:    { zh: '去商城「瓶子」页买一只 T{t} {name}（${cost}）', en: 'Buy a T{t} {name} on the shop Bottle tab (${cost})' },
+    goal_helper:      { zh: '在「技能树 · 助手科技」花 {cost} 瓶盖研发「解锁助手之手」，开启自动翻转', en: 'Research the Helper Hand in Helper Tech for {cost} caps to automate flipping' },
+    goal_helper_buy:  { zh: '在商城「助手」页雇第一只助手之手（${cost}）', en: 'Hire your first Helper Hand on the shop Helper tab (${cost})' },
+    goal_done:        { zh: '里程碑全部达成 · 继续冲技能树吧', en: 'All milestones done — keep pushing the skill tree' },
+
+    /* ---- 内嵌升级面板（底栏下方的商店 / 天赋列表，不是二级弹窗） ---- */
+    shop_cat_bottle:  { zh: '瓶子', en: 'Bottles' },
+    shop_cat_machine: { zh: '履带设施', en: 'Belt Facility' },
+    shop_cat_helper:  { zh: '助手之手', en: 'Helper Hands' },
+    tree_cat_belt:    { zh: '履带升级', en: 'Belt Tech' },
+    tree_cat_idle:    { zh: '挂机模式', en: 'Idle Mode' },
+    tree_cat_hand:    { zh: '手部操作', en: 'Hand Tech' },
+    tree_cat_ability: { zh: '特殊技能', en: 'Abilities' },
+    /* 技能树 · 瓶子模块：两条「模块解锁」节点（原版挂在各阶瓶子天赋树上） */
+    unlock_cursor:      { zh: '解锁光圈', en: 'Unlock Cursor' },
+    unlock_cursor_d:    { zh: '在桌面上开启抓取光圈，并开启「手部操作」技能模块', en: 'Opens the grab cursor and the Hand tech module' },
+    unlock_beltmod:     { zh: '解锁传送带模块', en: 'Unlock Belt Module' },
+    unlock_beltmod_d:   { zh: '开启「履带升级」科技线（瓶盖机器配套模块）', en: 'Opens the Belt tech line for the cap machine' },
+    tree_hint_income:   { zh: '先升一级「收入」，本阶其余词条才会解锁', en: 'Upgrade Income once to reveal the other perks' },
+    module_locked:      { zh: '该模块尚未解锁', en: 'Module locked' },
+    panel_hint:       { zh: '点右侧按钮购买 / 升级', en: 'Tap the button to buy / upgrade' },
+    row_gate:         { zh: '需先解锁前置', en: 'Unlock prerequisite' },
+
+    /* ---- 广告商业化（UI/Ads.ts 统一入口） ---- */
+    ad_coin:          { zh: '金币翻倍', en: 'Double Coins' },
+    ad_cap:           { zh: '瓶盖翻倍', en: 'Double Caps' },
+    ad_halo:          { zh: '光圈变大', en: 'Bigger Halo' },
+    ad_tag:           { zh: '广告', en: 'AD' },
+    ad_active_toast:  { zh: '增益生效中，剩余 {n}s', en: 'Buff active, {n}s left' },
+    ad_grant_coin:    { zh: '金币翻倍已激活（3 分钟）', en: 'Double coins ON (3 min)' },
+    ad_grant_cap:     { zh: '瓶盖翻倍已激活（3 分钟）', en: 'Double caps ON (3 min)' },
+    ad_grant_halo:    { zh: '光圈已放大（3 分钟）', en: 'Halo enlarged (3 min)' },
+    ad_offer_title:   { zh: '金币不足', en: 'Not Enough Coins' },
+    ad_offer_body:    { zh: '看一条广告立即补足金币', en: 'Watch an ad to get coins instantly' },
+    ad_watch_now:     { zh: '看广告解锁', en: 'Watch Ad' },
+    ad_fail:          { zh: '广告未完成，稍后再试', en: 'Ad not finished, try again later' },
+    ad_x3:            { zh: '×3 看广告', en: '×3 Watch Ad' },
+    ad_x3_done:       { zh: '离线收益已提升为 3 倍！', en: 'Offline earnings tripled!' },
 
     /* ---- 里程碑（GDD §7 24 阶，同时是瓶子词条的门控） ---- */
     ms_chip:          { zh: '里程碑 M{n}', en: 'Milestone M{n}' },

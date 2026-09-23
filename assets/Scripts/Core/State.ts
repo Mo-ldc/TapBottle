@@ -1,5 +1,5 @@
 import {
-    ABILITY, ACHIEVEMENTS, BOTTLE_STATS, FLIP, HAND, MACHINE, MILESTONES, MilestoneDef,
+    ABILITY, ACHIEVEMENTS, AD_BUFF_SEC, BOTTLE_STATS, CAP_GAIN_BASE, FLIP, HAND, MACHINE, MILESTONES, MilestoneDef,
     SKILLS, SkillDef, TIERS, TreeId,
 } from './GameConfig';
 import { SaveData, defaultSave, loadSave, writeSave, clearSave } from './Save';
@@ -64,6 +64,23 @@ export class State {
         return def.base + (this.data.skills[id] || 0) * def.step;
     }
     skLv(id: string): number { return this.data.skills[id] || 0; }
+
+    /**
+     * 「新」标签的通用已读查询 —— 商店 / 升级 / 技能树共用一份 `seenModules`。
+     * id 命名见 Save.ts 的字段注释；**不在集合里的可见项 = 新出现的**。
+     */
+    itemSeen(id: string): boolean { return (this.data.seenModules || []).indexOf(id) >= 0; }
+    markItemSeen(id: string) {
+        if (!this.data.seenModules) { this.data.seenModules = []; }
+        if (this.data.seenModules.indexOf(id) < 0) { this.data.seenModules.push(id); }
+    }
+    /** 首次进游戏的一次性「已读基线」（把当时可见的商店/升级项标为已见，避免开局满屏「新」） */
+    get seenBaseline() { return this.data.seenBaseline > 0; }
+    markBaseline(ids: string[]) {
+        for (const id of ids) { this.markItemSeen(id); }
+        this.data.seenBaseline = 1;
+        this.save();
+    }
     skMax(id: string): boolean {
         const def = SKILL_BY_ID[id];
         return !def ? true : this.skLv(id) >= def.max;
@@ -191,9 +208,20 @@ export class State {
     tierAgainChance(tier: number): number { return clamp01(this.statLv(tier, 'again') * 0.02); }
     /** 随机连锁翻转几率（每级 +2%） */
     tierRandomChance(tier: number): number { return clamp01(this.statLv(tier, 'random') * 0.02); }
-    /** 扣盖掉落的瓶盖枚数（基础 1 + 词条 + 金瓶被动 +1） */
+    /**
+     * 扣盖落地产出的瓶盖枚数。
+     *
+     * = 该阶基础值 `CAP_GAIN_BASE[tier]`（逐阶递增，原版是七阶全 1，见 GameConfig 注释）
+     *   + 该阶「扣盖掉落」词条等级（每级 +1）
+     *   + T4 黄金瓶被动 +1
+     *
+     * ★ 只有 outcome === 'crit'（瓶口朝下 / 完美姿态）才会走到这里 —— 见 doFlipResult；
+     *   而且没买瓶盖机器时 doFlipResult 会把结果清零，所以「没解锁传送带」或
+     *   「瓶子没倒立扣盖」这两种情况**一律不产出瓶盖、也不会有任何瓶盖特效**。
+     */
     tierCapGain(tier: number): number {
-        return 1 + this.statLv(tier, 'capgain') + (tier >= 3 ? 1 : 0);
+        const t = Math.max(0, Math.min(6, tier));
+        return CAP_GAIN_BASE[t] + this.statLv(t, 'capgain') + (t >= 3 ? 1 : 0);
     }
     /** 扣盖时额外获得的瓶盖收益（caps 货币词条，结算时折算进金币） */
     tierCapIncome(tier: number): number {
@@ -294,8 +322,25 @@ export class State {
         this.notify();
         return true;
     }
-    /** 光标吸附半径（px）：0.55m × (1 + 0.05L) */
-    get cursorRadius() { return this.sk('p_cursorsize'); }
+    /** 光标吸附半径（px）：0.55m × (1 + 0.05L)；广告增益「光圈变大」期间 ×2 */
+    get cursorRadius() { return this.sk('p_cursorsize') * (this.haloBuffOn ? 2 : 1); }
+
+    /* ================= 广告增益（UI/Ads.ts 统一入口激活） ================= */
+    /** 增益剩余秒数（0 = 未生效）。到期时间是绝对时间戳 → 离线也在倒计时 */
+    adBuffLeft(kind: 'coin' | 'cap' | 'halo'): number {
+        const end = (this.data.adBuffs && this.data.adBuffs[kind]) || 0;
+        return Math.max(0, (end - Date.now()) / 1000);
+    }
+    get coinBuffOn(): boolean { return this.adBuffLeft('coin') > 0; }
+    get capBuffOn(): boolean { return this.adBuffLeft('cap') > 0; }
+    get haloBuffOn(): boolean { return this.adBuffLeft('halo') > 0; }
+    /** 激活 / 续上一次 3 分钟增益 */
+    activateAdBuff(kind: 'coin' | 'cap' | 'halo') {
+        if (!this.data.adBuffs) { this.data.adBuffs = { coin: 0, cap: 0, halo: 0 }; }
+        this.data.adBuffs[kind] = Date.now() + AD_BUFF_SEC * 1000;
+        this.save();
+        this.notify();
+    }
     get idleDuration() { return this.sk('p_idletime'); }
     get idleRecovery() { return Math.max(0.5, this.sk('p_idlerecov')); }
     get idleMoveSpeed() { return this.sk('p_idlemove'); }
@@ -383,7 +428,6 @@ export class State {
         if (outcome === 'crit') {
             amount *= this.critMult(tier);
             amount += this.tierCapIncome(tier);
-            caps = this.tierCapGain(tier);
         }
         // M_double
         const pc = this.tierDoubleChance(tier);
@@ -395,6 +439,8 @@ export class State {
             amount *= this.berserkMult;
             this.berserkFlips--;
         }
+        // 广告增益「金币翻倍」：在原有结算的基础上再结算一倍（Ads.ts 统一入口激活）
+        if (this.coinBuffOn) { amount *= 2; }
 
         this.data.money += amount;
         this.data.stats.earned += amount;
@@ -403,10 +449,12 @@ export class State {
 
         // 瓶盖结算
         //
-        // ★ 原版规则：**没装瓶盖机器就压根没有瓶盖产出** —— 桌台下方是空的，扣盖弹出来的
-        //   实体瓶盖没地方落。必须先到「商店」花 $1,000 装上传送带，瓶盖才会开始掉。
-        //   所以这里直接把 caps 归零，而不是「提前入账」。
+        // ★ 用户口径（第十四轮）：**树立（ok）或倒立（crit）落地都获得 1 枚对应品质的瓶盖**，
+        //   不再按阶给多枚。原版规则保留：没装瓶盖机器就压根没有瓶盖产出 —— 必须先到
+        //   「商店」花 $1,000 装上传送带，瓶盖才会开始掉。装好后瓶盖要先沿履带运到
+        //   出售箱才真正计入 caps。
         if (!this.hasMachine) { caps = 0; }
+        else { caps = this.capBuffOn ? 2 : 1; }   // ok（树立）/ crit（倒立）都给 1 枚（广告「瓶盖翻倍」期间 ×2）；fail 在函数开头已提前返回
         // 装好机器后：瓶盖要先沿履带运到顶端回收槽才真正计入 caps
         const deferred = caps > 0;
         if (caps > 0) { this.pendingCaps += caps; }

@@ -3,7 +3,7 @@ import { MILESTONES } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { t } from '../Core/Locale';
 import { fmt, fmtTime } from '../Core/Util';
-import { label } from './UIKit';
+import { label, roundedPanel } from './UIKit';
 import { openPanel, rowCard } from './Panel';
 
 /** 统计面板 */
@@ -31,14 +31,18 @@ export function openStats(parent: Node) {
     ];
 
     const labels: Array<{ lb: Label, get: () => string }> = [];
-    const allTime = label(C, t('all_time', G.lang), -296, -14, 300, 40, {
-        size: 28, color: '#9FB3CC', hAlign: 'left', anchorX: 0,
+    // ⚠️ 奶油底上不能用浅灰米色（#D8CDB8 对比度 ~1.3:1，等于隐形），统一深棕
+    roundedPanel(C, 12, 30, -300, -14, '#8A5A20', 6, undefined, 0, 'secTick');
+    const allTime = label(C, t('all_time', G.lang), -284, -14, 300, 40, {
+        size: 28, color: '#7A4210', hAlign: 'left', anchorX: 0,
     });
     void allTime;
-    let y = -68;
+    // ⚠️ 标题字形最低点接近 label 中心，首行卡片顶沿必须低于标题中心 ≥30px，
+    //   否则卡片（后建、渲染在上层）会盖住标题下半截（与设置面板同款 bug）
+    let y = -92;
     for (const d of defs) {
-        const card = rowCard(C, RW, 88, 0, y, '#1D2636');
-        label(card, t(d.key, G.lang), -280, 0, 320, 50, { size: 26, color: '#C9D6E6', hAlign: 'left', anchorX: 0 });
+        const card = rowCard(C, RW, 88, 0, y, '#5C4420');
+        label(card, t(d.key, G.lang), -280, 0, 320, 50, { size: 26, color: '#F1E0C0', hAlign: 'left', anchorX: 0 });
         const v = label(card, '', 280, 0, 340, 50, { size: 28, color: '#FFD75E', hAlign: 'right', anchorX: 1 });
         labels.push({ lb: v, get: d.get });
         y -= 98;
@@ -46,15 +50,16 @@ export function openStats(parent: Node) {
 
     // 瓶子分布
     y -= 14;
-    label(C, t('shop_bottles', G.lang), -296, y, 300, 40, {
-        size: 28, color: '#9FB3CC', hAlign: 'left', anchorX: 0,
+    roundedPanel(C, 12, 30, -300, y, '#8A5A20', 6, undefined, 0, 'secTick');
+    label(C, t('shop_bottles', G.lang), -284, y, 300, 40, {
+        size: 28, color: '#7A4210', hAlign: 'left', anchorX: 0,
     });
-    y -= 54;
+    y -= 80;
     const bottleVals: Label[] = [];
     for (let i = 0; i < 7; i++) {
-        const card = rowCard(C, RW, 76, 0, y, '#1D2636');
+        const card = rowCard(C, RW, 76, 0, y, '#5C4420');
         label(card, t(['Common', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Divine', 'Celestial'][i], G.lang),
-            -280, 0, 320, 50, { size: 24, color: '#C9D6E6', hAlign: 'left', anchorX: 0 });
+            -280, 0, 320, 50, { size: 24, color: '#F1E0C0', hAlign: 'left', anchorX: 0 });
         const v = label(card, '', 280, 0, 340, 50, { size: 26, color: '#8CE7A2', hAlign: 'right', anchorX: 1 });
         bottleVals.push(v);
         y -= 86;

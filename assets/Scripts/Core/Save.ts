@@ -20,6 +20,23 @@ export interface SaveData {
      */
     machine: number;
     skills: Record<string, number>;
+    /**
+     * 「已读」项 id 集 —— 商店 / 升级 / 技能树三处**共用一份**。
+     *   · 技能树模块：裸 id（bt0..bt6 / belt / idle / hand / abil）；
+     *   · 商店：`sh:b{阶}` / `sh:machine` / `sh:helper`；
+     *   · 升级：`up:s{阶}:{词条}` / `up:k{节点}`；
+     *   · 技能树里的节点行：`tr:b{阶}:{词条}` / `tr:m{模块}` / `tr:u{阶}` / `tr:k{节点}`。
+     * 不在集合里的**可见**项 = 新出现的，底栏按钮与列表格子都会挂「新」标签。
+     */
+    seenModules: string[];
+    /**
+     * 是否已做过一次「已读基线」。
+     * ★ 首次进游戏时桌面上本来就摆着一堆可买项（T1 瓶 / 瓶盖机 / T1 收入…），
+     *   若不做基线，三个底栏按钮开局就全亮「新」——那不是「新增」而是「初始」。
+     *   所以第一次构建面板时，把当时**可见的商店/升级项**一次性标为已见（技能树模块不标，
+     *   因为它在买下瓶盖机之前根本进不去，买下那一刻标「新」正好是玩家要的提示）。
+     */
+    seenBaseline: number;
     ach: number[];
     stats: { flips: number; earned: number; capsEarned: number; time: number; best: number };
     settings: {
@@ -29,6 +46,11 @@ export interface SaveData {
     last: number;
     eps: number;
     cps: number;
+    /**
+     * 广告增益到期时间戳（ms，绝对时间）—— UI/Ads.ts 统一入口激活。
+     * ★ 用绝对时间而不是剩余秒数：离线 / 关游戏期间也在正常倒计时。
+     */
+    adBuffs: { coin: number; cap: number; halo: number };
 }
 
 function emptyTierStats(): number[][] {
@@ -52,6 +74,8 @@ export function defaultSave(): SaveData {
         hands: 0,
         machine: 0,
         skills: {},
+        seenModules: [],
+        seenBaseline: 0,
         ach: [],
         stats: { flips: 0, earned: 0, capsEarned: 0, time: 0, best: 0 },
         settings: {
@@ -61,6 +85,7 @@ export function defaultSave(): SaveData {
         last: 0,
         eps: 0,
         cps: 0,
+        adBuffs: { coin: 0, cap: 0, halo: 0 },
     };
 }
 
@@ -75,6 +100,10 @@ function normalize(o: any): SaveData {
     const versionOk = o.v === SAVE_VERSION;
     m.skills = (versionOk && o.skills && typeof o.skills === 'object') ? o.skills : {};
     if (!Array.isArray(m.ach)) { m.ach = []; }
+    m.seenModules = Array.isArray(o.seenModules)
+        ? o.seenModules.filter((s: any) => typeof s === 'string')
+        : [];
+    m.seenBaseline = o.seenBaseline ? 1 : 0;
     if (!Array.isArray(m.bottles) || m.bottles.length !== TIERS.length) { m.bottles = d.bottles; }
     if (!versionOk || !Array.isArray(o.tierStats) || o.tierStats.length !== TIERS.length) {
         m.tierStats = emptyTierStats();
@@ -97,6 +126,12 @@ function normalize(o: any): SaveData {
     // 读档时履带是空的：把在途瓶盖直接结算，避免玩家丢资源
     if (typeof m.pendingCaps !== 'number' || !isFinite(m.pendingCaps) || m.pendingCaps < 0) { m.pendingCaps = 0; }
     if (m.pendingCaps > 0) { m.caps += m.pendingCaps; m.pendingCaps = 0; }
+    // 广告增益时间戳（旧档没有 → 全 0 = 无增益）
+    m.adBuffs = {
+        coin: (o.adBuffs && typeof o.adBuffs.coin === 'number' && isFinite(o.adBuffs.coin)) ? o.adBuffs.coin : 0,
+        cap: (o.adBuffs && typeof o.adBuffs.cap === 'number' && isFinite(o.adBuffs.cap)) ? o.adBuffs.cap : 0,
+        halo: (o.adBuffs && typeof o.adBuffs.halo === 'number' && isFinite(o.adBuffs.halo)) ? o.adBuffs.halo : 0,
+    };
     m.v = SAVE_VERSION;
     return m;
 }

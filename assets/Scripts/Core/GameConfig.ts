@@ -262,6 +262,20 @@ export const BOTTLE_STAT_VIEW: string[] = [
     'random', 'again', 'double', 'capincome', 'capgain', 'hover',
 ];
 
+/**
+ * **技能树 · 瓶子模块**的节点顺序（★ 原版 `BottleSkillTreeUpgradeUI` 的 UpgradeType 顺序）。
+ *
+ * 原版每阶瓶子都有一棵独立的 10 节点天赋树，dump 出来的顺序是：
+ *   Unlock → Income → IncomeBonus → Speed → CapGain → BuyableLimit
+ *   → FlipMastery → DoubleIncome → FlipAgain → RandomFlip → (FlipMode 悬停)
+ * 其中 Unlock 由 BottomPanel 单独处理（用研发节点），这里只列**词条**部分；
+ * `capincome`（瓶盖机收入）是升级页的全局项，不在瓶子树里。
+ */
+export const BOTTLE_TREE_ORDER: string[] = [
+    'income', 'multiplier', 'speed', 'capgain', 'limit',
+    'mastery', 'double', 'again', 'random', 'hover',
+];
+
 /* ================================================================== *
  *  里程碑成长系统（GDD §7 —— 原版 MilestoneSO 真实 24 阶阈值）
  *
@@ -341,12 +355,12 @@ export interface SkillDef {
 
 export const SKILLS: SkillDef[] = [
     /* ---- 分支 1：瓶子科技（研发解锁各阶瓶子购买资格，§4.1 科技树解锁成本） ---- */
-    { id: 'ul_t2', tree: 'bottle', name: 'sk_ul_t2', desc: 'sk_ul_t2_d', icon: 'bottle/icon_bronze', max: 1, baseCost: 1600, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't2', tier: 1 },
-    { id: 'ul_t3', tree: 'bottle', name: 'sk_ul_t3', desc: 'sk_ul_t3_d', icon: 'bottle/icon_silver', max: 1, baseCost: 4800, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't3', tier: 2 },
-    { id: 'ul_t4', tree: 'bottle', name: 'sk_ul_t4', desc: 'sk_ul_t4_d', icon: 'bottle/icon_gold', max: 1, baseCost: 10000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't4', tier: 3 },
-    { id: 'ul_t5', tree: 'bottle', name: 'sk_ul_t5', desc: 'sk_ul_t5_d', icon: 'bottle/icon_ruby', max: 1, baseCost: 20000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't5', tier: 4 },
-    { id: 'ul_t6', tree: 'bottle', name: 'sk_ul_t6', desc: 'sk_ul_t6_d', icon: 'bottle/icon_emerald', max: 1, baseCost: 45000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't6', tier: 5 },
-    { id: 'ul_t7', tree: 'bottle', name: 'sk_ul_t7', desc: 'sk_ul_t7_d', icon: 'bottle/icon_diamond', max: 1, baseCost: 90000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't7', tier: 6 },
+    { id: 'ul_t2', tree: 'bottle', name: 'sk_ul_t2', desc: 'sk_ul_t2_d', icon: 'bottle/body_1', max: 1, baseCost: 1600, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't2', tier: 1 },
+    { id: 'ul_t3', tree: 'bottle', name: 'sk_ul_t3', desc: 'sk_ul_t3_d', icon: 'bottle/body_2', max: 1, baseCost: 4800, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't3', tier: 2 },
+    { id: 'ul_t4', tree: 'bottle', name: 'sk_ul_t4', desc: 'sk_ul_t4_d', icon: 'bottle/body_3', max: 1, baseCost: 10000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't4', tier: 3 },
+    { id: 'ul_t5', tree: 'bottle', name: 'sk_ul_t5', desc: 'sk_ul_t5_d', icon: 'bottle/body_5', max: 1, baseCost: 20000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't5', tier: 4 },
+    { id: 'ul_t6', tree: 'bottle', name: 'sk_ul_t6', desc: 'sk_ul_t6_d', icon: 'bottle/body_4', max: 1, baseCost: 45000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't6', tier: 5 },
+    { id: 'ul_t7', tree: 'bottle', name: 'sk_ul_t7', desc: 'sk_ul_t7_d', icon: 'bottle/body_6', max: 1, baseCost: 90000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't7', tier: 6 },
 
     /* ---- 分支 2：玩家科技 ---- */
     { id: 'p_cursor', tree: 'player', name: 'sk_cursor', desc: 'sk_cursor_d', icon: 'env/cursor', max: 1, baseCost: 500, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'cursor' },
@@ -371,12 +385,12 @@ export const SKILLS: SkillDef[] = [
     { id: 'h_repick', tree: 'helper', name: 'sk_repick', desc: 'sk_repick_d', icon: 'stat/time', max: 15, baseCost: 10, growth: 1.10, base: 1.5, step: -0.15, unit: 'seconds' },
     { id: 'h_recovery', tree: 'helper', name: 'sk_recovery', desc: 'sk_recovery_d', icon: 'stat/recovery', max: 15, baseCost: 800, growth: 1.15, base: 5, step: -0.25, unit: 'seconds' },
     { id: 'h_limit', tree: 'helper', name: 'sk_handlimit', desc: 'sk_handlimit_d', icon: 'stat/size', max: 18, baseCost: 1800, growth: 1.30, base: 10, step: 5, unit: 'count' },
-    { id: 'h_bronze', tree: 'helper', name: 'sk_bronze', desc: 'sk_bronze_d', icon: 'bottle/icon_bronze', max: 1, baseCost: 3000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t1', tier: 1 },
-    { id: 'h_silver', tree: 'helper', name: 'sk_silver', desc: 'sk_silver_d', icon: 'bottle/icon_silver', max: 1, baseCost: 7000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t2', tier: 2 },
-    { id: 'h_gold', tree: 'helper', name: 'sk_gold', desc: 'sk_gold_d', icon: 'bottle/icon_gold', max: 1, baseCost: 15000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t3', tier: 3 },
-    { id: 'h_ruby', tree: 'helper', name: 'sk_ruby', desc: 'sk_ruby_d', icon: 'bottle/icon_ruby', max: 1, baseCost: 68000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t4', tier: 4 },
-    { id: 'h_emerald', tree: 'helper', name: 'sk_emerald', desc: 'sk_emerald_d', icon: 'bottle/icon_emerald', max: 1, baseCost: 32000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t5', tier: 5 },
-    { id: 'h_diamond', tree: 'helper', name: 'sk_diamond', desc: 'sk_diamond_d', icon: 'bottle/icon_diamond', max: 1, baseCost: 145000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t6', tier: 6 },
+    { id: 'h_bronze', tree: 'helper', name: 'sk_bronze', desc: 'sk_bronze_d', icon: 'bottle/body_1', max: 1, baseCost: 3000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t1', tier: 1 },
+    { id: 'h_silver', tree: 'helper', name: 'sk_silver', desc: 'sk_silver_d', icon: 'bottle/body_2', max: 1, baseCost: 7000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t2', tier: 2 },
+    { id: 'h_gold', tree: 'helper', name: 'sk_gold', desc: 'sk_gold_d', icon: 'bottle/body_3', max: 1, baseCost: 15000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t3', tier: 3 },
+    { id: 'h_ruby', tree: 'helper', name: 'sk_ruby', desc: 'sk_ruby_d', icon: 'bottle/body_5', max: 1, baseCost: 68000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t4', tier: 4 },
+    { id: 'h_emerald', tree: 'helper', name: 'sk_emerald', desc: 'sk_emerald_d', icon: 'bottle/body_4', max: 1, baseCost: 32000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t5', tier: 5 },
+    { id: 'h_diamond', tree: 'helper', name: 'sk_diamond', desc: 'sk_diamond_d', icon: 'bottle/body_6', max: 1, baseCost: 145000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'h_t6', tier: 6 },
 
     /* ---- 分支 4：特殊技能 ---- */
     { id: 'a_coke', tree: 'ability', name: 'sk_coke', desc: 'sk_coke_d', icon: 'ability/flyingcoke', max: 1, baseCost: 4000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'flyingcoke' },
@@ -407,12 +421,12 @@ export interface SkillNodeDef {
 
 /** 分支 1：瓶子科技 —— T2~T7 逐阶研发解锁（之字形链） */
 export const SKILL_GRAPH: SkillNodeDef[] = [
-    { id: 'ul_t2', icon: 'bottle/icon_bronze', col: -1, row: 5, parent: null },
-    { id: 'ul_t3', icon: 'bottle/icon_silver', col: 1, row: 4, parent: 'ul_t2' },
-    { id: 'ul_t4', icon: 'bottle/icon_gold', col: -1, row: 3, parent: 'ul_t3' },
-    { id: 'ul_t5', icon: 'bottle/icon_ruby', col: 1, row: 2, parent: 'ul_t4' },
-    { id: 'ul_t6', icon: 'bottle/icon_emerald', col: -1, row: 1, parent: 'ul_t5' },
-    { id: 'ul_t7', icon: 'bottle/icon_diamond', col: 1, row: 0, parent: 'ul_t6' },
+    { id: 'ul_t2', icon: 'bottle/body_1', col: -1, row: 5, parent: null },
+    { id: 'ul_t3', icon: 'bottle/body_2', col: 1, row: 4, parent: 'ul_t2' },
+    { id: 'ul_t4', icon: 'bottle/body_3', col: -1, row: 3, parent: 'ul_t3' },
+    { id: 'ul_t5', icon: 'bottle/body_5', col: 1, row: 2, parent: 'ul_t4' },
+    { id: 'ul_t6', icon: 'bottle/body_4', col: -1, row: 1, parent: 'ul_t5' },
+    { id: 'ul_t7', icon: 'bottle/body_6', col: 1, row: 0, parent: 'ul_t6' },
 ];
 
 /** 分支 2：玩家科技 —— 光标 / 挂机 / 稳定性 / 瓶盖机 + 闸门 四条线 */
@@ -446,12 +460,12 @@ export const HELPER_GRAPH: SkillNodeDef[] = [
     { id: 'h_recovery', icon: 'stat/recovery', col: -2, row: 3, parent: 'h_price' },
     { id: 'h_limit', icon: 'stat/size', col: 2, row: 3, parent: 'h_repick' },
 
-    { id: 'h_bronze', icon: 'bottle/icon_bronze', col: 2, row: 2, parent: 'h_limit' },
-    { id: 'h_silver', icon: 'bottle/icon_silver', col: 1, row: 2, parent: 'h_bronze' },
-    { id: 'h_gold', icon: 'bottle/icon_gold', col: 0, row: 2, parent: 'h_silver' },
-    { id: 'h_emerald', icon: 'bottle/icon_emerald', col: -1, row: 2, parent: 'h_gold' },
-    { id: 'h_ruby', icon: 'bottle/icon_ruby', col: -2, row: 2, parent: 'h_emerald' },
-    { id: 'h_diamond', icon: 'bottle/icon_diamond', col: -2, row: 1, parent: 'h_ruby' },
+    { id: 'h_bronze', icon: 'bottle/body_1', col: 2, row: 2, parent: 'h_limit' },
+    { id: 'h_silver', icon: 'bottle/body_2', col: 1, row: 2, parent: 'h_bronze' },
+    { id: 'h_gold', icon: 'bottle/body_3', col: 0, row: 2, parent: 'h_silver' },
+    { id: 'h_emerald', icon: 'bottle/body_4', col: -1, row: 2, parent: 'h_gold' },
+    { id: 'h_ruby', icon: 'bottle/body_5', col: -2, row: 2, parent: 'h_emerald' },
+    { id: 'h_diamond', icon: 'bottle/body_6', col: -2, row: 1, parent: 'h_ruby' },
 ];
 
 /** 分支 4：特殊技能 —— 飞天可乐 → 狂暴 → 武士处决 */
@@ -525,10 +539,26 @@ export const MACHINE = {
     beltSpeed: 150,
     flyTime: 0.40,
     maxChips: 46,
-    /** 闸门在履带上的位置：0 = 底部入口，1 = 顶部回收口 */
+    /** 闸门在履带上的位置：0 = 右端入料机，1 = 左端出售箱 */
     gateAt: 0.46,
     /** 闸门翻倍倍率 */
     gateMult: 2,
+
+    /* ---- 横置履带几何（局部坐标原点 = 履带中线）：右入料机 → 履带（向左）→ 左出售箱 ----
+     * ★ 第十轮按参考图重排：三段总宽 654（设计宽 720，左右各留 33），
+     *   高度 148 收进 LAYOUT.beltH(124) 的视觉带宽里。
+     *   ★ 第十四轮按用户口径镜像方向：瓶盖飞向**右端深色入料机**（黑色滚轮），
+     *     通过履带向左运到**左端出售箱**（木箱 + 瓶盖图示）回收计费。
+     */
+    binW: 150, binH: 148, binX: -252,
+    beltW: 340, beltH: 86,
+    feederW: 150, feederH: 148, feederX: 252,
+    /** 瓶盖入料口 x（右端深色入料机左侧，落在带面内 10px） */
+    beltEntryX: 160,
+    /** 瓶盖回收口 x（左端出售箱右侧） */
+    beltExitX: -160,
+    /** 上下两根横木轨（连接出售箱与入料机） */
+    railW: 654, railH: 32, railY: 59,
 };
 
 /* ================================================================== *
@@ -580,65 +610,145 @@ export const ACHIEVEMENTS: AchDef[] = [
 ];
 
 /* ================================================================== *
- *  竖屏四段式布局（沿用已验收的参数）
+ *  竖屏布局（★ 2026-09-23 第八轮：按新参考图整屏重排为「木牌顶栏 + 满屏木桌 +
+ *  桌底横置履带 + 商城/技能/等级底栏」四段式）
+ *
+ *  纵向预算（设计高 1280，y 以屏幕中心为 0）：
+ *    +640 ┬ 顶部安全留白 90
+ *    +550 ┤ 木牌顶栏（backButton + 金币/瓶盖筹码 + 工具按钮）h=134
+ *    +416 ┤ 木桌区（猫爪挂牌 + 绿叶 + 瓶子活动区）
+ *     -73 ┤ 快捷购买卡顶  ← 底部块从这里开始，随 navDY 一起贴屏幕底
+ *    -151 ┤ 能力条 104
+ *    -261 ┤ 履带（横置：左机器盒 + 中段履带 + 右滚筒）h=150
+ *    -431 ┤ 底栏（商城 / 技能 / 1级 / 2级 / ▲）h=78
+ *    -530 ┴ 底部安全留白 110
  * ================================================================== */
 export const LAYOUT = {
     safeTop: 90,
-    safeBottom: 110,
+    /**
+     * ⚠️ 底部安全留白从 110 收到 24：底栏下面是**常驻的内嵌升级面板**
+     *    （见 panelY / panelH），它必须整块落在屏幕内。
+     */
+    safeBottom: 24,
 
-    hudY: 494,
-    hudH: 112,
-    stageTop: 438,
+    /* ---- 顶部木牌 ---- */
+    /** 木牌中线 */
+    barY: 520,
+    barH: 134,
+    /** 木牌左右各伸出屏幕这么多（参考图里木牌是通栏的） */
+    barBleed: 26,
+    /** 返回按钮 */
+    backX: -287, backSize: 96,
+    /** 两枚筹码：底板中心 / 宽度 / 高度；图标贴左端 */
+    chipH: 58,
+    chipW: 169,
+    coinChipX: -96.5,
+    capChipX: 96.5,
+    /**
+     * 工具按钮（成就/统计/语言）在木牌右端。
+     * ⚠️ 右端必须留出安全边距：设计区右边界是 +360，最右一枚按钮的右沿 = toolX+2*step+size/2，
+     *    曾经 toolX=228 → 358，只差 2px 就贴到屏幕边，截图里看着像被切掉一半。
+     *    现在 214 → 344，右侧留 16px。
+     */
+    toolX: 214, toolStepX: 52, toolSize: 52,
 
-    statusY: 425,
+    /** 狂暴 / 决意 状态行（木牌下方的木桌上，收窄避免压到两侧猫爪挂牌） */
+    statusY: 386,
 
-    tableX: 30,
-    tableY: 92,
-    tableWidth: 500,
-    tableHeight: 640,
-
-    railX: -296,
-    railW: 128,
-    recycleY: 366,
-    beltTop: 296,
-    beltBottom: -240,
-
-    quickBuyY: -276,
-    abilityY: -372,
-    staminaY: -424,
-    navY: -484,
-
-    drawerH: 820,
+    /* ---- 底部块（挂在 navRoot，随 navDY 贴屏幕底） ----
+     * ★ 第十轮重排：底栏下面多出一块**常驻的内嵌升级面板**（商店 / 天赋），
+     *   所以整条底部块整体上移、并各自压缩高度。纵向串联（不许重叠）：
+     *     abilityY -136 (h110) → -81 … -191
+     *     beltY    -256 (h124) → -194 … -318
+     *     navY     -356 (h 72) → -320 … -392
+     *     panelY   -508 (h216) → -400 … -616   ← 屏幕最底
+     */
+    /** 能力条（自下而上第三层） */
+    abilityY: -136,
+    /** 履带中线（用户反馈「太靠下」→ 整体上移 80） */
+    beltY: -256,
+    beltH: 124,
+    navY: -356,
+    navH: 72,
+    /**
+     * 内嵌升级面板（商店 / 天赋列表）。
+     * ⚠️ 这不是二级弹窗：它常驻在底栏下方，切页签/换下拉项都只重画这块内容。
+     */
+    panelY: -508,
+    panelH: 216,
 
     rowBaseline: [300, 155, 10, -135],
     rowCount: 4,
     colCount: 6,
     rowSpacingX: 80,
-    bottleH: 160,
+    /**
+     * 单只瓶子高度（设计像素）。
+     * ★ 用户要求「瓶子太大了，缩小到现在的 0.6」→ 160 × 0.6 = 96。
+     *   `Bottle.BOTTLE_SCALE = LAYOUT.bottleH / ART_H`，命中判定/影子/姿态补偿
+     *   全部由这个常量推导，改一处即可。
+     */
+    bottleH: 96,
 };
 
+/**
+ * 上下两大块的边界（applySafeLayout 靠它把两块 UI 钉到安全区、把舞台塞进中间）。
+ * topY / botBottomY 是**外沿**，用来和屏幕安全区对齐。
+ */
 export const SAFE_BLOCKS = {
-    topY: 550,
-    topBottomY: 438,
-    botTopY: -234,
-    botBottomY: -530,
+    /** 顶栏顶边 = barY + barH/2 */
+    topY: 587,
+    /** 顶栏底边 */
+    topBottomY: 453,
+    /**
+     * 底部块顶边。
+     *
+     * ⚠️ 底部块最上面的元素现在是**能力条**（abilityY -136 + 110/2 = -81），
+     *    这里留 4px 余量 → -85。改任何一个 y 都要回来跟着改，
+     *    否则展开态白留高度（瓶子活动区白变小）或反过来切到能力条。
+     */
+    botTopY: -85,
+    /** 底部块底边（内嵌面板底） */
+    botBottomY: -616,
 };
 
-export const WORLD_ENV = { x0: -364, x1: 284, y0: -262, y1: 440 };
+/** 中部舞台包络（只装瓶子与地面特效；履带在 UI 层，不参与缩放） */
+export const WORLD_ENV = { x0: -320, x1: 320, y0: -150, y1: 340 };
 
 export const PLAY_AREA = {
-    x0: -105, x1: 165,
-    y0: -155, y1: 285,
+    x0: -150, x1: 150,
+    y0: -90, y1: 270,
 };
 
 /** 可见瓶子上限（超出的静默结算） */
 export const VISIBLE_BOTTLES = 24;
 
+/**
+ * 世界层的自适应变换（由 GameRoot.applySafeLayout 写入）。
+ *
+ * UI 层的元素（横置履带在 navRoot 里，不随舞台缩放）要接住世界坐标事件时必须换算：
+ *   屏幕设计坐标 = worldLocal * s + (ox, oy)
+ * 其中 (ox, oy) = worldLayer 在同一父节点（shakeHolder）下的位置。
+ * navDY 是底部块的位移，用来把屏幕坐标再落到 navRoot 局部空间。
+ */
+export const WORLD_XFORM = { s: 1, ox: 0, oy: 0, navDY: 0 };
+
+/** 世界局部坐标 → 屏幕设计坐标 */
+export function worldToScreen(x: number, y: number): { x: number, y: number } {
+    return { x: x * WORLD_XFORM.s + WORLD_XFORM.ox, y: y * WORLD_XFORM.s + WORLD_XFORM.oy };
+}
+
+/** 屏幕设计坐标 → 世界局部坐标 */
+export function screenToWorld(x: number, y: number): { x: number, y: number } {
+    const s = WORLD_XFORM.s || 1;
+    return { x: (x - WORLD_XFORM.ox) / s, y: (y - WORLD_XFORM.oy) / s };
+}
+
 /* ================================================================== *
  *  对象池容量（高性能：高频特效一律复用节点）
  * ================================================================== */
 export const POOL = {
-    chip: 72,
+    // 单次扣盖最多可见 CAP_FX.maxVisible 枚，且多只助手可能同时结算 → 池子要够深
+    chip: 110,
     floatText: 26,
     burst: 72,
     sparkle: 24,
@@ -646,9 +756,84 @@ export const POOL = {
 };
 
 /** 瓶盖染色（统一一张贴图 + Sprite.color 染色，不破坏合批） */
-export const CHIP_TINT: string[] = [
-    '#FFFFFF', '#E8C39A', '#DCE6F0', '#F2C64B', '#E8556D', '#7BE0A8', '#9FE8FF',
+/* ================================================================== *
+ *  瓶盖（扣盖落地产出的实体瓶盖）
+ * ================================================================== */
+
+/**
+ * 每阶瓶子「扣盖落地一次」产出的**基础**瓶盖枚数（原版 `BottleData.BaseCapGain`）。
+ *
+ * ★ 从原版二进制实测（`GameStatSO_Balanced` 的 7 条 BottleData 头字段连续序列化区，
+ *   sharedassets1.assets，字段相对记录头偏移 +0x28）：
+ *     T1..T7 的 BaseCapGain **全部是 1**。
+ *
+ * ★ 本作的两处**有意偏离**（都在下面写清了口径，想还原改一行即可）：
+ *   ① 逐阶递增 —— 用户要求「每种瓶子产生对应颜色的盖子，每一级盖子比前面一级多」；
+ *   ② 低阶给得比原版慷慨 —— 见下一段，这是为了解决「资源循环卡住」。
+ *
+ * ---- 为什么要抬高低阶产出（2026-09-23 实测校准） ----
+ * 无头跑真实构建产物 2 万次翻转的实测：扣盖率 45.2%、正立 41.8%、翻倒 13%，
+ * 平均 $2.68/次点击。于是：
+ *   · 攒 $1,000 买履带            ≈   364 次点击（约 4 分钟）—— 这一段没问题；
+ *   · 原版口径（T1 = 1 枚）的瓶盖流速 ≈ 0.45 枚/点击
+ *     → 研发 T2 要 1,600 瓶盖    ≈ 3,500 次点击（约 36 分钟）。
+ * 而 `MILESTONES` 里 M10「研发解锁 T2 铜质能量瓶」的阈值是 948 进度，
+ * 按金币流水折算 ≈ 350 次点击 —— **里程碑在 350 次点击就报「该解锁 T2 了」，
+ * 实际却要 3,500 次点击才买得起，差了 10 倍**，玩家感觉就是「循环卡死了」。
+ * 把 T1 基础产出提到 4 枚（流速 1.8 枚/点击）后：
+ *   · 研发 T2（1,600 瓶盖）   ≈ 890 次点击（约 9 分钟）；
+ *   · T2 的瓶盖流速 2.7 枚/点击 → 研发 T3（4,800 瓶盖）≈ 1,780 次点击（约 18 分钟）。
+ * 前两步落进「一次会话内能摸到」的区间，之后靠助手之手（h_unlock，1,200 瓶盖）
+ * 把翻转吞吐从 1.6 次/秒拉到 6~60 次/秒，循环就自己转起来了。
+ *
+ * ⚠️ 想还原原版口径：`[1, 1, 1, 1, 1, 1, 1]`
+ * ⚠️ 想回到「逐阶递增但不加速」：`[1, 2, 3, 4, 5, 6, 7]`
+ *    单次扣盖的实际上限仍受同阶 `capgain` 词条（+1/级）与 T4 被动（+1）影响，
+ *    与原版一样是「基础值 + 词条 + 被动」。
+ */
+export const CAP_GAIN_BASE: number[] = [4, 6, 8, 11, 14, 18, 22];
+
+/**
+ * 每阶瓶盖的颜色 = 该阶瓶身的**主色调**（用 PIL 从 `bottle/body_N.png` 采样得出），
+ * 保证「哪种瓶子掉哪种颜色的盖子」。
+ */
+export const CAP_COLOR: string[] = [
+    '#EDF2F7',  // T1 普通塑料瓶：透明
+    '#7BC24E',  // T2 铜质能量瓶：绿
+    '#48A8D8',  // T3 白银汽水瓶：蓝
+    '#E8A838',  // T4 黄金尊享瓶：琥珀
+    '#F2D43C',  // T5 红宝石烈酒瓶：金
+    '#E8654F',  // T6 翡翠神圣瓶：红
+    '#C89BF0',  // T7 钻石天界瓶：彩虹（每颗再从 CAP_RAINBOW 里随机取色）
 ];
+
+/** T7 彩虹瓶的瓶盖配色池（逐颗随机，做出「彩盖」的感觉） */
+export const CAP_RAINBOW: string[] = ['#FF7BA8', '#FFD24A', '#7BE0A8', '#6FC8F5', '#C89BF0'];
+
+/** 瓶盖表现参数（爆散 → 飞向履带 → 上带行进 三段） */
+export const CAP_FX = {
+    /** ① 爆散段时长（秒）：从瓶口炸开、四散弹跳 */
+    burstTime: 0.34,
+    /** 爆散初速（设计像素 / 秒） */
+    burstSpeed: 210,
+    /** 爆散段重力 */
+    burstGravity: -980,
+    /** ② 飞向履带段时长 —— 多颗之间按序号错开，形成「一串」 */
+    flyTime: 0.42,
+    flyStagger: 0.035,
+    /** 飞向履带时抛物线拱高 */
+    flyArc: 150,
+    /** 单次扣盖最多**可见**的瓶盖数（超出的直接结算，避免对象池被打爆） */
+    maxVisible: 10,
+};
+
+/* ================================================================== *
+ *  广告商业化（UI/Ads.ts 统一入口，所有广告都从这里走）
+ * ================================================================== */
+/** 单次广告增益时长（秒）：金币翻倍 / 瓶盖翻倍 / 光圈变大，3 分钟 */
+export const AD_BUFF_SEC = 180;
+/** 离线收益广告倍率（看完广告 → 离线收益 ×3） */
+export const OFFLINE_AD_MULT = 3;
 
 export const SAVE_KEY = 'tapbottle.save.v1';
 export const SAVE_VERSION = 5;

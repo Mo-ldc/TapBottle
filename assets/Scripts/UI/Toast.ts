@@ -17,10 +17,10 @@ const { ccclass } = _decorator;
 export class Toast extends Component {
     static I: Toast = null!;
 
-    /** 提示条固定停靠高度（设计像素） */
-    private readonly BAR_Y = 430;
-    /** 成就横幅固定停靠高度 */
-    private readonly ACH_Y = 400;
+    /** 提示条固定停靠高度（设计像素）—— 用户要求：提示弹窗放屏幕正中 */
+    private readonly BAR_Y = 0;
+    /** 成就横幅固定停靠高度（中央偏上，避免和提示条重叠） */
+    private readonly ACH_Y = 110;
 
     private queue: Node[] = [];
     private showing = false;
@@ -28,8 +28,9 @@ export class Toast extends Component {
     onLoad() { Toast.I = this; }
 
     show(msg: string, color = '#FFE9A8') {
-        const n = roundedPanel(this.node, 560, 76, 0, this.BAR_Y, '#1B2230EE', 18, '#3A4761', 3, 'toast');
-        label(n, msg, 0, 0, 530, 70, { size: 28, color, outline: '#0B0F16', outlineWidth: 2 });
+        const n = roundedPanel(this.node, 560, 76, 0, this.BAR_Y, '#4A2410EE', 18, '#8A5A20', 4, 'toast');
+        // shrink：文字过长时自动缩小/换行适配面板，不再画出框外（用户反馈溢出）
+        label(n, msg, 0, 0, 530, 70, { size: 28, color, outline: '#2A1608', outlineWidth: 3, overflow: 'shrink' });
         this.queue.push(n);
         if (!this.showing) { this.next(); }
     }
@@ -67,7 +68,7 @@ export class Toast extends Component {
     achievement(id: number) {
         const a = ACHIEVEMENTS.find(x => x.id === id);
         if (!a) { return; }
-        const n = roundedPanel(this.node, 600, 110, 0, this.ACH_Y, '#2A2212F2', 16, '#C8A44A', 4, 'achToast');
+        const n = roundedPanel(this.node, 600, 110, 0, this.ACH_Y, '#4A2410F2', 16, '#E8B23C', 4, 'achToast');
         img(n, 'ui/icon_ach', 74, 72, -238, 0);
         label(n, t('new_achievement', G.lang), -170, 24, 380, 34, { size: 24, color: '#FFD98A', hAlign: 'left', anchorX: 0 });
         label(n, t(a.title, G.lang), -170, -14, 380, 40, { size: 32, color: '#FFFFFF', hAlign: 'left', anchorX: 0 });

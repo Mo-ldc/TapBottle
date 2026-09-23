@@ -1,15 +1,16 @@
 import { _decorator, Component, Node, UITransform, Sprite, Vec3, tween, UIOpacity, input, Input, view, ResolutionPolicy, director, profiler, sys } from 'cc';
-import { BOTTLE_STATS, DESIGN_H, DESIGN_W, LAYOUT, MILESTONES, SAFE_BLOCKS, WORLD_ENV } from './Core/GameConfig';
+import { BOTTLE_STATS, DESIGN_H, DESIGN_W, LAYOUT, MILESTONES, SAFE_BLOCKS, WORLD_ENV, WORLD_XFORM } from './Core/GameConfig';
 import { G } from './Core/State';
 import { Res } from './Core/Res';
 import { t } from './Core/Locale';
 import { button, img, label, MASK_SIZE, nd, rect, setFrame, setSize } from './UI/UIKit';
 import { Toast } from './UI/Toast';
 import { Hud } from './UI/Hud';
-import { NavBar } from './UI/NavBar';
-import { QuickBuy } from './UI/QuickBuy';
-import { Drawer, DrawerTab } from './UI/Drawer';
-import { openSkill } from './UI/SkillPanel';
+import { BottomPanel } from './UI/BottomPanel';
+import { debugGoal, registerNav } from './UI/Guidance';
+import { Modal } from './UI/Modal';
+import { Ads } from './UI/Ads';
+import { AdButtons } from './UI/AdButtons';
 import { openAch } from './UI/AchPanel';
 import { openStats } from './UI/StatsPanel';
 import { openSettings } from './UI/SettingsPanel';
@@ -34,10 +35,7 @@ export class GameRoot extends Component {
     private shakeHolder: Node = null!;
 
     private hud: Hud = null!;
-    private quickBuy: QuickBuy = null!;
-    private nav: NavBar = null!;
-    private drawer: Drawer = null!;
-    private drawerLayer: Node = null!;
+    private bottom: BottomPanel = null!;
     private hudRoot: Node = null!;
     private navRoot: Node = null!;
     private abilities: Abilities = null!;
@@ -45,6 +43,10 @@ export class GameRoot extends Component {
     private started = false;
 
     onLoad() {
+        // ★ 模块级单例在「重载场景」后仍然存在：如果重载那会儿正好有模态面板开着，
+        //   Modal.count 会残留 >0 → BottleField 的 aim()/pointerDown() 永远 return
+        //   → 整局再也点不动瓶子。所以每次进场景都要清一次。
+        Modal.reset();
         G.clearListeners();
         // 关掉 debug 构建默认打开的性能面板（发布版也会顺带静默）
         try { if (profiler && profiler.hideStats) { profiler.hideStats(); } } catch (e) { /* ignore */ }
@@ -65,8 +67,6 @@ export class GameRoot extends Component {
         this.uiLayer = nd(this.shakeHolder, 'uiLayer', DESIGN_W, DESIGN_H, 0, 0);
         this.hudRoot = nd(this.uiLayer, 'hudRoot', DESIGN_W, DESIGN_H, 0, 0);
         this.navRoot = nd(this.uiLayer, 'navRoot', DESIGN_W, DESIGN_H, 0, 0);
-        // 抽屉层需在模态面板之下
-        this.drawerLayer = nd(this.contentRoot, 'drawerLayer', DESIGN_W, DESIGN_H, 0, 0);
         this.panelLayer = nd(this.contentRoot, 'panelLayer', DESIGN_W, DESIGN_H, 0, 0);
         this.toastLayer = nd(this.contentRoot, 'toastLayer', DESIGN_W, DESIGN_H, 0, 0);
 
@@ -99,64 +99,71 @@ export class GameRoot extends Component {
         G.syncMilestones(true);
         (globalThis as any).__tb_reload = () => { director.loadScene('Main'); };
         // 调试/自动化测试入口
-        (globalThis as any).__tb = { G, res: Res, director, field: BottleField, abil: Abilities, drawer: Drawer };
-
-        this.buildBackground();
+        // 调试/自动化测试入口（panels/ui 两个是为了无头验收能直接开面板截图，不必靠盲点坐标）
+        (globalThis as any).__tb = {
+            G, res: Res, director, field: BottleField, abil: Abilities, bottom: BottomPanel,
+            cap: CapMachine, hud: Hud, ads: Ads,
+            panels: this.panelLayer,
+            /** 购买引导：无头验收直接断言「下一步」文案与差额提示 */
+            goal: debugGoal,
+            ui: { settings: openSettings, ach: openAch, stats: openStats },
+        };
 
         Res.I.loadAll((ok) => {
             if (!ok) { console.warn('[GameRoot] resource load incomplete'); }
+            // ⚠️ 背景必须在**贴图加载完之后**才建：buildBackground 里是 img()/rect()，
+            //    setFrame 依赖 Res.I.sf()，在 onLoad 里同步调用会拿到 null frame →
+            //    整个背景层静默空白（屏幕上只剩相机清屏色，看着就像「背景是深蓝」）。
+            this.buildBackground();
             this.buildWorld();
             this.buildUI();
             this.afterReady();
         });
     }
 
-    /* ---------------- 背景 ---------------- */
+    /* ---------------- 背景：整屏木桌 ---------------- */
+    /**
+     * 参考图里没有「带桌腿的木板」——木桌纹理铺满整屏，UI 全部浮在木纹上。
+     * 所以这里退化成「一层深棕兜底 + 一整张木桌纹理」，桌腿/桌面板节点都取消了。
+     */
     private buildBackground() {
-        this.bgDark = rect(this.bgLayer, DESIGN_W + 60, DESIGN_H + 60, 0, 0, '#0E1018', 'dark');
-        this.bgFog = img(this.bgLayer, 'env/fog', DESIGN_W, this.bgFogH, 0, DESIGN_H / 2 - this.bgFogH / 2, '#46527A');
-        this.bgVin = img(this.bgLayer, 'env/vignette', DESIGN_W, this.bgVinH, 0, 0, '#000000');
+        this.bgDark = rect(this.bgLayer, DESIGN_W + 80, DESIGN_H + 80, 0, 0, '#6B3A1A', 'dark');
+        this.bgWood = img(this.bgLayer, 'env/wood_table', DESIGN_W + 4, DESIGN_H + 4, 0, 0);
     }
     private bgDark: Node = null!;
-    private bgFog: Sprite = null!;
-    private bgVin: Sprite = null!;
-    private bgFogH = 460;
+    private bgWood: Sprite = null!;
     private bgVinH = DESIGN_H * 0.86;
 
-    /* ---------------- 世界 ---------------- */
+    /* ---------------- 木桌装饰 ---------------- */
+    /**
+     * ★ 用户口径（第十四轮）：背景左上/右上的猫爪挂牌和枝条绿叶全部移除，
+     *   木桌只保留整屏木纹。函数保留为空壳以兼容旧调用点。
+     */
+    private buildDecor(root: Node) { void root; }
+
+    /* ---------------- 世界：只剩瓶子与特效（履带已移到 UI 层） ---------------- */
     private buildWorld() {
-        const tw = LAYOUT.tableWidth;
-        const th = LAYOUT.tableHeight;
-        const table = nd(this.worldLayer, 'table', tw, th + 140, LAYOUT.tableX, LAYOUT.tableY - 40);
-
-        // 桌腿：对齐桌面板左右角、并紧贴板下沿（原版 Table_LegLeft/Right 的用法）。
-        // 注意必须「贴住」板底：超高屏上桌面板下方会空出一段（舞台按屏宽缩放后垂直居中），
-        // 若桌腿悬在板下 47px，就会在空隙里显出两块漂浮的暗红方块。
-        // 面板 bottom（局部）= 40 - th/2，腿高 54 → 腿心 = 40 - th/2 - 27。
-        for (const d of [{ x: -171, tex: 'env/table_leg_l' }, { x: 171, tex: 'env/table_leg_r' }]) {
-            const lg = nd(table, 'leg' + d.x, 158, 54, d.x, 40 - th / 2 - 27);
-            setFrame(lg.addComponent(Sprite), d.tex, 158, 54);
-        }
-
-        const top = nd(table, 'top', tw, th, 0, 40);
-        setFrame(top.addComponent(Sprite), 'env/table', tw, th);
-
-        nd(this.worldLayer, 'bottles', DESIGN_W, DESIGN_H, 0, 0).addComponent(BottleField);
+        const fieldNode = nd(this.worldLayer, 'bottles', DESIGN_W, DESIGN_H, 0, 0);
+        const field = fieldNode.addComponent(BottleField);
+        // ★ 买瓶飞入的临时精灵要挂在 panelLayer（在 uiLayer/navRoot **之上**）：
+        //   起飞点是底栏商店面板里的价格按钮，挂世界层的话这半程会被底部 UI 整块盖住
+        //   （用户口径：瓶子要在下面商店模块的上层）。
+        field.flyLayer = this.panelLayer;
         nd(this.worldLayer, 'hands', DESIGN_W, DESIGN_H, 0, 0).addComponent(HelperHands);
-        // 左侧竖向瓶盖履带（局部坐标以履带中线为原点）
-        nd(this.worldLayer, 'caps', 320, 1000, LAYOUT.railX, 0).addComponent(CapMachine);
 
-        // ★ fxLayer 必须排到世界层**末尾**。
-        //   fxLayer 是在 onLoad() 里建的（挂世界层是为了和世界坐标一起缩放/平移对得上），
-        //   而 table / bottles / hands / caps 都是这里才建的 → 兄弟序上 fx 一直是最底层：
-        //   实测 `worldLayer.children = fxLayer#0, table#1, bottles#2, hands#3, caps#4`，
-        //   于是所有飘字（+$N 金币、扣盖、MISS、处决 +600%…）全被桌面挡住，
-        //   在桌面上战斗时一个字都看不到。放到末尾即可，仍在 shakeHolder 内保持坐标一致。
+        // ★ fxLayer 必须排到世界层**末尾**（它在 onLoad 里就建好了，后面还有 table/bottles/hands 加进来），
+        //   否则所有飘字都被后建的节点盖住，桌面上战斗时一个字都看不到。
         this.fxLayer.setSiblingIndex(this.worldLayer.children.length - 1);
     }
 
     /* ---------------- UI ---------------- */
     private buildUI() {
+        this.buildDecor(this.hudRoot);
+
+        // 广告统一入口：确认弹窗挂在 toastLayer（盖在一切 UI 之上）；
+        // 接真实 SDK 时在进场景前 Ads.setProvider(...) 即可，业务层不用改。
+        Ads.I.uiRoot = this.toastLayer;
+
         this.hud = this.hudRoot.addComponent(Hud);
         this.hud.build({
             onSettings: () => openSettings(this.panelLayer),
@@ -166,33 +173,42 @@ export class GameRoot extends Component {
                 G.data.settings.lang = G.lang === 'zh' ? 'en' : 'zh';
                 G.notify();
             },
-        }, this.navRoot);
-
-        // 快捷购买卡属于「底部块」，必须跟主导航一起贴屏幕底
-        this.quickBuy = this.navRoot.addComponent(QuickBuy);
-        this.quickBuy.build();
-
-        const nav = this.navRoot.addComponent(NavBar);
-        // 升级面板（居中 Q 弹模态，与模态面板同层但排在 panelLayer 之下）
-        const drawerNode = nd(this.drawerLayer, 'drawer', DESIGN_W, LAYOUT.drawerH, 0, 0);
-        this.drawer = drawerNode.addComponent(Drawer);
-        this.drawer.build();
-
-        nav.build((id) => {
-            if (id === 'tree') { openSkill(this.panelLayer); nav.highlight(null); return; }
-            this.drawer.toggle(id as DrawerTab);
         });
-        this.nav = nav;
 
-        // 升级面板现在是屏幕中间的模态卡（自带全屏遮罩），底栏不再被盖住，
-        // 所以打开期间保持底栏可见，只同步一下高亮。
-        this.drawer.onOpenChanged = (o: boolean) => {
-            this.nav.highlight(o ? this.drawer.tab : null);
-        };
+        // ★ 桌上那两张「快捷购买卡」（普通塑料瓶 / 助手之手）已按用户要求删除：
+        //   它们和底栏的「商城」按钮功能重复，且浮在木桌中间挡瓶子。
+        //   买瓶子 / 雇助手统一走底栏「商城」→ 升级面板。
+
+        // 履带：横置、挂在底部块上（能力条与底栏之间）。放 UI 层是为了通栏不变形，
+        // 同时把宽阔屏多出来的高度全部让给瓶子活动区。
+        const beltNode = nd(this.navRoot, 'belt', DESIGN_W, LAYOUT.beltH, 0, LAYOUT.beltY);
+        this.beltNode = beltNode;
+        beltNode.addComponent(CapMachine);
+
+        // ★ 底栏 + 内嵌升级面板（同一个组件）：商城 / 技能树 两个页签 + 瓶子种类下拉框，
+        //   列表直接铺在底栏下方 —— 不再是二级弹窗（用户要求，见 BottomPanel 顶部注释）。
+        const bpNode = nd(this.navRoot, 'bottomPanel', DESIGN_W, DESIGN_H, 0, 0);
+        this.bottom = bpNode.addComponent(BottomPanel);
+        this.bottom.build();
+
+        // 购买引导的跳转桥：商城里的「去研发」靠它把面板切到技能树的对应类目。
+        // 用注入而不是 import —— BottomPanel 反向依赖 Guidance（差额提示），
+        // 直接互相 import 会形成 ESM 循环依赖（见 Guidance.ts 顶部注释）。
+        registerNav({
+            openTree: (page: number) => { this.bottom.showTreeCategory(page); },
+            closeShop: () => { this.bottom.showShopCategory(0); },
+        });
 
         this.abilities = this.navRoot.addComponent(Abilities);
         this.abilities.buildBar(this.navRoot);
+
+        // 屏幕中部靠左的三枚广告增益按钮（金币翻倍 / 瓶盖翻倍 / 光圈变大）
+        // 挂 uiLayer（屏幕中心坐标系）而不是 hudRoot/navRoot —— 它们被钉在上下安全区，
+        // 只有 uiLayer 原点始终在屏幕正中，「中间靠左」才落得准。
+        nd(this.uiLayer, 'adRoot', DESIGN_W, DESIGN_H, 0, 0).addComponent(AdButtons).build();
     }
+
+    private beltNode: Node = null!;
 
     /* ---------------- 启动（直接进游戏，无 Logo 页） ---------------- */
     private afterReady() {
@@ -200,7 +216,8 @@ export class GameRoot extends Component {
         this.applySafeLayout();
         Res.I.music(true, G.data.settings.music);
         const off = G.applyOffline();
-        if (off.money > 0 || off.caps > 0) { this.hud.showOffline(off.money, off.caps, off.seconds); }
+        // 弹窗挂 panelLayer（在 uiLayer 之上）：否则会被晚创建的左侧广告按钮盖住
+        if (off.money > 0 || off.caps > 0) { this.hud.showOffline(off.money, off.caps, off.seconds, this.panelLayer); }
         G.checkAch();
     }
 
@@ -247,12 +264,13 @@ export class GameRoot extends Component {
         const navDY = (-vhE / 2 + padBottom) - SAFE_BLOCKS.botBottomY;
         if (this.hudRoot && this.hudRoot.isValid) { this.hudRoot.setPosition(0, hudDY, 0); }
         if (this.navRoot && this.navRoot.isValid) { this.navRoot.setPosition(0, navDY, 0); }
-        // 升级面板已改成屏幕正中的模态卡：整层不跟随底栏位移，遮罩才正好盖住整屏
-        if (this.drawerLayer && this.drawerLayer.isValid) { this.drawerLayer.setPosition(0, 0, 0); }
+        if (this.hud && this.hud.isValid) { this.hud.fitWidth(vwE); }
 
         // 模态遮罩尺寸跟着可见区走（宽屏 / 超高屏都要盖满，否则边缘露白）
         MASK_SIZE.w = Math.max(1000, vwE + 80);
         MASK_SIZE.h = Math.max(1600, vhE + 80);
+        // ★ 底栏 + 内嵌升级面板都常驻在屏幕底部，不再有「遮罩要切到按钮上方」那套处理
+        //   （那是升级面板还是模态卡时的补丁，见旧 Drawer.setMaskCut）。
 
         // ---- 2) 中部舞台：等比缩放 + 居中 ----
         const bandTop = SAFE_BLOCKS.topBottomY + hudDY;
@@ -268,16 +286,22 @@ export class GameRoot extends Component {
         let ws = Math.min(fitH, fitW);
         ws = Math.max(0.50, Math.min(1.15, ws));
 
+        const wx = -envCX * ws;
+        const wy = (bandTop + bandBottom) / 2 - envCY * ws;
         if (this.worldLayer && this.worldLayer.isValid) {
             this.worldLayer.setScale(ws, ws, 1);
-            this.worldLayer.setPosition(-envCX * ws, (bandTop + bandBottom) / 2 - envCY * ws, 0);
+            this.worldLayer.setPosition(wx, wy, 0);
         }
         this.worldScale = ws;
+        // UI 层的横置履带要接住世界坐标事件（瓶盖起飞点），必须知道这组变换
+        WORLD_XFORM.s = ws;
+        WORLD_XFORM.ox = wx;
+        WORLD_XFORM.oy = wy;
+        WORLD_XFORM.navDY = navDY;
 
-        // ---- 3) 背景铺满可见区（设计区整体缩小时外侧也要有底色） ----
+        // ---- 3) 木桌铺满可见区（宽屏/超高屏外侧不能露底） ----
         if (this.bgDark && this.bgDark.isValid) { setSize(this.bgDark, vwE + 40, vhE + 40); }
-        if (this.bgFog && this.bgFog.isValid) { setSize(this.bgFog.node, vwE, this.bgFogH); }
-        if (this.bgVin && this.bgVin.isValid) { setSize(this.bgVin.node, vwE, this.bgVinH); }
+        if (this.bgWood && this.bgWood.isValid) { setSize(this.bgWood.node, vwE + 6, vhE + 6); }
 
         this.lastVh = vh;
     }

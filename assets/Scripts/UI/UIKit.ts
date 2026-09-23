@@ -178,7 +178,7 @@ export function button(parent: Node, o: BtnOpts): Node {
     n.on(Node.EventType.TOUCH_END, () => {
         n.setScale(1, 1, 1);
         if (o.disabled) { return; }
-        if (o.sound !== null && Res.I) { Res.I.play(o.sound || 'click2', 0.7); }
+        if (o.sound !== null && Res.I) { Res.I.play(o.sound || 'click', 0.7); }
         if (o.onClick) { o.onClick(); }
     });
     return n;

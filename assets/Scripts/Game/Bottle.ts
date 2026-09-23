@@ -13,8 +13,22 @@ const ART_W = 150, ART_H = 375, ART_AY = 0.34;
 
 export const BOTTLE_SCALE = LAYOUT.bottleH / ART_H;
 
-/** 影子相对「瓶身静止基准点」的下移量：贴在瓶底、再往上一点（值越小越贴近瓶子） */
-const SHADOW_DY = LAYOUT.bottleH * 0.375;
+/**
+ * 影子相对「瓶身静止基准点」的下移量：贴在瓶底、再往上一点（值越小越贴近瓶子）。
+ * ★ 用户口径（第十六轮）：影子再往**上** 7 像素 —— 正立时瓶身整体上抬（restDy），
+ *   影子还停在原地就会离瓶底太远，看着像「飘在桌面上」。
+ */
+const SHADOW_DY = LAYOUT.bottleH * 0.375 - 7;
+
+/**
+ * 瓶身视觉中心相对节点原点的上移量。
+ * 贴图锚点在瓶底上方 ART_AY=0.34 处 → 中心 = (0.66H − 0.34H)/2 = 0.16H（贴图单位）× 缩放。
+ * ★ 落地星光就画在这里（用户口径：光效要在瓶子中间，不是瓶子上面）。
+ */
+const BODY_CENTER_DY = (ART_H * (1 - 2 * ART_AY) / 2) * BOTTLE_SCALE;
+
+/** 供买瓶飞入动画复用（BottleField 里建临时精灵用同一套贴图尺寸与中心偏移） */
+export const BOTTLE_ART = { w: ART_W, h: ART_H, centerDy: BODY_CENTER_DY };
 
 /** 落地姿态：瓶口朝上(ok) / 瓶口朝下·扣盖(crit) / 平放(fail) */
 export type Pose = { angle: number; dx: number; dy: number };
@@ -215,13 +229,14 @@ export class Bottle extends Component {
         this.homeY = landY;
         this.restDy = pose.dy;
 
-        // 落地音效：只有玩家亲手翻的才响（助手/冲击波是 silent），并做节流防糊
-        if (!silent) {
+        // 落地音效：只有玩家亲手翻的才响（助手/冲击波是 silent），并做节流防糊。
+        // ★ 用户口径（第十七轮）：正立（ok）落地**不响**——只有倒立扣盖的 win 和翻倒的 pop1。
+        if (!silent && outcome !== 'ok') {
             Res.I?.playThrottled(
-                outcome === 'crit' ? 'win' : (outcome === 'fail' ? 'pop1' : 'hit'),
+                outcome === 'crit' ? 'win' : 'pop1',
                 'land_' + outcome,
                 outcome === 'crit' ? 90 : 55,
-                outcome === 'crit' ? 0.75 : (outcome === 'fail' ? 0.42 : 0.5));
+                outcome === 'crit' ? 0.75 : 0.42);
         }
 
         if (outcome === 'fail') {
@@ -249,15 +264,24 @@ export class Bottle extends Component {
             .call(() => { this.busy = false; })
             .start();
 
-        if (!silent && FxLayer.I) {
-            if (!G.data.settings.hideCaps) { FxLayer.I.burst(this.homeX, this.homeY + 10, crit ? 7 : 3, this.tier); }
-            // 扣盖是倒立姿态（瓶口贴地），星光压低；正立则往上放
-            FxLayer.I.sparkle(this.homeX, this.homeY + (crit ? 30 : 96), crit ? 130 : 60,
-                crit ? '#FFD75E' : '#FFF6C0');
-            if (crit) { FxLayer.I.shockwave(this.homeX, this.homeY + 10, 190, 0.36, '#FFD75E'); }
+        // ★ 用户口径（第十六轮）：**只有倒立扣盖**给一颗星光，且画在**瓶身正中间**。
+        //   正立（ok）不再有任何星光 —— 原来 ok 的星画在瓶子上方 96px（bottleH 全高），
+        //   看起来就是「一颗飘在半空的光」，和瓶子没关系。
+        //   瓶盖实体粒子只有一个出口：`CapMachine.spawnChips`。
+        if (!silent && crit && FxLayer.I) {
+            FxLayer.I.sparkle(this.homeX, this.homeY + BODY_CENTER_DY, 110, '#FFD75E');
         }
 
         if (this.onLanded) { this.onLanded(this, outcome); }
+    }
+
+    /**
+     * 买瓶飞入落地的「直接判定」：不做抛跳、不再起跳重翻，直接摆出该次判定的落地姿态并结算
+     * （BottleField.startFlyIn 用 —— 用户口径：飞进来了落地就能判断正反）。
+     */
+    settle(outcome: 'crit' | 'ok' | 'fail', silent = false) {
+        const pose = Bottle.poseOf(outcome);
+        this.land(outcome, BOTTLE_SCALE, silent, pose, this.homeX, this.homeY);
     }
 
     /** 被冲击波掀翻：必定落到「瓶口朝下」的最优姿态 */

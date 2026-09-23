@@ -1,5 +1,5 @@
 import { _decorator, Component, Node, Sprite, Label, UIOpacity, Vec3 } from 'cc';
-import { CHIP_TINT, POOL } from '../Core/GameConfig';
+import { CAP_COLOR, POOL } from '../Core/GameConfig';
 import { hex } from '../Core/Util';
 import { label, nd, setFrame } from '../UI/UIKit';
 
@@ -141,8 +141,14 @@ export class FxLayer extends Component {
 
     /* ---------------- 瓶盖爆散 ---------------- */
 
+    /**
+     * 瓶盖爆散（一次性喷 N 枚瓶盖粒子）。
+     *
+     * ⚠️ 现在**没有调用点**：实体瓶盖的爆散由 `CapMachine.spawnChips` 的爆散段负责，
+     *    它才知道「这一下到底有没有产出瓶盖」。保留此方法仅供特效复用。
+     */
     burst(x: number, y: number, count = 7, tier = 0) {
-        const tint = hex(CHIP_TINT[Math.min(6, Math.max(0, tier))]);
+        const tint = hex(CAP_COLOR[Math.min(6, Math.max(0, tier))]);
         for (let i = 0; i < count; i++) {
             const it = this.allocSprite(this.bursts, POOL.burst, 'bottle/capchip_0', 34, 30);
             if (!it) { return; }

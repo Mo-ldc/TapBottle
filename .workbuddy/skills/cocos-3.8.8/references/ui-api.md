@@ -147,8 +147,35 @@ root(ScrollView)
    └─ content(UITransform，锚点 (0.5, 1)，y = 可视高/2)
 ```
 > **翻页/列表项的触摸穿透**：`view` 上的 `Mask` 只裁剪显示，不拦事件；遮挡点击要用 `BlockInputEvents`。
+> 注意：`BlockInputEvents` 的命中面积就是**节点的 UITransform 尺寸** —— 全屏尺寸的模态遮罩会把
+> 它下面「看得见」的 UI（如常驻底栏）一起变成**点不动**（点是穿透到遮罩，被当成「点面板外部」）。
+> 若面板只占屏幕中间、底栏本就露在外面，就要把遮罩**裁到该区域以上**（改尺寸 + 改位置，锚点在中心）：
+> ```ts
+> const top = MASK_SIZE.h / 2;
+> const h = top - cutY;                       // 下沿落在 cutY
+> setFrame(maskSprite, 'ui/px_white2', MASK_SIZE.w, h);
+> mask.setPosition(0, top - h / 2, 0);
+> ```
 
-## Mask（裁剪）
+### 竖排 UI 的三条硬规矩（面板/抽屉这类「固定头 + 滚动体 + 固定底」）
+
+1. **兄弟创建顺序 = 渲染顺序**：后 `addChild` 的画在上面。里程碑条若在头部之后创建，
+   就会**盖住头部条的下半截**（表现为「页签文字/金币数字被一条横杠压住」）。
+   正确做法是**用算术把竖带串起来**，而不是各自按中心定位：
+   ```ts
+   const HEAD_BOT = HEAD_Y - HEAD_H / 2;
+   const MS_Y     = HEAD_BOT - GAP - MS_H / 2;      // 里程碑条
+   const TOP      = MS_Y - MS_H / 2 - GAP;          // 滚动区上沿
+   const SCROLL_H = TOP - (-H / 2 + PAD);           // 下沿留 PAD
+   const SCROLL_Y = (TOP + (-H / 2 + PAD)) / 2;
+   ```
+2. **content 的 y 必须显式写**（锚点 (0.5,1)）：`content.setPosition(0, viewH / 2 - TOP_PAD)`。
+   写成 `0` 会让内容**整体下沉半个视口** —— 症状是「面板上半截永远空着、内容全挤在下面」。
+3. **TOP_PAD 不能省**：content 里第一行若中心贴着内容顶，高卡片（如 104px 的行）
+   会有上半截被视口上沿切掉。留白 ≥ 首行高度一半；顺带把「面板标题铭牌下沿」到
+   「滚动区上沿」之间的间隙算清楚，否则想加一行副标题也塞不下（改挂到铭牌上）。
+
+### Mask（裁剪）
 
 ```ts
 const m = node.addComponent(Mask);
