@@ -37,7 +37,24 @@
    - ⚠️ **模板路径必须绝对**：`_cdp.py` 内部 `os.chdir(ROOT)`，相对路径会静默跳过整份脚本。
    - ⚠️ 第 8 参可传独立 Chrome profile 目录：复用同一 profile 时 `--window-size` 会被上次
      会话记住的窗口几何覆盖（四比例截成同一尺寸）；连跑两次之间旧 chrome 可能没死干净，
-     占住 9333 调试口 → 截图 60s 超时，先 taskkill 掉 `remote-debugging-port=9333` 的进程。
+     占住 9333 调试口 → `chrome did not start` / 403 / socket closed 三种死法，
+     **第 9 参可指定调试端口（连跑多次换端口）**，异常日志也落 `_cdp_log.txt`。
+   - ⚠️ **headless 首次 `Input.dispatchMouseEvent` 会被丢弃**（页面未激活）→ 点一下没反应先发
+     `jsdrag` 预热（mouseMoved）再点，别误判成业务 bug。
+   - ⚠️ **第 3 参是本地 HTTP 服务端口，绝不能传 9333**（= Chrome 调试口）：服务器先占 9333 →
+     chrome 起不来 → `chrome did not start`，极易误判成端口被残留占用。HTTP 端口传 8901+。
+   - ⚠️ 跑之前 `unset http_proxy https_proxy ...` + `export NO_PROXY=127.0.0.1,localhost`
+     （沙箱代理 env 和 Windows 注册表系统代理都会劫持 python→127.0.0.1 的请求）；
+     **Bash 沙箱内 Chrome 网络偶发丢请求（假 404/REFUSED）→ 验收用 dangerouslyDisableSandbox 跑**。
+   - ⚠️ headless 首次 `Input.dispatchMouseEvent` 会被丢弃（页面未激活）→ 点一下没反应先发
+     `jsdrag` 预热（mouseMoved）再点，别误判成业务 bug。
+   - ⚠️ **boot overlay（`#tb-boot`）与 headless**：进度/切标题已改为 **不依赖 rAF**
+     （样式一次写入 + CSS transition + setInterval 轮询，2026-09-24 修复 rAF 停摆根因）。
+     但 swiftshader 截图对带 transition/animation 的 fixed 层会出**陈旧纹理伪影**
+     （「双进度条」/标题页下还挂着加载条）——DOM 求值状态才是真相；要干净截图就在 tpl 开头
+     eval 注入 `*{transition:none!important;animation:none!important}`。旧绕过法（强删节点）仍可用。
+   - ⚠️ **同层后建节点吞触摸**：角标（newTag/adIcon）必须挂在**价格按钮下**当子节点（坐标用按钮
+     本地），挂在 cell 上会盖住按钮右上角、事件被角标吃掉 → 「点选项有晃动反馈但没效果」。
    - ⚠️ `window.cc` 无 `cc.UITransform/UIOpacity/Vec3` → 用 `getComponent('cc.UITransform')`。
    - `__tb.bottom`/`__tb.cap`/`__tb.field` 是**类**，实例在 `.I`；`__tb` 还带 `panels`、`ui`、`goal`。
    - 本机 `tail/dirname` 不可用，`&&` 链会整条短路。
@@ -73,6 +90,14 @@
   输入四路都接（TOUCH 与 MOUSE 的 START/MOVE，桌面浏览器按下派发 MOUSE_DOWN）。
 
 ## 数值与经济（2026-09-23 第十五轮口径）
+- **落地判定 = 纯概率制**（2026-09-24 第二十一轮拍板，**覆盖 GDD §3.1-3 的角度容差模型**）：
+  所有瓶子一个口径 —— 成功树立 **50%**（倒立 10% / 正立 40%），失败 50%；
+  各阶「翻转精通」`mastery` 每级 **+5%**，满 **10 级 = 100%**（必成立）。
+  实现：`FLIP.successBase/successStep/critShareOfSuccess` + `G.successChance/critChance/okChance/rollOutcome`；
+  **成功池内部恒为 1:4 分配** —— 倒立/正立占比之和恒 = 1（倒立 20% / 正立 80%，不是「倒立固定 10%」），
+  且 `critChance + okChance ≡ successChance`；满级 = 倒立 20% + 正立 80% = 100%。
+  `rollLanding/outcomeOf/tierTolerance` 与 `p_stability` 抗扰度**已不参与判定**（旧角度制仅存于 GDD 历史段）。
+  ⚠️ `mastery` 的 `base` 同时是**价格基数**（`State.statCost`），改效果只能改 `step` / `successStep`。
 - **瓶盖 = 每次落地 1 枚**：树立(ok)/倒立(crit) 都给 1 枚对应品质瓶盖（`doFlipResult` 统一 `caps=1`），
   翻倒(fail) 无；没装瓶盖机器时 caps 归零（原版规则保留）。瓶盖**无爆散动画**，
   直接从瓶身中心沿抛物线飞进右端入料机（CapMachine phase1 起）。
@@ -103,8 +128,51 @@
 - 顶栏**只留两个筹码**（金币 + 瓶盖数）——速率「/秒 $X」与「履带回收中 +N」副行文本已删。
 - 瓶身贴图 `body_0..6.png` 画的是**瓶口朝下**（`angle=180` 才正立）；画布比例 0.4、内容底对齐。
 
+## 引导层（加载页 + 标题页，2026-09-24）
+- 全在 **`build-templates/web-mobile/`**：`index.html`（生成版的完整复制 + `#tb-boot` 引导层，
+  **改引擎模板相关内容要同步这里**，构建时整体覆盖产物）+ `boot/loading_bg.jpg`（参考图原画）
+  + `boot/bottle.png`（body_4 逆时针转 90° 横躺）+ `boot/logo.png`（app_logo）。
+- 钩子：`Res.loadAll` onProgress 加权（tex .85/aud .10/fnt .05）→ `__tbBootProgress(f)`；
+  `GameRoot.afterReady` → `__tbBootReady()`；用户点击标题页 → `__tbOnStart()` → GameRoot
+  `music(false)+(true)` 重播 BGM（无手势首次播被浏览器自动播放策略拦掉）。
+- 语言自适应 `navigator.language` 前缀 zh。标题页 = logo + Bottle Flip Inc + 点瓶子 + 点击屏幕开始。
+- **进度/切标题不依赖 rAF**（headless/后台标签 rAF 停摆会永远卡加载页）；
+  动画全走 CSS transition，切标题 setInterval 轮询 450ms 后置 `.title`。
+
 ## 可复用
 - 美术流水线 `E:\LDC_Fby\_art_pipe.py`：生成→抠底→规整→`assets/resources/Textures`。
   别用 `floodfill(thresh=T)` 直接抠底（Pillow 的 `_color_diff` 是三通道差值和，近白底噪点即超阈值且
   **静默失败**）→ 先造 L 二值掩膜再在掩膜上 `thresh=0` 泛洪；`RGBA.getbbox()` 不认 alpha，
   要用 `im.split()[3].getbbox()`；可拉伸部件切 `_l/_m/_r` 三件拼。
+
+## 贴图（2026-09-24 全量压到 200K 以下）
+- `assets/resources/Textures` 141 张 png，目录 **7.7MB → 2.6MB**，已无 >200K 的单图。
+- 工具 `.workbuddy/tools/tex_compress.py`（`--purge-dead` 移出死资源）、`tex_dryrun.py`（试算体积/PSNR）；
+  **原图备份 `.workbuddy/texture_src/`**（`unused/` 里是移出的死资源，含 meta，可直接拷回恢复）。
+- 压缩手法：唯一色 ≤256 的图走**精确调色板 PNG8（无损）**；其余 `quantize(256, FASTOCTREE)`
+  存 PNG8。全分辨率 PSNR 27~42dB，但**在真实显示尺寸下（tab 图标才 42px）都 ≥40dB**，
+  评价贴图压缩必须按显示尺寸算失真，别看全分辨率数字。
+- **已移出的死资源**（只在 `TEXTURE_PATHS` 里、全工程无绘制调用）：
+  `env/drum / env/fog / env/leaves / env/machine_box / env/paw_card` + `ui/wood_banner`
+  （木牌实际用 `wood_banner_l/m/r` 三件）；同时从 Res.ts 摘掉了前 5 条。
+- ⚠️ **`resources.load(数组)` 里任何一条路径失败 → 整批贴图都加载不到**（不是跳过单个）。
+  所以移走/改名贴图必须同步改 `Res.ts` 的 `TEXTURE_PATHS`，否则进游戏整屏只有清屏色。
+- 下一个包体大头是**字体**：`Fonts/NotoSansSC-Bold.ttf` 10.5MB + `Lato-Semibold.ttf` 669KB，
+  占 resources 的 11/15MB —— 中文字体子集化能省 10MB 量级（尚未做）。
+
+## 音频（2026-09-24 全量转 MP3）
+- **assets/resources/Audio 下只有 13 个 .mp3**（wav+meta 已删），代码按 `'Audio/xxx'` 路径加载
+  不带扩展名，无需改 TS；uuid 已变（旧 uuid 无引用）。
+- **本机无 ffmpeg** → 用 venv 里的 `lameenc`（纯 wheel 自带 LAME）编码；
+  工具 `.workbuddy/tools/audio_conv.py`（转换+备份+--purge 删 wav）、`audio_verify.py`（解析 MPEG 帧
+  校验时长/声道/采样率）、`audio_info.py`。**原始 wav 备份在 `.workbuddy/audio_src/`**（含旧 meta）。
+- 码率分档：bgm 96k 立体声（20.5MB→1.37MB）、win/buy/hit/slash 128k 立体声、button 96k、
+  click/click2/pop1-5 64k 单声道。总计 20.32MB → 1.40MB（6.9%）。
+- ⚠️ **lameenc 低码率时会悄悄把输出降到 32kHz**（LAME 自动优化）→ 必须
+  `set_out_sample_rate(与源相同)` 保持 44.1k/48k。
+- mp3 有 ~0.04s 编码器延时（576+1152 采样）；**BGM `loop=true` 循环点会有一小段静音间隙**
+  （mp3 固有，浏览器不解码 LAME gapless tag）——原版 wav 是无缝的，用户若反馈循环断裂，需
+  换回 wav/ogg 或改用 Web Audio 手动 buffer 循环。
+- Cocos web 端 AudioClip：`clip.duration` getter 返回 `undefined`（序列化字段），要用
+  **`clip.getDuration()`**（本机实测 mp3 正确返回 116.61s）；`_nativeAsset` 是 AudioMeta 对象
+  `{url,type,player}`，不是 ArrayBuffer。

@@ -3,7 +3,7 @@ import { LAYOUT, OFFLINE_AD_MULT } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { t } from '../Core/Locale';
 import { fmt } from '../Core/Util';
-import { button, img, label, MASK_SIZE, nd, popIn, popOut, rect, setFrame, setSize, sizeOf, tint } from './UIKit';
+import { button, img, label, MASK_SIZE, nd, popIn, popOut, rect, setFrame, setSize, sizeOf, TEXT_SCALE, tint } from './UIKit';
 import { chipPlate, WOOD, woodButton, woodPlate } from './Theme';
 import { Modal } from './Modal';
 import { Ads } from './Ads';
@@ -137,11 +137,15 @@ export class Hud extends Component {
             this.capsBumpT = Hud.PULSE;
         }
         if (!n || !n.isValid) { return; }
+        // ⚠️ label 节点自身的基准缩放**不是 1**：UIKit.label 会按 TEXT_SCALE（=1/2）
+        //    缩放节点来做 2K 超采样。所以这里每个 scale 都必须乘基准值，
+        //    否则「伸缩一次」会把数字撑成两倍大并且再也回不去。
+        const b = TEXT_SCALE;
         Tween.stopAllByTarget(n);
-        n.setScale(1, 1, 1);
+        n.setScale(b, b, 1);
         tween(n)
-            .to(Hud.PULSE * 0.4, { scale: new Vec3(1.22, 1.22, 1) }, { easing: 'quadOut' })
-            .to(Hud.PULSE * 0.6, { scale: new Vec3(1, 1, 1) }, { easing: 'quadIn' })
+            .to(Hud.PULSE * 0.4, { scale: new Vec3(b * 1.22, b * 1.22, 1) }, { easing: 'quadOut' })
+            .to(Hud.PULSE * 0.6, { scale: new Vec3(b, b, 1) }, { easing: 'quadIn' })
             .start();
     }
 

@@ -40,13 +40,8 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/env/container/spriteFrame',
     'Textures/env/cursor/spriteFrame',
     'Textures/env/disc/spriteFrame',
-    'Textures/env/drum/spriteFrame',
-    'Textures/env/fog/spriteFrame',
     'Textures/env/hand/spriteFrame',
-    'Textures/env/leaves/spriteFrame',
     'Textures/env/machine/spriteFrame',
-    'Textures/env/machine_box/spriteFrame',
-    'Textures/env/paw_card/spriteFrame',
     'Textures/env/recycle/spriteFrame',
     'Textures/env/shockwave/spriteFrame',
     'Textures/env/star/spriteFrame',
@@ -203,19 +198,25 @@ export class Res extends Component {
             try { fn(); } catch (e) { console.warn('[Res]', e); oneDone(); }
         };
 
-        guard(() => resources.load(TEXTURE_PATHS, SpriteFrame, () => { /* progress */ }, (err, assets: SpriteFrame[]) => {
+        // ★ 引导层进度上报（build-templates/web-mobile/index.html 的 DOM 加载页）：
+        //    贴图占大头（0.85），音频 / 字体做零头（0.10 / 0.05）。
+        const bootP = (globalThis as any).__tbBootProgress as ((f: number) => void) | undefined;
+        const fr = { tex: 0, aud: 0, fnt: 0 };
+        const reportBoot = () => { if (bootP) { bootP(Math.min(1, fr.tex * 0.85 + fr.aud * 0.10 + fr.fnt * 0.05)); } };
+
+        guard(() => resources.load(TEXTURE_PATHS, SpriteFrame, (fin: number, tot: number) => { fr.tex = tot > 0 ? fin / tot : 0; reportBoot(); }, (err, assets: SpriteFrame[]) => {
             if (err) { console.warn('[Res] texture load error', err); }
             else { for (let i = 0; i < assets.length; i++) { this.frames[TEXTURE_PATHS[i]] = assets[i]; } }
             oneDone();
         }));
 
-        guard(() => resources.load(AUDIO_PATHS, AudioClip, () => { /* progress */ }, (err, assets: AudioClip[]) => {
+        guard(() => resources.load(AUDIO_PATHS, AudioClip, (fin: number, tot: number) => { fr.aud = tot > 0 ? fin / tot : 0; reportBoot(); }, (err, assets: AudioClip[]) => {
             if (err) { console.warn('[Res] audio load error', err); }
             else { for (let i = 0; i < assets.length; i++) { this.clips[AUDIO_PATHS[i]] = assets[i]; } }
             oneDone();
         }));
 
-        guard(() => resources.load('Fonts/NotoSansSC-Bold', Font, () => { /* progress */ }, (err, f: Font) => {
+        guard(() => resources.load('Fonts/NotoSansSC-Bold', Font, (fin: number, tot: number) => { fr.fnt = tot > 0 ? fin / tot : 0; reportBoot(); }, (err, f: Font) => {
             if (!err) { this.font = f; } else { console.warn('[Res] font load error', err); }
             oneDone();
         }));

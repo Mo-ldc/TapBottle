@@ -1,5 +1,5 @@
 import {
-    ABILITY, ACHIEVEMENTS, AD_BUFF_SEC, BOTTLE_STATS, CAP_GAIN_BASE, FLIP, HAND, MACHINE, MILESTONES, MilestoneDef,
+    ABILITY, ACHIEVEMENTS, AD_BUFF_SEC, BOTTLE_STATS, CAP_GAIN_BASE, CURSOR, FLIP, HAND, MACHINE, MILESTONES, MilestoneDef,
     SKILLS, SkillDef, TIERS, TreeId,
 } from './GameConfig';
 import { SaveData, defaultSave, loadSave, writeSave, clearSave } from './Save';
@@ -190,10 +190,13 @@ export class State {
         for (let t = 0; t < 7; t++) { s += this.data.bottles[t] * this.bottleIncome(t); }
         return s;
     }
-    /** 落地容差角（§3.1-3：18° × (1 + 0.10 × 精通等级)） */
-    tierTolerance(tier: number): number {
-        return FLIP.toleranceBase * (1 + FLIP.toleranceStep * this.statLv(tier, 'mastery'));
-    }
+    /**
+     * 精通等级上限（= 成功率 100% 的等级）。
+     * ★ 第十七轮口径：七阶一律 10 级（GameConfig 里各阶 max 都是 10）。
+     */
+    get masteryMaxLevel(): number { return FLIP.masteryMax; }
+    /** 该阶精通是否已满（成功率 100%） */
+    masteryMaxed(tier: number): boolean { return this.statLv(tier, 'mastery') >= this.masteryMaxLevel; }
     /** 扣盖倍率 M_landing（5.0，T2 铜瓶 6.0） */
     critMult(tier: number): number { return TIERS[tier].critMult; }
     /** 该阶可否再购买（同屏上限 30 + 上限词条 +5/级 + 科技树 +5/级） */
@@ -325,6 +328,26 @@ export class State {
     /** 光标吸附半径（px）：0.55m × (1 + 0.05L)；广告增益「光圈变大」期间 ×2 */
     get cursorRadius() { return this.sk('p_cursorsize') * (this.haloBuffOn ? 2 : 1); }
 
+    /**
+     * 抓取光圈（商店设施，$500 金币）。
+     *
+     * ★ 用户口径（第十九轮）：光圈解锁从「技能树 · 瓶子模块」挪到**商店**直接买。
+     *   状态仍然落在同一个科技节点 `p_cursor` 上 —— 于是
+     *   `BottleField`（光圈跟手）、`UpgradeRows`（光圈半径升级项）、
+     *   `BottomPanel.TREE_TECHS`（手部/挂机模块的解锁条件）全部无需改动。
+     */
+    buyCursor(): boolean {
+        if (this.hasCursor) { return false; }
+        const price = CURSOR.buyPrice;
+        if (this.data.money < price) { return false; }
+        this.data.money -= price;
+        this.data.skills['p_cursor'] = 1;
+        this.checkAch();
+        this.save();
+        this.notify();
+        return true;
+    }
+
     /* ================= 广告增益（UI/Ads.ts 统一入口激活） ================= */
     /** 增益剩余秒数（0 = 未生效）。到期时间是绝对时间戳 → 离线也在倒计时 */
     adBuffLeft(kind: 'coin' | 'cap' | 'halo'): number {
@@ -344,8 +367,12 @@ export class State {
     get idleDuration() { return this.sk('p_idletime'); }
     get idleRecovery() { return Math.max(0.5, this.sk('p_idlerecov')); }
     get idleMoveSpeed() { return this.sk('p_idlemove'); }
-    /** 翻转稳定性（每级 +5% 抗扰度） */
-    get stability() { return this.skLv('p_stability') * FLIP.stabilityStep; }
+    /**
+     * 翻转稳定性（p_stability，每级 +5% 抗扰度）。
+     * ⚠️ 第十七轮改成**纯概率判定**后，这个值不再参与落地判定（成功率只由该阶「翻转精通」决定），
+     *    保留 getter 只为科技树显示层取值，效果直接读节点自身的 step。
+     */
+    get stability() { return this.skLv('p_stability') * (SKILL_BY_ID['p_stability']?.step ?? 0.05); }
     /** 履带线速度倍率（每级 +10%） */
     get conveyorMul() { return 1 + this.skLv('p_machinespeed') * 0.10; }
     /** 闸门双倍概率（每级 +10%，满级 100%） */
@@ -389,30 +416,44 @@ export class State {
         this.data.caps -= v; this.notify(); return true;
     }
 
-    /* ================= 落地判定（角度制，GDD §3.1-3） ================= */
+    /* ================= 落地判定（纯概率制 · 第十七轮用户口径） ================= */
     /**
-     * 掷一次落地角度偏差（度，0~180）。
-     * 物理近似：目标角取 0°（正立）或 180°（扣盖），叠加一个由质量 / 稳定性科技
-     * 决定的近似正态误差；判定用容差角（落地精通）。
+     * 成功树立概率 = **50%** + 精通等级 × **5%**，上限 100%。
+     *
+     * ★ 用户口径（第十七轮）：**所有瓶子一个口径**，只由该阶「翻转精通」等级决定；
+     *   满 10 级 = 100%（必成立）。原来的「角度容差 + 质量/稳定性」模型已废弃，
+     *   判定与动画解耦：这里先掷出 crit / ok / fail，瓶子再演对应姿态。
+     *
+     * @param lv 可选：指定精通等级（面板预览「下一级」用），默认读存档等级
      */
-    rollLanding(tier: number): number {
-        const mass = TIERS[tier].mass;
-        let sigma = FLIP.angleVarBase + FLIP.angleVarPerTier * tier;   // 24 → 16.8
-        sigma /= Math.sqrt(mass);                                      // 越重落地越沉稳
-        sigma *= Math.max(0.35, 1 - this.stability);                    // 稳定性科技 −5%/级
-        const target = Math.random() < 0.5 ? 0 : 180;
-        const g = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;   // 近似正态 (-1..1)
-        return Math.min(180, Math.abs(target + g * sigma * 1.6));
+    successChance(tier: number, lv = -1): number {
+        const l = lv < 0 ? this.statLv(tier, 'mastery') : lv;
+        return clamp01(FLIP.successBase + l * FLIP.successStep);
     }
-    /** 角度偏差 → 三态 */
-    outcomeOf(tier: number, delta: number): Outcome {
-        const tol = this.tierTolerance(tier);
-        if (delta <= tol) { return 'ok'; }
-        if (Math.abs(180 - delta) <= tol) { return 'crit'; }
-        return 'fail';
+    /**
+     * 倒立（扣盖）概率 = 成功率 × 20%。
+     *
+     * ★ 用户口径（第十七轮补充）：**「倒立」和「正立」是成功池内部的 1:4 分配** ——
+     *   两者占比相加恒 = 1（倒立 20% / 正立 80%），且
+     *   `critChance + okChance ≡ successChance`。精通只抬高「成功率」这个池子的水位，
+     *   池子内部比例不变（不是「倒立固定 10% / 正立吃掉全部增量」）。
+     *   基础（精通 0 级）：倒立 10% + 正立 40% = 成功 50%；
+     *   满级（精通 10 级）：倒立 20% + 正立 80% = 成功 **100%**。
+     */
+    critChance(tier: number, lv = -1): number { return this.successChance(tier, lv) * FLIP.critShareOfSuccess; }
+    /** 正立（ok）概率 = 成功率 − 倒立（按定义与倒立严格互补，和恒 = 成功率） */
+    okChance(tier: number, lv = -1): number { return this.successChance(tier, lv) - this.critChance(tier, lv); }
+    /**
+     * 掷一次三态：先按成功率定成败（50% + 精通 ×5%），成功后按 1:4 分「倒立 / 正立」。
+     * 基础（精通 0 级）= 倒立 10% + 正立 40% + 失败 50%；
+     * 满级 = 倒立 20% + 正立 80%（成功 100%，再无失败）。
+     */
+    rollOutcome(tier: number): Outcome {
+        const p = this.successChance(tier);
+        const r = Math.random();
+        if (r >= p) { return 'fail'; }
+        return r < p * FLIP.critShareOfSuccess ? 'crit' : 'ok';
     }
-    /** 直接掷一次三态（内部就是角度制） */
-    rollOutcome(tier: number): Outcome { return this.outcomeOf(tier, this.rollLanding(tier)); }
 
     /** 结算一次翻转（GDD §4.3 统一结算公式） */
     doFlipResult(tier: number, outcome: Outcome): FlipResult {

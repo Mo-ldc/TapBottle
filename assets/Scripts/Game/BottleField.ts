@@ -1,5 +1,5 @@
 import { _decorator, Component, Node, Sprite, Vec2, Vec3, UIOpacity, UITransform, input, Input, EventTouch, EventMouse, tween } from 'cc';
-import { LAYOUT, PLAY_AREA, TIERS, VISIBLE_BOTTLES } from '../Core/GameConfig';
+import { LAYOUT, PLAY_AREA, TIERS, VISIBLE_PER_TIER } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { chance, fmt } from '../Core/Util';
 import { FlipResult } from '../Core/State';
@@ -12,7 +12,7 @@ import { Modal } from '../UI/Modal';
 
 const { ccclass } = _decorator;
 
-const VISIBLE_MAX = VISIBLE_BOTTLES;
+const VISIBLE_MAX = VISIBLE_PER_TIER;
 
 /** 玩家点击音效（用户口径：pop3 才是瓶子被触发的声音） */
 const TAP_SFX = ['pop3'];
@@ -322,22 +322,17 @@ export class BottleField extends Component {
         if (!this.node || !this.node.isValid) { return; }
         const want = G.data.bottles.slice();
         const total = want.reduce((a, b) => a + b, 0);
-        const visTotal = Math.min(total, VISIBLE_MAX);
 
-        while (this.bottles.length > visTotal) {
-            const b = this.bottles.pop()!;
-            if (b.shadowNode && b.shadowNode.isValid) { b.shadowNode.destroy(); }
-            b.node.destroy();
-        }
-        // ★ 按阶数量对账（用户反馈：加第二种瓶子没飞入动画、场上瓶子还换位置）——
-        //   原来按 seq（高阶在前）逐位比对，新阶瓶子插队首时会把**已有旧瓶就地换皮**：
-        //   没有飞入动画、还占着旧位置，看起来就是「瓶子自己换了/挪了」。
-        //   现在已有的瓶子一个不动，缺哪阶补建哪阶，新建的正好接上飞入动画。
+        // ★ 用户口径（第十九轮）：**各阶配额互相独立**（见 GameConfig.VISIBLE_PER_TIER 注释）。
+        //   原来是「全局总上限 24、高阶优先」，于是买 T2 会当场删掉一只 T1（看起来像被替换），
+        //   而且桌面名额满后再买 T1 一只都建不出来（看起来像点了没反应）。
+        //   现在每阶只跟自己的配额对账：买哪一阶都不会动到别的阶。
         const wantVis = [0, 0, 0, 0, 0, 0, 0];
-        let left = visTotal;
-        for (let t = 6; t >= 0; t--) {
-            wantVis[t] = Math.min(want[t], left);
-            left -= wantVis[t];
+        let visTotal = 0;
+        for (let t = 0; t < 7; t++) {
+            const cap = VISIBLE_MAX[t] ?? VISIBLE_MAX[VISIBLE_MAX.length - 1];
+            wantVis[t] = Math.min(want[t], cap);
+            visTotal += wantVis[t];
         }
         const have = [0, 0, 0, 0, 0, 0, 0];
         for (const b of this.bottles) { have[b.tier]++; }

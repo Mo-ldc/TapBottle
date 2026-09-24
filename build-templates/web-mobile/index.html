@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+
+  <title>Cocos Creator | TapBottle</title>
+
+  <!--http://www.html5rocks.com/en/mobile/mobifying/-->
+  <meta name="viewport"
+        content="width=device-width,user-scalable=no,initial-scale=1,minimum-scale=1,maximum-scale=1,minimal-ui=true"/>
+
+  <!--https://developer.apple.com/library/safari/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html-->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+
+  <!-- force webkit on 360 -->
+  <meta name="renderer" content="webkit"/>
+  <meta name="force-rendering" content="webkit"/>
+  <!-- force edge on IE -->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+  <meta name="msapplication-tap-highlight" content="no">
+
+  <!-- force full screen on some browser -->
+  <meta name="full-screen" content="yes"/>
+  <meta name="x5-fullscreen" content="true"/>
+  <meta name="360-fullscreen" content="true"/>
+
+  <!--fix fireball/issues/3568 -->
+  <!--<meta name="browsermode" content="application">-->
+  <meta name="x5-page-mode" content="app">
+
+  <!--<link rel="apple-touch-icon" href=".png" />-->
+  <!--<link rel="apple-touch-icon-precomposed" href=".png" />-->
+
+  <link rel="stylesheet" type="text/css" href="style.css"/>
+
+  <style>
+    /* ================= TapBottle 引导层（加载页 + 标题页） =================
+       由 build-templates/web-mobile/index.html 在每次构建时覆盖生成文件。
+       进度由游戏内 Res.loadAll 通过 window.__tbBootProgress 上报；
+       资源就绪后 GameRoot.afterReady 调 window.__tbBootReady 切标题页。 */
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%;
+      background: #E9B77C; overflow: hidden; }
+    #tb-boot { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 9999;
+      user-select: none; -webkit-user-select: none; touch-action: manipulation;
+      transition: opacity .45s ease; }
+    #tb-boot.hide { opacity: 0; pointer-events: none; }
+    #tb-boot .bg { position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+      background: url('boot/loading_bg.jpg') center / cover no-repeat; }
+
+    /* ---- 加载：底部文字 + 进度条（小瓶子骑在填充前沿） ---- */
+    #tb-boot .bottom { position: absolute; left: 0; right: 0; bottom: 10.5%;
+      text-align: center; transition: opacity .35s ease; }
+    #tb-boot.title .bottom { opacity: 0; pointer-events: none; }
+    #tb-boot .loadtxt { font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      font-weight: 900; font-size: 4.6vmin; color: #fff; letter-spacing: .5vmin;
+      text-shadow: -.35vmin 0 0 #8a5220, .35vmin 0 0 #8a5220, 0 -.35vmin 0 #8a5220,
+        0 .35vmin 0 #8a5220, -.28vmin -.28vmin 0 #8a5220, .28vmin -.28vmin 0 #8a5220,
+        -.28vmin .28vmin 0 #8a5220, .28vmin .28vmin 0 #8a5220,
+        0 .9vmin 1.2vmin rgba(96, 48, 0, .35); margin-bottom: 2.4vmin; }
+    #tb-boot .bar { position: relative; width: 84%; height: 4.6vmin; margin: 0 auto;
+      border-radius: 3.2vmin; background: #F7E8CB;
+      box-shadow: 0 0 0 .95vmin #7A4210, inset 0 -.9vmin 0 rgba(160, 105, 40, .22); }
+    #tb-boot .fill { position: absolute; left: 1.1%; top: 9%; bottom: 9%; width: 3%;
+      border-radius: 3.2vmin; transition: width .18s linear;
+      background: linear-gradient(#FFEA82, #FFD23E 55%, #EFB41C);
+      box-shadow: inset 0 -.7vmin 0 rgba(190, 122, 0, .35); }
+    #tb-boot .bottle { position: absolute; bottom: 4%; width: 9.2vmin;
+      margin-left: -4.6vmin; left: 4%; transition: left .18s linear;
+      filter: drop-shadow(0 .5vmin .6vmin rgba(96, 48, 0, .3)); }
+
+    /* ---- 标题：logo + 游戏名 + 点击开始 ---- */
+    #tb-boot .center { position: absolute; left: 0; right: 0; top: 36%;
+      text-align: center; opacity: 0; transition: opacity .35s ease; pointer-events: none; }
+    #tb-boot.title .center { opacity: 1; }
+    #tb-boot .logo { width: 20vmin; filter: drop-shadow(0 1vmin 1.6vmin rgba(90, 50, 10, .35));
+      animation: tbBob 2.2s ease-in-out infinite; }
+    #tb-boot .title { font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      font-weight: 900; font-size: 8.4vmin; color: #fff; letter-spacing: .5vmin;
+      margin-top: 2.6vmin;
+      text-shadow: -.5vmin 0 0 #7A4210, .5vmin 0 0 #7A4210, 0 -.5vmin 0 #7A4210,
+        0 .5vmin 0 #7A4210, -.4vmin -.4vmin 0 #7A4210, .4vmin -.4vmin 0 #7A4210,
+        -.4vmin .4vmin 0 #7A4210, .4vmin .4vmin 0 #7A4210,
+        0 1.2vmin 1.6vmin rgba(96, 48, 0, .4); }
+    #tb-boot .sub { font-weight: 900; font-size: 3.4vmin; color: #FFE9B8; letter-spacing: .8vmin;
+      margin-top: 1.4vmin;
+      text-shadow: -.25vmin 0 0 #8a5220, .25vmin 0 0 #8a5220, 0 -.25vmin 0 #8a5220,
+        0 .25vmin 0 #8a5220, 0 .6vmin .9vmin rgba(96, 48, 0, .35); }
+    #tb-boot .tap { font-weight: 900; font-size: 4.4vmin; color: #7A4210; margin-top: 6vmin;
+      animation: tbPulse 1.15s ease-in-out infinite; }
+    @keyframes tbPulse { 0%, 100% { transform: scale(1); opacity: .7; }
+      50% { transform: scale(1.08); opacity: 1; } }
+    @keyframes tbBob { 0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-1.2vmin); } }
+  </style>
+
+</head>
+<body>
+  <div id="tb-boot">
+    <div class="bg"></div>
+    <div class="center">
+      <img class="logo" src="boot/logo.png" alt="" draggable="false"/>
+      <div class="title">Bottle Flip Inc</div>
+      <div class="sub" id="tbSub"></div>
+      <div class="tap" id="tbTap"></div>
+    </div>
+    <div class="bottom">
+      <div class="loadtxt" id="tbLoadTxt"></div>
+      <div class="bar">
+        <div class="fill" id="tbFill"></div>
+        <img class="bottle" id="tbBottle" src="boot/bottle.png" alt="" draggable="false"/>
+      </div>
+    </div>
+  </div>
+
+  <div id="GameDiv" cc_exact_fit_screen="true">
+      <div id="Cocos3dGameContainer">
+        <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="99"></canvas>
+      </div>
+    </div>
+
+
+<!-- Polyfills bundle. -->
+
+<script src="src/polyfills.bundle.js" charset="utf-8"> </script>
+
+
+<!-- SystemJS support. -->
+<script src="src/system.bundle.js" charset="utf-8"> </script>
+
+<!-- Import map -->
+<script src="src/import-map.json" type="systemjs-importmap" charset="utf-8"> </script>
+
+<script>
+    (function () {
+      var zh = (navigator.language || 'zh').toLowerCase().indexOf('zh') === 0;
+      document.getElementById('tbLoadTxt').textContent = zh ? '正在加载中' : 'Loading';
+      document.getElementById('tbSub').textContent = zh ? '点 瓶 子' : 'IDLE FLIP GAME';
+      document.getElementById('tbTap').textContent = zh ? '—— 点击屏幕开始 ——' : '—— Tap to Start ——';
+
+      var fill = document.getElementById('tbFill');
+      var bottle = document.getElementById('tbBottle');
+      var boot = document.getElementById('tb-boot');
+      var ready = false, readyAt = 0, shown = false, entered = false;
+
+      /* 进度动画全交给 CSS transition（width/left），JS 只在值变化时改样式 ——
+         不用 rAF 循环：部分无头/后台标签页环境 rAF 会停摆，进度条会永远卡住。 */
+      function render(p) {
+        var q = Math.max(0.025, Math.min(1, p));
+        fill.style.width = (2.5 + q * 95) + '%';
+        bottle.style.left = (3 + q * 91.5) + '%';
+      }
+      function showTitle() {
+        if (shown) { return; }
+        shown = true;
+        boot.classList.add('title');
+      }
+      render(0.025);
+
+      window.__tbBootProgress = function (f) {
+        if (ready) { return; }
+        var v = Math.min(1, Number(f) || 0);
+        if (v > 0.025 && v < 1) { render(v); }
+      };
+      window.__tbBootReady = function () {
+        if (ready) { return; }
+        ready = true;
+        readyAt = Date.now();
+        render(1);
+        var iv = setInterval(function () {
+          if (shown) { clearInterval(iv); return; }
+          if (Date.now() - readyAt >= 450) { clearInterval(iv); showTitle(); }
+        }, 120);
+      };
+      boot.addEventListener('pointerdown', function () {
+        if (!shown || entered) { return; }
+        entered = true;
+        boot.classList.add('hide');
+        setTimeout(function () { var el = document.getElementById('tb-boot'); if (el && el.parentNode) { el.parentNode.removeChild(el); } }, 520);
+        if (window.__tbOnStart) { try { window.__tbOnStart(); } catch (e) { /* ignore */ } }
+      });
+    })();
+</script>
+
+<script>
+    System.import('./index.js').catch(function(err) { console.error(err); })
+</script>
+
+</body>
+</html>

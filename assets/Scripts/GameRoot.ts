@@ -210,11 +210,21 @@ export class GameRoot extends Component {
 
     private beltNode: Node = null!;
 
-    /* ---------------- 启动（直接进游戏，无 Logo 页） ---------------- */
+    /* ---------------- 启动（引导层标题页 → 点击进游戏） ---------------- */
     private afterReady() {
         Res.I.masterScale = G.data.settings.master;
         this.applySafeLayout();
         Res.I.music(true, G.data.settings.music);
+        // ★ DOM 引导层（build-templates/web-mobile/index.html）：
+        //    资源就绪 → 顶满进度并切「点击开始」标题页；用户点击后引导层回调
+        //    __tbOnStart 重播 BGM —— 首次 music() 没有用户手势会被浏览器自动播放
+        //    策略拦掉（AudioContext 处于 suspended），必须等这次点击。
+        const bootReady = (globalThis as any).__tbBootReady;
+        if (bootReady) { try { bootReady(); } catch (e) { /* ignore */ } }
+        (globalThis as any).__tbOnStart = () => {
+            Res.I.music(false);
+            Res.I.music(true, G.data.settings.music);
+        };
         const off = G.applyOffline();
         // 弹窗挂 panelLayer（在 uiLayer 之上）：否则会被晚创建的左侧广告按钮盖住
         if (off.money > 0 || off.caps > 0) { this.hud.showOffline(off.money, off.caps, off.seconds, this.panelLayer); }

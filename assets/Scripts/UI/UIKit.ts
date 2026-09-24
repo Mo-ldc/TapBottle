@@ -111,13 +111,39 @@ export interface LabelOpts {
     anchorY?: number;
 }
 
+/**
+ * 文字超采样倍率 —— 「分辨率调高到 2K」在 UI 文字上的正解。
+ *
+ * ★ 为什么不是改设计分辨率（2026-09-24 第十九轮排查结论）：
+ *   Cocos 的 TTF Label 是**按 `fontSize` 栅格化到离屏画布、再把画布贴到 quad 上**的
+ *   （引擎 `assembler/label/text-processing._getStyleFontScale` 的 fontScale 恒为 1，
+ *    只受画布 MAX_SIZE 限制），也就是说文字的**像素密度只取决于 fontSize**，
+ *    跟「设计分辨率」没有关系。而竖屏用 `FIXED_WIDTH`：设计宽 720 映射到整屏宽，
+ *   2K 手机（1440px）等于把 720 宽的画布拉伸 2 倍 —— 12~18px 的字又小又糊。
+ *   单纯把 DESIGN_W/H 翻倍、布局常量一起翻倍，屏幕上的物理大小和清晰度**一点不变**
+ *   （因为一切都等比跟着屏幕走），还要改动上千个坐标常量，风险极高收益为零。
+ *
+ *   这里改成：**字形按 SS 倍分辨率栅格化**（fontSize × SS、文字盒也 × SS），
+ *   再把 Label 节点缩回 1/SS —— 视觉尺寸/排版完全不变，但纹理清晰度翻倍，
+ *   等效于「全部文字按 2K 渲染」。全工程只有一个 `label()` 出口，所以一处生效。
+ *   ⚠️ 想关掉这个效果：把 TEXT_SS 改成 1 即可。
+ */
+export const TEXT_SS = 2;
+/** Label 节点自身的基准缩放（不是 1！任何直接 setScale 到 label 节点的动画都要乘它） */
+export const TEXT_SCALE = 1 / TEXT_SS;
+
 export function label(parent: Node, text: string, x: number, y: number, w: number, h: number, o?: LabelOpts): Label {
     const ax = o?.anchorX ?? 0.5, ay = o?.anchorY ?? 0.5;
-    const n = nd(parent, 'label', w, h, x, y, ax, ay);
+    // 显式标 number：否则 TS 按字面量类型 2 推断，下面 `ss !== 1` 会被判成恒真语句（TS2367）
+    const ss: number = TEXT_SS;
+    const size = o?.size ?? 28;
+    // 盒子按 SS 放大，节点再缩回 1/SS → 世界尺寸与原来完全一致，但字形按 SS 倍栅格化
+    const n = nd(parent, 'label', w * ss, h * ss, x, y, ax, ay);
+    if (ss !== 1) { n.setScale(TEXT_SCALE, TEXT_SCALE, 1); }
     const lb = n.addComponent(Label);
     lb.string = text;
-    lb.fontSize = o?.size ?? 28;
-    lb.lineHeight = o?.lineHeight ?? (o?.size ?? 28) * 1.15;
+    lb.fontSize = size * ss;
+    lb.lineHeight = (o?.lineHeight ?? size * 1.15) * ss;
     lb.color = o?.color ? (typeof o.color === 'string' ? hex(o.color) : o.color) : WHITE;
     lb.horizontalAlign = o?.hAlign === 'left' ? Label.HorizontalAlign.LEFT
         : o?.hAlign === 'right' ? Label.HorizontalAlign.RIGHT : Label.HorizontalAlign.CENTER;

@@ -24,7 +24,11 @@ node_modules/
 .idea/
 
 #//////////////////////////
-# WorkBuddy 一次性排查产物
+# WorkBuddy 一次性排查产物 / 原始文件备份
 #//////////////////////////
 .workbuddy/*.txt
 .workbuddy/*.log
+.workbuddy/**/*.txt
+.workbuddy/**/*.log
+.workbuddy/audio_src/
+.workbuddy/texture_src/

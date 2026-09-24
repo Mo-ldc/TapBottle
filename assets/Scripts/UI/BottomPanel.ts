@@ -1,6 +1,6 @@
 import { _decorator, Component, Graphics, Label, Node, ScrollView, Sprite, UITransform } from 'cc';
 import {
-    ABILITY_GRAPH, BOTTLE_STATS, BOTTLE_TREE_ORDER, BottleStatDef, HELPER_GRAPH,
+    ABILITY_GRAPH, BOTTLE_STATS, BOTTLE_TREE_ORDER, BottleStatDef, CURSOR, HELPER_GRAPH,
     LAYOUT, PLAYER_GRAPH, SkillNodeDef, TIERS,
 } from '../Core/GameConfig';
 import { G, SKILL_BY_ID, UNLOCK_SKILL } from '../Core/State';
@@ -8,7 +8,7 @@ import { t } from '../Core/Locale';
 import { fmt, hex } from '../Core/Util';
 import { label, nd, setFrame, sliced, destroyChildren, roundedPanel, scrollView } from './UIKit';
 import { WOOD, wobble, woodButton, woodPlate, woodPlateRefill } from './Theme';
-import { applyRow, makeCell, COLS, CELL_W, CELL_H, GAP_X, GAP_Y, RowSpec, RowUI, skillDesc, statDesc, toleranceText } from './UpgradeRows';
+import { applyRow, makeCell, COLS, CELL_W, CELL_H, GAP_X, GAP_Y, RowSpec, RowUI, skillSub, statSub, successText } from './UpgradeRows';
 import { capsShortAd, MACHINE_PRICE, moneyShortAd, nextGoalText } from './Guidance';
 import { Toast } from './Toast';
 import { BottleField } from '../Game/BottleField';
@@ -77,11 +77,19 @@ const TREE_TECHS: CatDef[] = [
  *    助手的六阶翻瓶许可（h_bronze..h_diamond）同理：原版在升级页 · 助手区。
  */
 const TREE_BELT_NODES = ['p_stability', 'p_machinespeed', 'p_gateunlock', 'p_gatechance'];
-const TREE_IDLE_NODES = ['p_cursor', 'p_sizelimit', 'p_idle', 'p_idlemove', 'p_idletime', 'p_idlerecov'];
+/**
+ * ★ 用户口径（第十九轮）：`p_cursor`（解锁光圈）**不进技能树**了 ——
+ *   它改到「商店」里花金币直接买（见 shopRows → cursorRow）。
+ *   这里留着会导致「挂机模式」栏里渲染一个永远点不了的死节点。
+ */
+const TREE_IDLE_NODES = ['p_sizelimit', 'p_idle', 'p_idlemove', 'p_idletime', 'p_idlerecov'];
 const HELPER_CAP_NODES = ['h_bronze', 'h_silver', 'h_gold', 'h_ruby', 'h_emerald', 'h_diamond'];
 
 const PANEL_W = 708;
 const SCROLL_W = 664;
+/**
+ * 滚动视口高度（★ 第十九轮：格子尺寸不变，只是把提示带压薄 1px，两行仍完整可见）。
+ */
 const SCROLL_H = 170;
 
 @ccclass('BottomPanel')
@@ -219,6 +227,7 @@ export class BottomPanel extends Component {
         const add = (r: RowSpec | null) => { if (r && r.id) { ids.push(r.id); } };
         for (const r of this.shopBottleRows()) { add(r); }
         add(this.machineRow());
+        add(this.cursorRow());
         add(this.helperRow());
         for (const r of this.upgradeRows()) { add(r); }
         G.markBaseline(ids);
@@ -232,10 +241,11 @@ export class BottomPanel extends Component {
         roundedPanel(p, PANEL_W - 12, LAYOUT.panelH - 12, 0, 0, '#F4E4C6', 16, '#D8BF94', 2, 'inner');
 
         const topEdge = LAYOUT.panelH / 2;
-        this.hintLb = label(p, '', -PANEL_W / 2 + 18, topEdge - 22, 430, 26,
-            { size: 16, color: '#7A4210', hAlign: 'left', anchorX: 0, overflow: 'shrink' });
-        this.msLb = label(p, '', PANEL_W / 2 - 18, topEdge - 22, 200, 26,
-            { size: 15, color: '#8A6134', hAlign: 'right', anchorX: 1, overflow: 'shrink' });
+        // ★ 第十九轮：提示带字号 16 → 18（文案同步压短，见 Locale.goal_*），整体上提 1px 让位给列表
+        this.hintLb = label(p, '', -PANEL_W / 2 + 18, topEdge - 21, 440, 26,
+            { size: 18, color: '#7A4210', hAlign: 'left', anchorX: 0, overflow: 'shrink' });
+        this.msLb = label(p, '', PANEL_W / 2 - 18, topEdge - 21, 200, 26,
+            { size: 17, color: '#8A6134', hAlign: 'right', anchorX: 1, overflow: 'shrink' });
 
         // 滚动区：上沿贴提示带下方，下沿离面板底 8px
         const sv = scrollView(p, SCROLL_W, SCROLL_H, 0, -15);
@@ -327,8 +337,9 @@ export class BottomPanel extends Component {
             const icNode = nd(sp.node, 'ic', iw, 34, -104, 0);
             setFrame(icNode.addComponent(Sprite), c.icon, iw, 34);
             // 文字紧贴图标右侧（锚点靠左），不要居中 —— 和参考图的下拉项一致
+            // ★ 第十九轮：字号 21 → 23（下拉项也是「选项」，和列表同步放大）
             const lb = label(sp.node, this.catName(c), -76, 1, 170, IH, {
-                size: 21, color: on ? '#7A4210' : '#F1E0C0', hAlign: 'left', anchorX: 0, overflow: 'shrink',
+                size: 23, color: on ? '#7A4210' : '#F1E0C0', hAlign: 'left', anchorX: 0, overflow: 'shrink',
             });
             void lb;
             // ★ 用户口径（第十五轮）：没被玩家点过的技能模块在行右侧挂「新」标签，点过即消
@@ -517,11 +528,10 @@ export class BottomPanel extends Component {
      */
     private bottleTreeRows(tier: number): RowSpec[] {
         const out: RowSpec[] = [];
-        const pref = (G.lang === 'zh' ? TIERS[tier].zh : TIERS[tier].en) + '·';
         const incomeDef = BOTTLE_STATS.find((s) => s.id === 'income')!;
 
         // ① 收入 —— 树的根（该阶唯一一开始就开放的节点）
-        if (!G.statMax(tier, 'income')) { out.push(this.statRow(tier, incomeDef, pref, 'tr:b' + tier + ':income')); }
+        if (!G.statMax(tier, 'income')) { out.push(this.statRow(tier, incomeDef, 'tr:b' + tier + ':income')); }
 
         // ②★ 解锁下一阶瓶 —— 只在最高已研发阶出现。
         //   ★ 用户反馈「只能解锁两种瓶子」：原来它排在收入门控之后 —— 该阶收入没点过 1 级就提前
@@ -546,11 +556,11 @@ export class BottomPanel extends Component {
             if (id === 'income') { continue; }                     // 根已在上面画过
             const d = BOTTLE_STATS.find((s) => s.id === id);
             if (!d || !G.statUnlocked(d.id) || G.statMax(tier, d.id)) { continue; }
-            out.push(this.statRow(tier, d, pref, 'tr:b' + tier + ':' + d.id));
+            out.push(this.statRow(tier, d, 'tr:b' + tier + ':' + d.id));
         }
 
-        // ④ 模块解锁：光圈 → 手部模块；传送带 → 履带科技线（原版挂在这棵树上）
-        if (G.skLv('p_cursor') <= 0) { out.push(this.moduleRow('p_cursor', 'unlock_cursor', 'unlock_cursor_d', 'tr:m:p_cursor')); }
+        // ④ 模块解锁：传送带 → 履带科技线（原版挂在这棵树上）
+        //   ★ 用户口径（第十九轮）：「解锁光圈」已从技能模块移除，改到商店购买（见 cursorRow）。
         if (G.skLv('p_stability') <= 0) { out.push(this.moduleRow('p_stability', 'unlock_beltmod', 'unlock_beltmod_d', 'tr:m:p_stability')); }
 
         return out;
@@ -565,12 +575,13 @@ export class BottomPanel extends Component {
             id: seenId,
             icon: def.icon,
             name: t(def.name, G.lang).replace(/\n/g, ' '),
-            sub: skillDesc(def),
-            label: 'C ' + fmt(cost),
+            sub: skillSub(def),
+            label: fmt(cost),
+            cur: 'cap',
             tone: afford ? 'on' : 'off',
-            ad: !afford,   // 瓶盖不足 → 广告图标（直接拉广告给货）
+            ad: !afford,   // 瓶盖不足 → 右上角广告图标（直接拉广告给货）
             onBuy: (after) => {
-                if (G.skMax(id)) { return; }
+                if (G.skMax(id)) { Toast.I?.show(t('maxed', G.lang), '#FFD98A'); return; }
                 if (!G.upgradeSkill(id)) {
                     // 瓶盖不足 → 直接拉广告给货（无二级弹窗）
                     capsShortAd(cost, () => {
@@ -601,9 +612,10 @@ export class BottomPanel extends Component {
             icon: def ? def.icon : 'stat/unlock',
             name: t(nameKey, G.lang),
             sub: t(descKey, G.lang),
-            label: 'C ' + fmt(cost),
+            label: fmt(cost),
+            cur: 'cap',
             tone: afford ? 'on' : 'off',
-            ad: !afford,   // 瓶盖不足 → 广告图标（直接拉广告给货）
+            ad: !afford,   // 瓶盖不足 → 右上角广告图标（直接拉广告给货）
             onBuy: (after) => {
                 if (G.skLv(id) > 0) { return; }
                 if (!G.upgradeSkill(id)) {
@@ -629,6 +641,7 @@ export class BottomPanel extends Component {
         const out: RowSpec[] = this.shopBottleRows();
         const m = this.machineRow();
         if (m) { out.push(m); }
+        out.push(this.cursorRow());
         const h = this.helperRow();
         if (h) { out.push(h); }
         return out;
@@ -646,11 +659,14 @@ export class BottomPanel extends Component {
                 id: 'sh:b' + tier,
                 icon: 'bottle/body_' + d.art,
                 name: G.lang === 'zh' ? d.zh : d.en,
-                sub: t('owned_n', G.lang).replace('{n}', String(G.data.bottles[tier])).replace('{m}', String(cap))
-                    + ' · +' + fmt(G.bottleIncome(tier)) + (G.lang === 'zh' ? '/次' : '/flip')
-                    + ' · ' + toleranceText(tier),
+                // ★ 第十九轮：说明压短（原来「拥有 3/30 · +$1/次 · ±18°」13 个字在 172px 里会被 SHRINK 压小）
+                // ★ 第十七轮：判定改纯概率 → 末尾改成「成功 50%」（= 50% + 精通 ×5%）
+                sub: t('owned_short', G.lang).replace('{n}', String(G.data.bottles[tier])).replace('{m}', String(cap))
+                    + ' · $' + fmt(G.bottleIncome(tier)) + (G.lang === 'zh' ? '/次' : '/flip')
+                    + ' · ' + successText(tier),
                 label: '',
                 tone: 'on',
+                buySfx: true,   // ★ 商店物品：买成补一声 buy（升级页/技能树不播）
                 onBuy: () => { /* 由下面覆盖 */ },
             });
             const row = out[out.length - 1];
@@ -658,8 +674,10 @@ export class BottomPanel extends Component {
             const maxed = G.data.bottles[tier] >= cap;
             const cost = G.bottleCost(tier);
             row.tone = maxed ? 'max' : (G.data.money >= cost ? 'on' : 'off');
-            row.label = maxed ? t('max', G.lang) : '$' + fmt(cost);
-            // 金币不足但有广告出路 → 价格按钮亮 ksp 广告图标（不显示金币价格）
+            // ★ 第二十轮：价格只留数字，货币符号交给按钮左侧的金币图标（满仓则没有价格行）
+            row.label = maxed ? t('max', G.lang) : fmt(cost);
+            row.cur = maxed ? undefined : 'coin';
+            // 金币不足但有广告出路 → 价格照常显示，右上角再亮 ksp 广告图标
             row.ad = !maxed && G.data.money < cost;
             row.onBuy = (after, btn) => {
                 if (G.data.bottles[tier] >= G.tierCap(tier)) {
@@ -690,15 +708,19 @@ export class BottomPanel extends Component {
         return {
             id: 'sh:machine',
             icon: 'env/machine',
+            buySfx: true,   // ★ 商店物品：装成补一声 buy
             name: t('cap_machine', G.lang),
             sub: on
-                ? (G.lang === 'zh' ? '已安装 · 扣盖弹出的瓶盖自动回收入库' : 'Installed · caps auto-collected')
-                : (G.lang === 'zh' ? '装在桌台下方 · 装好后扣盖才开始产瓶盖' : 'Under the desk · caps drop once installed'),
-            label: on ? t('max', G.lang) : '$' + String(MACHINE_PRICE).replace(/\B(?=(\d{3})+(?!\d))/g, ','),
+                ? (G.lang === 'zh' ? '已安装 · 自动回收' : 'Installed · auto collect')
+                : (G.lang === 'zh' ? '装好后才开始产瓶盖' : 'Caps drop once installed'),
+            label: on ? t('max', G.lang) : String(MACHINE_PRICE).replace(/\B(?=(\d{3})+(?!\d))/g, ','),
+            cur: on ? undefined : 'coin',
             tone: on ? 'max' : (G.data.money >= MACHINE_PRICE ? 'on' : 'off'),
             ad: !on && G.data.money < MACHINE_PRICE,
             onBuy: (after) => {
-                if (G.hasMachine) { return; }
+                // ★ 第二十轮：已拥有的项点下去也要有声音/文字反馈（以前是静默 return，
+                //   玩家以为「点了没反应」）
+                if (G.hasMachine) { Toast.I?.show(t('machine_installed', G.lang), '#FFD98A'); return; }
                 if (!G.buyMachine()) {
                     moneyShortAd(MACHINE_PRICE, () => {
                         if (G.buyMachine()) {
@@ -714,6 +736,38 @@ export class BottomPanel extends Component {
         };
     }
 
+    /* ---- 商城 · 抓取光圈（★ 用户口径第十九轮：从技能树挪到商店购买） ----
+     * 买下后手指带光圈跟随；点击/触发的判定逻辑完全不变（BottleField 里那套），
+     * 唯一变化只是「解锁入口」从技能树变成了商店设施 —— 和瓶盖机器同款流程。 */
+    private cursorRow(): RowSpec {
+        const on = G.hasCursor;
+        return {
+            id: 'sh:cursor',
+            icon: 'env/cursor',
+            buySfx: true,   // ★ 商店物品：买成补一声 buy
+            name: t('shop_cursor', G.lang),
+            sub: on ? t('shop_cursor_on', G.lang) : t('shop_cursor_d', G.lang),
+            label: on ? t('max', G.lang) : fmt(CURSOR.buyPrice),
+            cur: on ? undefined : 'coin',
+            tone: on ? 'max' : (G.data.money >= CURSOR.buyPrice ? 'on' : 'off'),
+            ad: !on && G.data.money < CURSOR.buyPrice,
+            onBuy: (after) => {
+                if (G.hasCursor) { Toast.I?.show(t('cursor_bought', G.lang), '#FFD98A'); return; }
+                if (!G.buyCursor()) {
+                    moneyShortAd(CURSOR.buyPrice, () => {
+                        if (G.buyCursor()) {
+                            Toast.I?.show(t('cursor_bought', G.lang), '#8CE7A2');
+                            after();
+                        }
+                    });
+                    return;
+                }
+                Toast.I?.show(t('cursor_bought', G.lang), '#8CE7A2');
+                after();
+            },
+        };
+    }
+
     /* ---- 商城 · 助手之手 ----
      * ★ 未研发（h_unlock 0 级）→ **返回 null，整行不画**（用户口径：未开放研发的选项不出现）；
      *   研发出来以后它才出现在商店里并挂「新」角标。 */
@@ -724,11 +778,13 @@ export class BottomPanel extends Component {
         return {
             id: 'sh:helper',
             icon: 'env/hand',
+            buySfx: true,   // ★ 商店物品：雇到补一声 buy
             name: t('helper_hand', G.lang),
             sub: G.lang === 'zh'
-                ? `自动翻瓶 · 已拥有 ${G.data.hands}/${G.maxHands} 只`
+                ? `自动翻瓶 · ${G.data.hands}/${G.maxHands}`
                 : `Auto flip · ${G.data.hands}/${G.maxHands}`,
-            label: maxed ? t('max', G.lang) : '$' + fmt(cost),
+            label: maxed ? t('max', G.lang) : fmt(cost),
+            cur: maxed ? undefined : 'coin',
             tone: maxed ? 'max' : (G.data.money >= cost ? 'on' : 'off'),
             ad: !maxed && G.data.money < cost,
             onBuy: (after) => {
@@ -756,11 +812,10 @@ export class BottomPanel extends Component {
         // ① 每阶「收入 / 悬停翻转」（原版 UpgradeType = Income / FlipMode）
         for (let tier = 0; tier < 7; tier++) {
             if (!G.tierResearched(tier)) { continue; }
-            const pref = (G.lang === 'zh' ? TIERS[tier].zh : TIERS[tier].en) + '·';
             for (const id of ['income', 'hover']) {
                 const d = BOTTLE_STATS.find((s) => s.id === id);
                 if (!d || !G.statUnlocked(d.id) || G.statMax(tier, d.id)) { continue; }
-                out.push(this.statRow(tier, d, pref, 'up:s' + tier + ':' + id));
+                out.push(this.statRow(tier, d, 'up:s' + tier + ':' + id));
             }
         }
 
@@ -779,20 +834,29 @@ export class BottomPanel extends Component {
         return out;
     }
 
-    /** 单瓶词条行（原版升级页 · 瓶子区：收入可重复买、悬停翻转一次性） */
-    private statRow(tier: number, d: BottleStatDef, namePrefix: string, seenId: string): RowSpec {
+    /**
+     * 单瓶词条行（原版升级页 · 瓶子区：收入可重复买、悬停翻转一次性）
+     * ★ 第二十一轮用户口径：左侧大图标 = **稀有度色底板 + 对应瓶身**，
+     *   原来的词条图标（收益 $ / 悬停手势 …）缩成角标跨在底板右下角（对照用户参考图）；
+     *   名字只留词条名（「收益」），阶信息由瓶身颜色直接表达。
+     */
+    private statRow(tier: number, d: BottleStatDef, seenId: string): RowSpec {
         const cost = G.statCost(tier, d.id);
         const caps = G.statCurrency(d.id) === 'caps';
         const afford = caps ? G.data.caps >= cost : G.data.money >= cost;
         return {
             id: seenId,
-            icon: d.icon,
-            name: namePrefix + t(d.name, G.lang),
-            sub: statDesc(d, tier),
-            label: (caps ? 'C ' : '$') + fmt(cost),
+            icon: 'bottle/body_' + TIERS[tier].art,
+            badge: d.icon,
+            badgeBg: TIERS[tier].color,
+            name: t(d.name, G.lang),
+            sub: statSub(d, tier),
+            label: fmt(cost),
+            cur: caps ? 'cap' : 'coin',
             tone: afford ? 'on' : 'off',
-            ad: !afford,   // 金币/瓶盖不足都走广告图标（直接拉广告给货）
+            ad: !afford,   // 金币/瓶盖不足都走右上角广告图标（直接拉广告给货）
             onBuy: (after) => {
+                if (G.statMax(tier, d.id)) { Toast.I?.show(t('maxed', G.lang), '#FFD98A'); return; }
                 if (!G.upgradeStat(tier, d.id)) {
                     if (caps) {
                         // 瓶盖不足 → 直接拉广告给货（无二级弹窗）
@@ -818,11 +882,13 @@ export class BottomPanel extends Component {
             id: seenId,
             icon: def.icon,
             name: t(def.name, G.lang).replace(/\n/g, ' '),
-            sub: skillDesc(def),
-            label: 'C ' + fmt(cost),
+            sub: skillSub(def),
+            label: fmt(cost),
+            cur: 'cap',
             tone: afford ? 'on' : 'off',
-            ad: !afford,   // 瓶盖不足 → 广告图标（直接拉广告给货）
+            ad: !afford,   // 瓶盖不足 → 右上角广告图标（直接拉广告给货）
             onBuy: (after) => {
+                if (G.skMax(id)) { Toast.I?.show(t('maxed', G.lang), '#FFD98A'); return; }
                 if (!G.upgradeSkill(id)) {
                     // 瓶盖不足 → 直接拉广告给货（无二级弹窗）
                     capsShortAd(G.skCost(id), () => { if (G.upgradeSkill(id)) { after(); } });
@@ -857,10 +923,11 @@ export class BottomPanel extends Component {
                 id: 'tr:k:' + n.id,
                 icon: def.icon,
                 name: t(def.name, G.lang).replace(/\n/g, ' '),
-                sub: skillDesc(def),
-                label: 'C ' + fmt(cost),
+                sub: skillSub(def),
+                label: fmt(cost),
+                cur: 'cap',
                 tone: afford ? 'on' : 'off',
-                ad: !afford,   // 瓶盖不足 → 广告图标（直接拉广告给货）
+                ad: !afford,   // 瓶盖不足 → 右上角广告图标（直接拉广告给货）
                 onBuy: (after) => {
                     if (G.skMax(n.id)) { Toast.I?.show(t('maxed', G.lang), '#8CE7A2'); return; }
                 if (!G.upgradeSkill(n.id)) {
@@ -921,6 +988,7 @@ export class BottomPanel extends Component {
         if (tb === 'shop') {
             for (const r of this.shopBottleRows()) { add(r); }
             add(this.machineRow());
+            add(this.cursorRow());
             add(this.helperRow());
         } else if (tb === 'up') {
             for (const r of this.upgradeRows()) { add(r); }
