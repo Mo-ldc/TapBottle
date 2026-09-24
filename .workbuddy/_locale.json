@@ -1,0 +1,1402 @@
+{
+  "click_anywhere": {
+    "zh": "点击任意位置开始游戏",
+    "en": "Click anywhere to start"
+  },
+  "money_unit": {
+    "zh": "$",
+    "en": "$"
+  },
+  "per_sec": {
+    "zh": "/秒",
+    "en": "/s"
+  },
+  "max": {
+    "zh": "最大",
+    "en": "MAX"
+  },
+  "level": {
+    "zh": "等级",
+    "en": "Lv"
+  },
+  "cost": {
+    "zh": "成本",
+    "en": "Cost"
+  },
+  "upgrade": {
+    "zh": "升级",
+    "en": "Upgrade"
+  },
+  "unlock": {
+    "zh": "解锁",
+    "en": "Unlock"
+  },
+  "buy": {
+    "zh": "购买",
+    "en": "Buy"
+  },
+  "locked": {
+    "zh": "未解锁",
+    "en": "Locked"
+  },
+  "close": {
+    "zh": "关闭",
+    "en": "Close"
+  },
+  "ok": {
+    "zh": "确定",
+    "en": "OK"
+  },
+  "cancel": {
+    "zh": "取消",
+    "en": "Cancel"
+  },
+  "confirm": {
+    "zh": "确认",
+    "en": "Confirm"
+  },
+  "delete": {
+    "zh": "删除",
+    "en": "Delete"
+  },
+  "back": {
+    "zh": "返回",
+    "en": "Back"
+  },
+  "not_enough": {
+    "zh": "资源不足",
+    "en": "Not enough"
+  },
+  "maxed": {
+    "zh": "已升至最高等级",
+    "en": "Max level"
+  },
+  "all_done": {
+    "zh": "本类目已全部解锁",
+    "en": "All unlocked here"
+  },
+  "tag_new": {
+    "zh": "新",
+    "en": "NEW"
+  },
+  "shop": {
+    "zh": "商店",
+    "en": "Shop"
+  },
+  "skill_tree": {
+    "zh": "技能树",
+    "en": "Skill Tree"
+  },
+  "abilities": {
+    "zh": "能力",
+    "en": "Abilities"
+  },
+  "achievements": {
+    "zh": "成就",
+    "en": "Achievements"
+  },
+  "stats": {
+    "zh": "统计",
+    "en": "Stats"
+  },
+  "settings": {
+    "zh": "设置",
+    "en": "Settings"
+  },
+  "Common": {
+    "zh": "普通",
+    "en": "Common"
+  },
+  "Rare": {
+    "zh": "稀有",
+    "en": "Rare"
+  },
+  "Epic": {
+    "zh": "史诗",
+    "en": "Epic"
+  },
+  "Legendary": {
+    "zh": "传奇",
+    "en": "Legendary"
+  },
+  "Mythic": {
+    "zh": "神话",
+    "en": "Mythic"
+  },
+  "Divine": {
+    "zh": "神圣",
+    "en": "Divine"
+  },
+  "Celestial": {
+    "zh": "天界",
+    "en": "Celestial"
+  },
+  "shop_bottles": {
+    "zh": "瓶子",
+    "en": "Bottles"
+  },
+  "shop_items": {
+    "zh": "道具",
+    "en": "Items"
+  },
+  "owned": {
+    "zh": "已拥有",
+    "en": "Owned"
+  },
+  "income_label": {
+    "zh": "收入",
+    "en": "Income"
+  },
+  "unlock_bottle": {
+    "zh": "解锁{bottle}瓶",
+    "en": "Unlock {bottle}"
+  },
+  "unlock_cap_machine": {
+    "zh": "解锁瓶盖机器",
+    "en": "Unlock Cap Machine"
+  },
+  "helper_hand": {
+    "zh": "助手之手",
+    "en": "Helper Hand"
+  },
+  "cap_machine": {
+    "zh": "瓶盖机器",
+    "en": "Cap Machine"
+  },
+  "machine_installed": {
+    "zh": "瓶盖机器已安装，传送带开始运转",
+    "en": "Cap machine installed — belt is running"
+  },
+  "gate": {
+    "zh": "大门",
+    "en": "Gate"
+  },
+  "bought_out": {
+    "zh": "已达上限",
+    "en": "Limit reached"
+  },
+  "sk_income": {
+    "zh": "收入",
+    "en": "Income"
+  },
+  "sk_bonus": {
+    "zh": "收益加成",
+    "en": "Income Bonus"
+  },
+  "sk_flipspeed": {
+    "zh": "翻转速度",
+    "en": "Flip Speed"
+  },
+  "sk_capgain": {
+    "zh": "瓶盖获取量",
+    "en": "Cap Gain"
+  },
+  "sk_limit": {
+    "zh": "购买上限",
+    "en": "Buyable Limit"
+  },
+  "sk_mastery": {
+    "zh": "翻转精通",
+    "en": "Flip Mastery"
+  },
+  "sk_double": {
+    "zh": "收入翻倍",
+    "en": "Double Income"
+  },
+  "sk_again": {
+    "zh": "再次翻转",
+    "en": "Flip Again"
+  },
+  "sk_random": {
+    "zh": "随机翻转",
+    "en": "Random Flip"
+  },
+  "sk_unlock_hand": {
+    "zh": "解锁助手之手",
+    "en": "Unlock Helper Hand"
+  },
+  "sk_movespeed": {
+    "zh": "移动速度",
+    "en": "Movement Speed"
+  },
+  "sk_recovery": {
+    "zh": "恢复速度",
+    "en": "Recovery Speed"
+  },
+  "sk_maxhand": {
+    "zh": "最大上限",
+    "en": "Max Limit"
+  },
+  "sk_idle": {
+    "zh": "解锁放置模式",
+    "en": "Unlock Idle Mode"
+  },
+  "sk_cursor": {
+    "zh": "解锁光标区域",
+    "en": "Unlock Cursor Area"
+  },
+  "sk_cursorsize": {
+    "zh": "光标区域大小",
+    "en": "Cursor Area Size"
+  },
+  "sk_idletime": {
+    "zh": "挂机时长",
+    "en": "Idle Duration"
+  },
+  "sk_idlerecovery": {
+    "zh": "挂机恢复速度",
+    "en": "Idle Recovery"
+  },
+  "sk_conveyor": {
+    "zh": "传送带速度",
+    "en": "Conveyor Speed"
+  },
+  "sk_gate": {
+    "zh": "解锁大门",
+    "en": "Unlock Gate"
+  },
+  "sk_coke": {
+    "zh": "飞行可乐",
+    "en": "Flying Coke"
+  },
+  "sk_cokecd": {
+    "zh": "冷却时间缩短",
+    "en": "Cooldown Reduction"
+  },
+  "sk_cokecount": {
+    "zh": "生成数量",
+    "en": "Spawn Count"
+  },
+  "sk_berserk": {
+    "zh": "狂暴",
+    "en": "Berserk"
+  },
+  "sk_berserkflips": {
+    "zh": "狂暴额外翻转",
+    "en": "Extra Berserk Flips"
+  },
+  "sk_berserkinc": {
+    "zh": "狂暴收益加成",
+    "en": "Berserk Income Bonus"
+  },
+  "sk_samurai": {
+    "zh": "武士处决",
+    "en": "Samurai Execution"
+  },
+  "sk_samuraidur": {
+    "zh": "持续时间",
+    "en": "Duration"
+  },
+  "sk_samuraigauge": {
+    "zh": "量表填充",
+    "en": "Gauge Fill"
+  },
+  "sk_income_d": {
+    "zh": "每只瓶子的收入 <color=#7CE38B>+{v}</color>",
+    "en": "All bottles income <color=#7CE38B>+{v}</color>"
+  },
+  "sk_bonus_d": {
+    "zh": "收益加成 <color=#7CE38B>+{v}%</color>",
+    "en": "Income bonus <color=#7CE38B>+{v}%</color>"
+  },
+  "sk_flipspeed_d": {
+    "zh": "翻转速度 <color=#7CE38B>+{v}%</color>",
+    "en": "Flip speed <color=#7CE38B>+{v}%</color>"
+  },
+  "sk_capgain_d": {
+    "zh": "瓶盖获取量 <color=#7CE38B>+{v}</color>",
+    "en": "Cap gain <color=#7CE38B>+{v}</color>"
+  },
+  "sk_limit_d": {
+    "zh": "可购买瓶子的最大数量 <color=#7CE38B>+{d}</color>（当前 {v}）",
+    "en": "Max buyable bottles <color=#7CE38B>+{d}</color> (now {v})"
+  },
+  "sk_mastery_d": {
+    "zh": "成功落地概率：{cur}% → <color=#7CE38B>{next}%</color>",
+    "en": "Landing chance: {cur}% → <color=#7CE38B>{next}%</color>"
+  },
+  "sk_double_d": {
+    "zh": "收入翻倍概率 <color=#7CE38B>+{d}%</color>（当前 {v}%）",
+    "en": "Double income chance <color=#7CE38B>+{d}%</color> (now {v}%)"
+  },
+  "sk_again_d": {
+    "zh": "成功落地后再次翻转的概率 <color=#7CE38B>+{d}%</color>（当前 {v}%）",
+    "en": "Flip again chance <color=#7CE38B>+{d}%</color> (now {v}%)"
+  },
+  "sk_random_d": {
+    "zh": "成功落地后随机翻转瓶子的概率 <color=#7CE38B>+{d}%</color>（当前 {v}%）",
+    "en": "Random bottle flip <color=#7CE38B>+{d}%</color> (now {v}%)"
+  },
+  "sk_unlock_hand_d": {
+    "zh": "解锁商店的助手之手",
+    "en": "Unlock Helper Hands in the shop"
+  },
+  "sk_movespeed_d": {
+    "zh": "移动速度 <color=#7CE38B>×{v}</color>",
+    "en": "Movement speed <color=#7CE38B>×{v}</color>"
+  },
+  "sk_recovery_d": {
+    "zh": "抓取后的疲劳冷却 <color=#7CE38B>{cur}s</color> → <color=#9EE8B0>{next}s</color>",
+    "en": "Post-grab cooldown <color=#7CE38B>{cur}s</color> → <color=#9EE8B0>{next}s</color>"
+  },
+  "sk_maxhand_d": {
+    "zh": "助手之手最大数量 <color=#7CE38B>+{d}</color>（当前 {v}）",
+    "en": "Max helper hands <color=#7CE38B>+{d}</color> (now {v})"
+  },
+  "sk_idle_d": {
+    "zh": "解锁后助手自动持续工作",
+    "en": "Helpers keep working automatically"
+  },
+  "sk_cursor_d": {
+    "zh": "手指带光圈，点圈内瓶子即翻",
+    "en": "Halo follows your finger"
+  },
+  "sk_cursorsize_d": {
+    "zh": "吸附半径 <color=#7CE38B>{cur}px</color> → <color=#9EE8B0>{next}px</color>",
+    "en": "Attract radius <color=#7CE38B>{cur}px</color> → <color=#9EE8B0>{next}px</color>"
+  },
+  "sk_idletime_d": {
+    "zh": "<color=#7CE38B>+{d}</color> 秒挂机持续时间（在疲劳前工作更长时间）",
+    "en": "<color=#7CE38B>+{d}</color>s idle duration"
+  },
+  "sk_idlerecovery_d": {
+    "zh": "疲劳恢复时间 <color=#7CE38B>{cur}s</color> → <color=#9EE8B0>{next}s</color>（越短越快复工）",
+    "en": "Recovery time <color=#7CE38B>{cur}s</color> → <color=#9EE8B0>{next}s</color>"
+  },
+  "sk_conveyor_d": {
+    "zh": "传送带速度 <color=#7CE38B>×{v}</color>",
+    "en": "Conveyor speed <color=#7CE38B>×{v}</color>"
+  },
+  "sk_gate_d": {
+    "zh": "履带中段的双倍闸门",
+    "en": "Doubling gate on the belt"
+  },
+  "sk_coke_d": {
+    "zh": "每 <color=#7CE38B>{cd}s</color> 掉一瓶可乐，翻开引冲击波",
+    "en": "A Coke drops every <color=#7CE38B>{cd}s</color> — flip it for a shockwave"
+  },
+  "sk_cokecd_d": {
+    "zh": "冷却时间减少 <color=#7CE38B>{v}秒</color>",
+    "en": "Cooldown <color=#7CE38B>{v}s</color>"
+  },
+  "sk_cokecount_d": {
+    "zh": "<color=#7CE38B>+{d}</color> 生成数量（当前 {v}）",
+    "en": "<color=#7CE38B>+{d}</color> spawn count (now {v})"
+  },
+  "sk_berserk_d": {
+    "zh": "连续 <color=#7CE38B>{n}</color> 次扣盖激活狂暴",
+    "en": "<color=#7CE38B>{n}</color> cap landings in a row trigger Berserk"
+  },
+  "sk_berserkflips_d": {
+    "zh": "狂暴额外翻转 <color=#7CE38B>+{d}</color>（当前 {v} 次）",
+    "en": "Extra Berserk flips <color=#7CE38B>+{d}</color> (now {v})"
+  },
+  "sk_berserkinc_d": {
+    "zh": "狂暴期间收益 <color=#7CE38B>×{cur}</color> → <color=#9EE8B0>×{next}</color>（每级 +1.5×）",
+    "en": "Berserk income <color=#7CE38B>×{cur}</color> → <color=#9EE8B0>×{next}</color>"
+  },
+  "sk_samurai_d": {
+    "zh": "决意满后空中定格处决",
+    "en": "Full Resolve triggers mid-air Execution"
+  },
+  "sk_samuraidur_d": {
+    "zh": "处决持续时间 <color=#7CE38B>+{d}</color> 秒（当前 {v} 秒）",
+    "en": "Execution duration <color=#7CE38B>+{d}</color>s (now {v}s)"
+  },
+  "sk_samuraigauge_d": {
+    "zh": "决意槽填充量 <color=#7CE38B>×{v}</color>",
+    "en": "Resolve gain <color=#7CE38B>×{v}</color>"
+  },
+  "new_achievement": {
+    "zh": "新成就",
+    "en": "New Achievement"
+  },
+  "AchTitle1": {
+    "zh": "普通瓶",
+    "en": "Common Bottle"
+  },
+  "AchTitle2": {
+    "zh": "瓶盖",
+    "en": "Cap"
+  },
+  "AchTitle3": {
+    "zh": "10万金币",
+    "en": "100K Coins"
+  },
+  "AchTitle4": {
+    "zh": "稀有瓶",
+    "en": "Rare Bottle"
+  },
+  "AchTitle5": {
+    "zh": "辅助手",
+    "en": "Helper Hand"
+  },
+  "AchTitle6": {
+    "zh": "100万金币",
+    "en": "1M Coins"
+  },
+  "AchTitle7": {
+    "zh": "史诗瓶",
+    "en": "Epic Bottle"
+  },
+  "AchTitle8": {
+    "zh": "10万瓶盖",
+    "en": "100K Caps"
+  },
+  "AchTitle9": {
+    "zh": "自动化",
+    "en": "Automation"
+  },
+  "AchTitle10": {
+    "zh": "10万次翻转",
+    "en": "100K Flips"
+  },
+  "AchTitle11": {
+    "zh": "1000万金币",
+    "en": "10M Coins"
+  },
+  "AchTitle12": {
+    "zh": "传奇瓶",
+    "en": "Legendary Bottle"
+  },
+  "AchTitle13": {
+    "zh": "100万瓶盖",
+    "en": "1M Caps"
+  },
+  "AchTitle14": {
+    "zh": "神话瓶",
+    "en": "Mythic Bottle"
+  },
+  "AchTitle15": {
+    "zh": "更多助手",
+    "en": "More Helpers"
+  },
+  "AchTitle16": {
+    "zh": "1亿金币",
+    "en": "100M Coins"
+  },
+  "AchTitle17": {
+    "zh": "神圣瓶",
+    "en": "Divine Bottle"
+  },
+  "AchTitle18": {
+    "zh": "天界瓶",
+    "en": "Celestial Bottle"
+  },
+  "AchTitle19": {
+    "zh": "10亿金币",
+    "en": "1B Coins"
+  },
+  "AchTitle20": {
+    "zh": "100万次翻转",
+    "en": "1M Flips"
+  },
+  "AchTitle21": {
+    "zh": "放置之王",
+    "en": "Idle King"
+  },
+  "AchTitle22": {
+    "zh": "能力大师",
+    "en": "Ability Master"
+  },
+  "AchTitle23": {
+    "zh": "技能树",
+    "en": "Skill Tree"
+  },
+  "AchTitle24": {
+    "zh": "100%",
+    "en": "100%"
+  },
+  "AchDesc1": {
+    "zh": "翻转你的第一只普通瓶",
+    "en": "Flip your first Common bottle"
+  },
+  "AchDesc2": {
+    "zh": "解锁瓶盖",
+    "en": "Unlock Caps"
+  },
+  "AchDesc3": {
+    "zh": "累计获得100,000金币",
+    "en": "Earn 100,000 coins in total"
+  },
+  "AchDesc4": {
+    "zh": "购买你的第一只稀有瓶",
+    "en": "Buy your first Rare bottle"
+  },
+  "AchDesc5": {
+    "zh": "购买你的第一个助手",
+    "en": "Buy your first Helper"
+  },
+  "AchDesc6": {
+    "zh": "累计获得1,000,000金币",
+    "en": "Earn 1,000,000 coins in total"
+  },
+  "AchDesc7": {
+    "zh": "购买你的第一只史诗瓶",
+    "en": "Buy your first Epic bottle"
+  },
+  "AchDesc8": {
+    "zh": "累计获得100,000瓶盖",
+    "en": "Earn 100,000 caps in total"
+  },
+  "AchDesc9": {
+    "zh": "拥有30个助手",
+    "en": "Own 30 helpers"
+  },
+  "AchDesc10": {
+    "zh": "累计完成100,000次翻转",
+    "en": "Complete 100,000 flips"
+  },
+  "AchDesc11": {
+    "zh": "累计获得10,000,000金币",
+    "en": "Earn 10,000,000 coins in total"
+  },
+  "AchDesc12": {
+    "zh": "购买你的第一只传奇瓶",
+    "en": "Buy your first Legendary bottle"
+  },
+  "AchDesc13": {
+    "zh": "累计获得1,000,000瓶盖",
+    "en": "Earn 1,000,000 caps in total"
+  },
+  "AchDesc14": {
+    "zh": "购买你的第一只神话瓶",
+    "en": "Buy your first Mythic bottle"
+  },
+  "AchDesc15": {
+    "zh": "拥有60个助手",
+    "en": "Own 60 helpers"
+  },
+  "AchDesc16": {
+    "zh": "累计获得100,000,000金币",
+    "en": "Earn 100,000,000 coins in total"
+  },
+  "AchDesc17": {
+    "zh": "购买你的第一只神圣瓶",
+    "en": "Buy your first Divine bottle"
+  },
+  "AchDesc18": {
+    "zh": "购买你的第一只天界瓶",
+    "en": "Buy your first Celestial bottle"
+  },
+  "AchDesc19": {
+    "zh": "累计获得1,000,000,000金币",
+    "en": "Earn 1,000,000,000 coins in total"
+  },
+  "AchDesc20": {
+    "zh": "累计完成1,000,000次翻转",
+    "en": "Complete 1,000,000 flips"
+  },
+  "AchDesc21": {
+    "zh": "拥有100个助手",
+    "en": "Own 100 helpers"
+  },
+  "AchDesc22": {
+    "zh": "完成所有能力",
+    "en": "Complete all abilities"
+  },
+  "AchDesc23": {
+    "zh": "完成技能树",
+    "en": "Complete the skill tree"
+  },
+  "AchDesc24": {
+    "zh": "通关游戏",
+    "en": "Finish the game"
+  },
+  "all_time": {
+    "zh": "全部时间",
+    "en": "All Time"
+  },
+  "playtime": {
+    "zh": "游戏时间",
+    "en": "Playtime"
+  },
+  "total_money": {
+    "zh": "总计 $",
+    "en": "Total $"
+  },
+  "total_flips": {
+    "zh": "总翻转次数",
+    "en": "Total Flips"
+  },
+  "total_caps": {
+    "zh": "总计 瓶盖",
+    "en": "Total Caps"
+  },
+  "highest": {
+    "zh": "最高 $",
+    "en": "Highest $"
+  },
+  "highest_flip": {
+    "zh": "最高单次收入",
+    "en": "Best single flip"
+  },
+  "offline_earn": {
+    "zh": "离线收益",
+    "en": "Offline earnings"
+  },
+  "welcome_back": {
+    "zh": "欢迎回来！离线期间助手为你赚取：",
+    "en": "Welcome back! Your helpers earned:"
+  },
+  "display": {
+    "zh": "显示",
+    "en": "Display"
+  },
+  "game_": {
+    "zh": "游戏",
+    "en": "Game"
+  },
+  "audio": {
+    "zh": "音频",
+    "en": "Audio"
+  },
+  "language": {
+    "zh": "语言",
+    "en": "Language"
+  },
+  "data": {
+    "zh": "数据",
+    "en": "Data"
+  },
+  "new_game": {
+    "zh": "新游戏",
+    "en": "New Game"
+  },
+  "hide_income": {
+    "zh": "隐藏获得的收入",
+    "en": "Hide earned income"
+  },
+  "hide_caps": {
+    "zh": "隐藏瓶盖粒子效果",
+    "en": "Hide cap particles"
+  },
+  "hide_hand": {
+    "zh": "隐藏辅助指示手",
+    "en": "Hide helper hand"
+  },
+  "master_volume": {
+    "zh": "主音量",
+    "en": "Master Volume"
+  },
+  "music_volume": {
+    "zh": "音乐音量",
+    "en": "Music Volume"
+  },
+  "sfx_volume": {
+    "zh": "音效音量",
+    "en": "SFX Volume"
+  },
+  "delete_game": {
+    "zh": "删除所有游戏进度。\n已解锁的成就将会保留。",
+    "en": "Delete all progress.\nUnlocked achievements are kept."
+  },
+  "delete_confirm": {
+    "zh": "确定要开始新游戏吗？\n当前所有游戏进度都将丢失。",
+    "en": "Start a new game?\nAll current progress will be lost."
+  },
+  "berserk_active": {
+    "zh": "狂暴！",
+    "en": "BERSERK!"
+  },
+  "samurai_ready": {
+    "zh": "翻转瓶子以激活武士处决",
+    "en": "Flip a bottle to trigger Samurai Execution"
+  },
+  "samurai_active": {
+    "zh": "武士处决！",
+    "en": "EXECUTION!"
+  },
+  "idle_on": {
+    "zh": "放置中",
+    "en": "IDLE ON"
+  },
+  "idle_off": {
+    "zh": "放置",
+    "en": "Idle"
+  },
+  "fatigue": {
+    "zh": "疲劳",
+    "en": "Fatigued"
+  },
+  "ready": {
+    "zh": "就绪",
+    "en": "Ready"
+  },
+  "splash_title": {
+    "zh": "Bottle Flip Inc",
+    "en": "Bottle Flip Inc"
+  },
+  "splash_sub": {
+    "zh": "翻瓶公司 · TapBottle 复刻版",
+    "en": "TapBottle remake"
+  },
+  "bs_hover": {
+    "zh": "悬停翻转",
+    "en": "Hover Flip"
+  },
+  "bs_hover_d": {
+    "zh": "拖过该阶瓶子即翻",
+    "en": "Drag over to flip"
+  },
+  "bs_purchase": {
+    "zh": "购买降价",
+    "en": "Price Cut"
+  },
+  "bs_purchase_d": {
+    "zh": "商店购买价格增长 <color=#7CE38B>{cur}%</color> → <color=#9EE8B0>{next}%</color>（每级压低 1%）",
+    "en": "Shop price growth <color=#7CE38B>{cur}%</color> → <color=#9EE8B0>{next}%</color>"
+  },
+  "bs_income": {
+    "zh": "收益",
+    "en": "Income"
+  },
+  "bs_income_d": {
+    "zh": "单次成功翻转基础收益 <color=#7CE38B>$+{cur}</color> → <color=#9EE8B0>$+{next}</color>（每级 +{d}）",
+    "en": "Base income <color=#7CE38B>+${cur}</color> → <color=#9EE8B0>+${next}</color> (+{d}/lv)"
+  },
+  "bs_capincome": {
+    "zh": "瓶盖收益",
+    "en": "Cap $"
+  },
+  "bs_capincome_d": {
+    "zh": "每次扣盖额外获得 <color=#7CE38B>${cur}</color> → <color=#9EE8B0>${next}</color>（消耗瓶盖升级）",
+    "en": "Cap landing bonus <color=#7CE38B>+${cur}</color> → <color=#9EE8B0>+${next}</color>"
+  },
+  "bs_multiplier": {
+    "zh": "倍率",
+    "en": "Multiplier"
+  },
+  "bs_multiplier_d": {
+    "zh": "收益倍率 <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>（每级 +10%）",
+    "en": "Income multiplier <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>"
+  },
+  "bs_speed": {
+    "zh": "速度",
+    "en": "Speed"
+  },
+  "bs_speed_d": {
+    "zh": "翻转速度 <color=#7CE38B>×{cur}</color> → <color=#9EE8B0>×{next}</color>（每级 +10%）",
+    "en": "Flip speed <color=#7CE38B>×{cur}</color> → <color=#9EE8B0>×{next}</color>"
+  },
+  "bs_capgain": {
+    "zh": "掉盖",
+    "en": "Cap Drop"
+  },
+  "bs_capgain_d": {
+    "zh": "扣盖额外掉落 <color=#7CE38B>+{cur}</color> → <color=#9EE8B0>+{next}</color> 枚瓶盖（消耗瓶盖升级）",
+    "en": "Cap landing drops <color=#7CE38B>+{cur}</color> → <color=#9EE8B0>+{next}</color> caps"
+  },
+  "bs_limit": {
+    "zh": "上限",
+    "en": "Limit"
+  },
+  "bs_limit_d": {
+    "zh": "该阶同屏上限 <color=#7CE38B>+{cur}</color> → <color=#9EE8B0>+{next}</color>（每级 +5）",
+    "en": "Buyable limit <color=#7CE38B>+{cur}</color> → <color=#9EE8B0>+{next}</color> (+5/lv)"
+  },
+  "bs_mastery": {
+    "zh": "翻转精通",
+    "en": "Flip Mastery"
+  },
+  "bs_mastery_d": {
+    "zh": "成功树立概率 <color=#7CE38B>{tot}%</color> → <color=#9EE8B0>{nexttot}%</color>（每级 +5%，满 10 级必成立）",
+    "en": "Success chance <color=#7CE38B>{tot}%</color> → <color=#9EE8B0>{nexttot}%</color> (+5%/lv, 100% at lv10)"
+  },
+  "bs_double": {
+    "zh": "双倍",
+    "en": "Double"
+  },
+  "bs_double_d": {
+    "zh": "双倍金币几率 <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>（每级 +10%）",
+    "en": "Double income chance <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>"
+  },
+  "bs_again": {
+    "zh": "再翻",
+    "en": "Again"
+  },
+  "bs_again_d": {
+    "zh": "落地成功后立即再次腾空 <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>（每级 +2%）",
+    "en": "Flip again chance <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>"
+  },
+  "bs_random": {
+    "zh": "连锁",
+    "en": "Chain"
+  },
+  "bs_random_d": {
+    "zh": "落地成功后随机点燃另一只瓶子 <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>（每级 +2%）",
+    "en": "Random chain flip chance <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>"
+  },
+  "sk_crit": {
+    "zh": "扣盖暴击率",
+    "en": "Cap Crit Rate"
+  },
+  "sk_crit_d": {
+    "zh": "倒立扣盖概率 <color=#7CE38B>+2%</color>（当前 {v}%）",
+    "en": "Cap landing chance <color=#7CE38B>+2%</color> (now {v}%)"
+  },
+  "sk_critmoney": {
+    "zh": "扣盖金币倍率",
+    "en": "Cap Crit Multiplier"
+  },
+  "sk_critmoney_d": {
+    "zh": "扣盖金币 <color=#7CE38B>×{v}</color>",
+    "en": "Cap landing coins <color=#7CE38B>×{v}</color>"
+  },
+  "sk_machine": {
+    "zh": "解锁瓶盖机",
+    "en": "Unlock Cap Machine"
+  },
+  "sk_machine_d": {
+    "zh": "在桌台下方激活传送带与料斗，自动接住并回收扣盖弹出的瓶盖。（原版为商店设施，1,000 瓶盖）",
+    "en": "Activates the conveyor + hopper below the table. (Shop facility, 1,000 caps in the original.)"
+  },
+  "sk_berserkneed": {
+    "zh": "狂暴所需连击",
+    "en": "Berserk Combo"
+  },
+  "sk_berserkneed_d": {
+    "zh": "连续 <color=#7CE38B>{v}</color> 次扣盖即可进入狂暴",
+    "en": "<color=#7CE38B>{v}</color> cap landings in a row triggers Berserk"
+  },
+  "sk_ul_t2": {
+    "zh": "研发 T2 铜瓶",
+    "en": "Research T2 Bronze"
+  },
+  "sk_ul_t2_d": {
+    "zh": "解锁购买 · 扣盖 6×",
+    "en": "Unlocks it · 6× cap"
+  },
+  "sk_ul_t3": {
+    "zh": "研发 T3 银瓶",
+    "en": "Research T3 Silver"
+  },
+  "sk_ul_t3_d": {
+    "zh": "解锁购买 · 收益 $20",
+    "en": "Unlocks it · $20 base"
+  },
+  "sk_ul_t4": {
+    "zh": "研发 T4 金瓶",
+    "en": "Research T4 Gold"
+  },
+  "sk_ul_t4_d": {
+    "zh": "解锁购买 · 扣盖多 1 盖",
+    "en": "Unlocks it · +1 cap"
+  },
+  "sk_ul_t5": {
+    "zh": "研发 T5 红瓶",
+    "en": "Research T5 Ruby"
+  },
+  "sk_ul_t5_d": {
+    "zh": "解锁购买 · 狂暴 +50%",
+    "en": "Unlocks it · Berserk +50%"
+  },
+  "sk_ul_t6": {
+    "zh": "研发 T6 翡瓶",
+    "en": "Research T6 Emerald"
+  },
+  "sk_ul_t6_d": {
+    "zh": "解锁购买 · 决意 +25%",
+    "en": "Unlocks it · Resolve +25%"
+  },
+  "sk_ul_t7": {
+    "zh": "研发 T7 钻瓶",
+    "en": "Research T7 Diamond"
+  },
+  "sk_ul_t7_d": {
+    "zh": "解锁购买 · 全场收益 ×2",
+    "en": "Unlocks it · all income ×2"
+  },
+  "sk_sizelimit": {
+    "zh": "购买上限提升",
+    "en": "Size Buyable Limit"
+  },
+  "sk_sizelimit_d": {
+    "zh": "每级额外 <color=#7CE38B>+5</color> 只同屏瓶子上限（当前 +{v}）",
+    "en": "Buyable limit <color=#7CE38B>+5</color>/lv (now +{v})"
+  },
+  "sk_idlemove": {
+    "zh": "挂机移动速度",
+    "en": "Idle Movement Speed"
+  },
+  "sk_idlemove_d": {
+    "zh": "挂机时手掌移速 <color=#7CE38B>{cur}</color> → <color=#9EE8B0>{next}</color>",
+    "en": "Idle hand speed <color=#7CE38B>{cur}</color> → <color=#9EE8B0>{next}</color>"
+  },
+  "sk_stability": {
+    "zh": "翻转稳定性",
+    "en": "Flip Stability"
+  },
+  "sk_stability_d": {
+    "zh": "空中翻转抗扰度 <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>（每级 +5%，落地更稳）",
+    "en": "Airborne stability <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color> (+5%/lv)"
+  },
+  "sk_machineinc": {
+    "zh": "瓶盖机产出",
+    "en": "Machine Income"
+  },
+  "sk_machineinc_d": {
+    "zh": "履带每颗瓶盖价值 <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>（每级 +10%）",
+    "en": "Cap value on belt <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>"
+  },
+  "sk_machinespeed": {
+    "zh": "瓶盖机速度",
+    "en": "Machine Speed"
+  },
+  "sk_machinespeed_d": {
+    "zh": "履带线速度 <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>（每级 +10%）",
+    "en": "Belt speed <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>"
+  },
+  "sk_gateunlock": {
+    "zh": "解锁闸门",
+    "en": "Unlock The Gate"
+  },
+  "sk_gateunlock_d": {
+    "zh": "在履带中段树立量子克隆门，通过的瓶盖触发双倍判定。",
+    "en": "A quantum clone gate on the belt doubles passing caps."
+  },
+  "sk_gatechance": {
+    "zh": "闸门双倍概率",
+    "en": "Gate Chance to Double"
+  },
+  "sk_gatechance_d": {
+    "zh": "穿门瓶盖双倍概率 <color=#7CE38B>{cur}%</color> → <color=#9EE8B0>{next}%</color>（满级 100%）",
+    "en": "Double chance <color=#7CE38B>{cur}%</color> → <color=#9EE8B0>{next}%</color> (100% at max)"
+  },
+  "sk_handprice": {
+    "zh": "助手价格升级",
+    "en": "Hand Purchase Price"
+  },
+  "sk_handprice_d": {
+    "zh": "降低助手购买单价的增长（每级 −0.5%）",
+    "en": "Lowers hand price growth (−0.5%/lv)"
+  },
+  "sk_repick": {
+    "zh": "目标重选时间",
+    "en": "Repick Target"
+  },
+  "sk_repick_d": {
+    "zh": "抓取落空/完成后的重选耗时 <color=#7CE38B>{cur}s</color> → <color=#9EE8B0>{next}s</color>",
+    "en": "Repick delay <color=#7CE38B>{cur}s</color> → <color=#9EE8B0>{next}s</color>"
+  },
+  "sk_handlimit": {
+    "zh": "持有上限扩充",
+    "en": "Hand Buyable Limit"
+  },
+  "sk_handlimit_d": {
+    "zh": "持有上限 <color=#7CE38B>+{d}</color> 只（当前上限 {cur}，最高 100）",
+    "en": "Hand limit <color=#7CE38B>+{d}</color> (now {cur})"
+  },
+  "sk_bronze": {
+    "zh": "铜瓶许可",
+    "en": "Bronze Capability"
+  },
+  "sk_bronze_d": {
+    "zh": "机械手可翻 T2 铜瓶",
+    "en": "Hands flip T2 Bronze"
+  },
+  "sk_silver": {
+    "zh": "银瓶许可",
+    "en": "Silver Capability"
+  },
+  "sk_silver_d": {
+    "zh": "机械手可翻 T3 银瓶",
+    "en": "Hands flip T3 Silver"
+  },
+  "sk_gold": {
+    "zh": "金瓶许可",
+    "en": "Gold Capability"
+  },
+  "sk_gold_d": {
+    "zh": "机械手可翻 T4 金瓶",
+    "en": "Hands flip T4 Gold"
+  },
+  "sk_ruby": {
+    "zh": "红瓶许可",
+    "en": "Ruby Capability"
+  },
+  "sk_ruby_d": {
+    "zh": "机械手可翻 T5 红瓶",
+    "en": "Hands flip T5 Ruby"
+  },
+  "sk_emerald": {
+    "zh": "翡瓶许可",
+    "en": "Emerald Capability"
+  },
+  "sk_emerald_d": {
+    "zh": "机械手可翻 T6 翡瓶",
+    "en": "Hands flip T6 Emerald"
+  },
+  "sk_diamond": {
+    "zh": "钻瓶许可",
+    "en": "Diamond Capability"
+  },
+  "sk_diamond_d": {
+    "zh": "机械手可翻 T7 钻瓶",
+    "en": "Hands flip T7 Diamond"
+  },
+  "sk_samuraigain": {
+    "zh": "处决收益倍率",
+    "en": "Execution Income"
+  },
+  "sk_samuraigain_d": {
+    "zh": "处决暴击收益加成 <color=#7CE38B>×{cur}</color> → <color=#9EE8B0>×{next}</color>（每级 +0.3×）",
+    "en": "Execution multiplier <color=#7CE38B>×{cur}</color> → <color=#9EE8B0>×{next}</color>"
+  },
+  "tab_bottle": {
+    "zh": "瓶子升级",
+    "en": "Bottles"
+  },
+  "tab_player": {
+    "zh": "玩家科技",
+    "en": "Player"
+  },
+  "tab_helper": {
+    "zh": "助手强化",
+    "en": "Helpers"
+  },
+  "tab_tree": {
+    "zh": "技能树",
+    "en": "Skill Tree"
+  },
+  "nav_shop": {
+    "zh": "商店",
+    "en": "Shop"
+  },
+  "nav_upgrade": {
+    "zh": "升级",
+    "en": "Upgrade"
+  },
+  "nav_skill": {
+    "zh": "技能树",
+    "en": "Skill Tree"
+  },
+  "drawer_hint": {
+    "zh": "⌃ 上滑展开升级列表",
+    "en": "⌃ Swipe up to expand"
+  },
+  "belt_locked": {
+    "zh": "履带未启用",
+    "en": "BELT OFF"
+  },
+  "belt_pending": {
+    "zh": "履带回收中 +{n}",
+    "en": "On belt +{n}"
+  },
+  "tree_page_bottle": {
+    "zh": "瓶子科技",
+    "en": "Bottle Tech"
+  },
+  "tree_page_player": {
+    "zh": "玩家科技",
+    "en": "Player Tech"
+  },
+  "tree_page_helper": {
+    "zh": "助手科技",
+    "en": "Helper Tech"
+  },
+  "tree_page_ability": {
+    "zh": "特殊技能",
+    "en": "Abilities"
+  },
+  "tree_tip": {
+    "zh": "点节点选中 · 点下方按钮升级",
+    "en": "Tap a node, then the button below"
+  },
+  "tree_next": {
+    "zh": "可升级",
+    "en": "Available"
+  },
+  "need_parent": {
+    "zh": "需先解锁上一个节点",
+    "en": "Unlock the node above first"
+  },
+  "sk_root": {
+    "zh": "翻瓶工坊",
+    "en": "Flip Workshop"
+  },
+  "sk_root_d": {
+    "zh": "技能树的起点，免费激活后解锁全部支线",
+    "en": "Skill tree root — free, opens every branch"
+  },
+  "owned_n": {
+    "zh": "拥有 {n}/{m}",
+    "en": "Owned {n}/{m}"
+  },
+  "unlock_next": {
+    "zh": "解锁下一阶",
+    "en": "Unlock next tier"
+  },
+  "locked_tier": {
+    "zh": "需在「技能树 · 瓶子科技」研发",
+    "en": "Research it in Bottle Tech"
+  },
+  "buy_bottle": {
+    "zh": "购买瓶子",
+    "en": "Buy Bottle"
+  },
+  "crit_landing": {
+    "zh": "扣盖暴击！",
+    "en": "CAP LANDING!"
+  },
+  "berserk_combo": {
+    "zh": "狂暴连击",
+    "en": "Berserk combo"
+  },
+  "resolve_gauge": {
+    "zh": "决意槽",
+    "en": "Resolve"
+  },
+  "passive": {
+    "zh": "被动",
+    "en": "Passive"
+  },
+  "caps_unit": {
+    "zh": "瓶盖",
+    "en": "Caps"
+  },
+  "achievement": {
+    "zh": "成就",
+    "en": "Achievements"
+  },
+  "buy_hand": {
+    "zh": "雇佣助手",
+    "en": "Hire Hand"
+  },
+  "hand_price": {
+    "zh": "价格",
+    "en": "Price"
+  },
+  "max_hands": {
+    "zh": "容量上限",
+    "en": "Capacity"
+  },
+  "short_money": {
+    "zh": "金币不足，还差 ${n}",
+    "en": "Need ${n} more coins"
+  },
+  "short_caps": {
+    "zh": "瓶盖不足，还差 {n} 枚",
+    "en": "Need {n} more caps"
+  },
+  "research_in_tree": {
+    "zh": "先去「技能树 · {tree}」研发「{name}」（{cost} 瓶盖）",
+    "en": "Research \"{name}\" in {tree} first ({cost} caps)"
+  },
+  "need_machine": {
+    "zh": "先去商城买瓶盖机器（$1,000）",
+    "en": "Buy the Cap Machine in the shop first ($1,000)"
+  },
+  "go_research": {
+    "zh": "去研发",
+    "en": "Research"
+  },
+  "go_install": {
+    "zh": "去安装",
+    "en": "Install"
+  },
+  "need_parent_n": {
+    "zh": "需先解锁「{name}」",
+    "en": "Unlock \"{name}\" first"
+  },
+  "next_goal": {
+    "zh": "下一步",
+    "en": "Next step"
+  },
+  "goal_machine": {
+    "zh": "去商城买瓶盖机器（$1,000）",
+    "en": "Buy the Cap Machine in the shop ($1,000)"
+  },
+  "goal_bottles": {
+    "zh": "先买瓶子、升收益，攒 $1,000 买瓶盖机器",
+    "en": "Buy bottles, level Income, save $1,000"
+  },
+  "goal_research": {
+    "zh": "研发 T{t} {name}（{cost} 瓶盖）",
+    "en": "Research T{t} {name} ({cost} caps)"
+  },
+  "goal_buy_tier": {
+    "zh": "商城买一只 T{t} {name}（${cost}）",
+    "en": "Buy a T{t} {name} in the shop (${cost})"
+  },
+  "goal_helper": {
+    "zh": "研发「解锁助手之手」（{cost} 瓶盖）",
+    "en": "Research Helper Hands ({cost} caps)"
+  },
+  "goal_helper_buy": {
+    "zh": "商城雇一只助手之手（${cost}）",
+    "en": "Hire a Helper Hand in the shop (${cost})"
+  },
+  "goal_done": {
+    "zh": "里程碑全部达成 · 继续冲技能树吧",
+    "en": "All milestones done — keep pushing the skill tree"
+  },
+  "shop_cat_bottle": {
+    "zh": "瓶子",
+    "en": "Bottles"
+  },
+  "shop_cat_machine": {
+    "zh": "履带设施",
+    "en": "Belt Facility"
+  },
+  "shop_cat_helper": {
+    "zh": "助手之手",
+    "en": "Helper Hands"
+  },
+  "tree_cat_belt": {
+    "zh": "履带升级",
+    "en": "Belt Tech"
+  },
+  "tree_cat_idle": {
+    "zh": "挂机模式",
+    "en": "Idle Mode"
+  },
+  "tree_cat_hand": {
+    "zh": "手部操作",
+    "en": "Hand Tech"
+  },
+  "tree_cat_ability": {
+    "zh": "特殊技能",
+    "en": "Abilities"
+  },
+  "shop_cursor": {
+    "zh": "抓取光圈",
+    "en": "Grab Halo"
+  },
+  "shop_cursor_d": {
+    "zh": "光圈跟手，拖过即翻",
+    "en": "Halo follows your finger"
+  },
+  "shop_cursor_on": {
+    "zh": "已安装 · 光圈跟手",
+    "en": "Installed · halo on"
+  },
+  "cursor_bought": {
+    "zh": "抓取光圈已开启",
+    "en": "Grab halo unlocked"
+  },
+  "unlock_beltmod": {
+    "zh": "解锁传送带模块",
+    "en": "Unlock Belt Module"
+  },
+  "unlock_beltmod_d": {
+    "zh": "开启「履带升级」科技线（瓶盖机器配套模块）",
+    "en": "Opens the Belt tech line for the cap machine"
+  },
+  "owned_short": {
+    "zh": "{n}/{m}",
+    "en": "{n}/{m}"
+  },
+  "tree_hint_income": {
+    "zh": "先升一级「收入」，本阶其余词条才会解锁",
+    "en": "Upgrade Income once to reveal the other perks"
+  },
+  "module_locked": {
+    "zh": "该模块尚未解锁",
+    "en": "Module locked"
+  },
+  "panel_hint": {
+    "zh": "点右侧按钮购买 / 升级",
+    "en": "Tap the button to buy / upgrade"
+  },
+  "row_gate": {
+    "zh": "需先解锁前置",
+    "en": "Unlock prerequisite"
+  },
+  "ad_coin": {
+    "zh": "金币翻倍",
+    "en": "Double Coins"
+  },
+  "ad_cap": {
+    "zh": "瓶盖翻倍",
+    "en": "Double Caps"
+  },
+  "ad_halo": {
+    "zh": "光圈变大",
+    "en": "Bigger Halo"
+  },
+  "ad_tag": {
+    "zh": "广告",
+    "en": "AD"
+  },
+  "ad_active_toast": {
+    "zh": "增益生效中，剩余 {n}s",
+    "en": "Buff active, {n}s left"
+  },
+  "ad_grant_coin": {
+    "zh": "金币翻倍已激活（3 分钟）",
+    "en": "Double coins ON (3 min)"
+  },
+  "ad_grant_cap": {
+    "zh": "瓶盖翻倍已激活（3 分钟）",
+    "en": "Double caps ON (3 min)"
+  },
+  "ad_grant_halo": {
+    "zh": "光圈已放大（3 分钟）",
+    "en": "Halo enlarged (3 min)"
+  },
+  "ad_offer_title": {
+    "zh": "金币不足",
+    "en": "Not Enough Coins"
+  },
+  "ad_offer_body": {
+    "zh": "看一条广告立即补足金币",
+    "en": "Watch an ad to get coins instantly"
+  },
+  "ad_watch_now": {
+    "zh": "看广告解锁",
+    "en": "Watch Ad"
+  },
+  "ad_fail": {
+    "zh": "广告未完成，稍后再试",
+    "en": "Ad not finished, try again later"
+  },
+  "ad_x3": {
+    "zh": "×3 看广告",
+    "en": "×3 Watch Ad"
+  },
+  "ad_x3_done": {
+    "zh": "离线收益已提升为 3 倍！",
+    "en": "Offline earnings tripled!"
+  },
+  "ms_chip": {
+    "zh": "里程碑 M{n}",
+    "en": "Milestone M{n}"
+  },
+  "ms_reached": {
+    "zh": "里程碑 M{n} 达成 · {t}",
+    "en": "Milestone M{n} · {t}"
+  },
+  "ms_unlock_stat": {
+    "zh": "解锁词条",
+    "en": "Unlocked perk"
+  },
+  "ms_none": {
+    "zh": "尚未达成",
+    "en": "Not reached yet"
+  },
+  "ms_max": {
+    "zh": "全部里程碑达成",
+    "en": "All milestones complete"
+  },
+  "ms_next": {
+    "zh": "下一阶段",
+    "en": "Next"
+  },
+  "ms_perks": {
+    "zh": "瓶子词条 {n}/{m}",
+    "en": "Bottle Perks {n}/{m}"
+  },
+  "ms_perks_hint": {
+    "zh": "更多词条随里程碑逐条开放",
+    "en": "More perks unlock with milestones"
+  },
+  "ms_perks_lock": {
+    "zh": "还有 {n} 条词条待 M{m} 解锁",
+    "en": "{n} perks left · unlocks at M{m}"
+  },
+  "milestone": {
+    "zh": "里程碑",
+    "en": "Milestone"
+  }
+}

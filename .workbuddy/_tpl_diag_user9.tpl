@@ -1,0 +1,6 @@
+sleep:9000
+jsclick:(function(){var c=document.getElementById('GameCanvas');var r=c.getBoundingClientRect();return [r.width/2,r.height*0.5];})()
+sleep:2500
+eval:(function(){var gr=cc.director.getScene().getChildByName('Canvas').getChildByName('GameRoot');var cr=gr.getChildByName('contentRoot');var ui=cr.getChildByName('shakeHolder').getChildByName('uiLayer');var hud=ui.getChildByName('hudRoot');var chip=hud.getChildByName('chipCoin');var TMPC=null;function wm(n){if(!TMPC)TMPC=new cc.Mat4();n.getWorldMatrix(TMPC);return [Math.round(TMPC.m[12]*10)/10,Math.round(TMPC.m[13]*10)/10];}var o={};o.cvWM=wm(cc.director.getScene().getChildByName('Canvas'));o.hudWM=wm(hud);o.chipWM=wm(chip);o.hudScale=[hud.scale.x,hud.scale.y];o.uiScale=[ui.scale.x,ui.scale.y];o.shakeScale=[hud.parent.parent.scale.x,hud.parent.parent.scale.y];gr.getChildByName('contentRoot').getChildByName('bgLayer').active=false;ui.getChildByName('navRoot').active=false;var ar=ui.getChildByName('adRoot');if(ar)ar.active=false;gr.getChildByName('contentRoot').getChildByName('shakeHolder').getChildByName('worldLayer').active=false;gr.getChildByName('bootLayer').active=false;return JSON.stringify(o);})()
+sleep:1000
+shot:E:/LDC_Cocos_PJ/Cocos3X_2D/点瓶子_竖屏/项目/TapBottle/.workbuddy/_d11_hudonly.png

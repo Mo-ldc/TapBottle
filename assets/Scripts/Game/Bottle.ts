@@ -3,10 +3,15 @@ import { LAYOUT, TIERS } from '../Core/GameConfig';
 import { Res } from '../Core/Res';
 import { hex } from '../Core/Util';
 import { G } from '../Core/State';
+import { Pool } from '../Core/Pool';
 import { FxLayer } from './Fx';
-import { img, nd, setFrame, setSize } from '../UI/UIKit';
+import { img, nd, setFrame, setSize } from '../UI/Base/UIKit';
 
-const { ccclass } = _decorator;
+const { ccclass, property } = _decorator;
+
+/** 预制体 key（assets/resources/Prefabs/ 下的相对路径） */
+const PF_BOTTLE = 'Game/Bottle';
+const PF_SHADOW = 'Game/BottleShadow';
 
 /** 瓶身贴图尺寸与锚点（build() 的 setFrame 与 hitTest 共用这一组，别再写魔数） */
 const ART_W = 150, ART_H = 375, ART_AY = 0.34;
@@ -35,6 +40,10 @@ export type Pose = { angle: number; dx: number; dy: number };
 
 @ccclass('Bottle')
 export class Bottle extends Component {
+    /** 瓶身贴图节点 —— 在 Bottle.prefab 里建好并绑定；为空时运行时兜底创建 */
+    @property({ type: Node, tooltip: '瓶身贴图节点（Bottle.prefab 内）' })
+    art: Node = null!;
+
     tier = 0;
     busy = false;
     /** 落地回调：参数为落地姿态 */
@@ -50,11 +59,29 @@ export class Bottle extends Component {
     private restDy = 0;
     private angleTween: Tween<Node> | null = null;
 
+    /**
+     * 从预制体实例化（走对象池，稳态零分配）。
+     * 预制体缺失时兜底走旧的代码建节点路径，保证编辑器里直接跑也不崩。
+     */
     static create(parent: Node, shadowParent: Node, tier: number, x: number, y: number): Bottle {
-        const n = nd(parent, 'bottle' + tier, 100, 200, x, y);
-        const b = n.addComponent(Bottle);
+        let n: Node | null = Pool.acquire(PF_BOTTLE, parent);
+        if (!n) { n = nd(parent, 'bottle' + tier, 100, 200, x, y); }
+        n.name = 'bottle' + tier;
+        n.setPosition(x, y, 0);
+        const b = n.getComponent(Bottle) || n.addComponent(Bottle);
         b.build(shadowParent, tier, x, y);
         return b;
+    }
+
+    /** 回收：瓶身与影子一起归还对象池（不 destroy） */
+    despawn() {
+        try { Tween.stopAllByTarget(this.node); } catch (e) { /* ignore */ }
+        if (this.shadow && this.shadow.isValid) { Pool.release(PF_SHADOW, this.shadow); }
+        this.shadow = null!;
+        this.shadowSp = null!;
+        this.onLanded = null;
+        this.busy = false;
+        Pool.release(PF_BOTTLE, this.node);
     }
 
     private build(shadowParent: Node, tier: number, x: number, y: number) {
@@ -63,14 +90,18 @@ export class Bottle extends Component {
         this.node.setScale(BOTTLE_SCALE, BOTTLE_SCALE, 1);
 
         // 影子：统一挂在「影子层」（位于所有瓶子之下），位置贴在瓶底再往上一点
-        this.shadow = nd(shadowParent, 'shadow', 64, 24, x, y - SHADOW_DY);
-        this.shadowSp = this.shadow.addComponent(Sprite);
+        let sh: Node | null = Pool.acquire(PF_SHADOW, shadowParent);
+        if (!sh) { sh = nd(shadowParent, 'shadow', 64, 24, x, y - SHADOW_DY); }
+        this.shadow = sh;
+        sh.setPosition(x, y - SHADOW_DY, 0);
+        sh.setScale(1, 1, 1);
+        this.shadowSp = sh.getComponent(Sprite) || sh.addComponent(Sprite);
         setFrame(this.shadowSp, 'env/disc', 64, 24, new Color(0, 0, 0, 118));
-        this.shadow.setScale(1, 1, 1);
 
-        // 瓶身（锚点在瓶底偏上，便于绕“瓶底”翻转）
-        const bn = nd(this.node, 'art', ART_W, ART_H, 0, 0, 0.5, ART_AY);
-        this.body = bn.addComponent(Sprite);
+        // 瓶身（锚点在瓶底偏上，便于绕“瓶底”翻转）—— 预制体里已建好，只换贴图
+        let bn = this.art;
+        if (!bn || !bn.isValid) { bn = nd(this.node, 'art', ART_W, ART_H, 0, 0, 0.5, ART_AY); this.art = bn; }
+        this.body = bn.getComponent(Sprite) || bn.addComponent(Sprite);
         setFrame(this.body, 'bottle/body_' + TIERS[tier].art, ART_W, ART_H);
 
         // 贴图本身画的是「瓶口朝下」，所以静置默认要转 180° 才是瓶口朝上

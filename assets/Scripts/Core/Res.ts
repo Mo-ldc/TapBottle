@@ -1,4 +1,5 @@
 import { _decorator, Component, Font, SpriteFrame, AudioClip, AudioSource, resources, assetManager, Sprite } from 'cc';
+import { Prefabs } from './Prefabs';
 
 const { ccclass, property } = _decorator;
 
@@ -68,85 +69,91 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/stat/size/spriteFrame',
     'Textures/stat/time/spriteFrame',
     'Textures/stat/unlock/spriteFrame',
-    'Textures/ui/app_logo/spriteFrame',
-    'Textures/ui/arrow_l/spriteFrame',
-    'Textures/ui/arrow_r/spriteFrame',
-    'Textures/ui/asset53/spriteFrame',
-    'Textures/ui/asset54/spriteFrame',
-    'Textures/ui/bar_bg/spriteFrame',
-    'Textures/ui/bar_fill/spriteFrame',
-    'Textures/ui/bar_fill2/spriteFrame',
-    'Textures/ui/bg_placeholder/spriteFrame',
-    'Textures/ui/btn2_blue_active/spriteFrame',
-    'Textures/ui/btn2_blue_inactive/spriteFrame',
-    'Textures/ui/btn2_grey_inactive/spriteFrame',
-    'Textures/ui/btn2_plain_active/spriteFrame',
-    'Textures/ui/btn2_plain_inactive/spriteFrame',
-    'Textures/ui/btn2_purple_inactive/spriteFrame',
-    'Textures/ui/btn2_red_active/spriteFrame',
-    'Textures/ui/btn2_red_inactive/spriteFrame',
-    'Textures/ui/btn_blue/spriteFrame',
-    'Textures/ui/btn_close/spriteFrame',
-    'Textures/ui/btn_home/spriteFrame',
-    'Textures/ui/btn_long_active/spriteFrame',
-    'Textures/ui/btn_long_hover/spriteFrame',
-    'Textures/ui/btn_long_inactive/spriteFrame',
-    'Textures/ui/btn_orange/spriteFrame',
-    'Textures/ui/btn_small_blue/spriteFrame',
-    'Textures/ui/card/spriteFrame',
-    'Textures/ui/card_dark/spriteFrame',
-    'Textures/ui/card_white/spriteFrame',
-    'Textures/ui/circle78/spriteFrame',
-    'Textures/ui/circle_outline/spriteFrame',
-    'Textures/ui/circle_ring/spriteFrame',
-    'Textures/ui/coin/spriteFrame',
-    'Textures/ui/color_bar/spriteFrame',
-    'Textures/ui/gam_icon/spriteFrame',
-    'Textures/ui/icon_40/spriteFrame',
-    'Textures/ui/icon_ach/spriteFrame',
-    'Textures/ui/icon_ach2/spriteFrame',
-    'Textures/ui/icon_back/spriteFrame',
-    'Textures/ui/icon_cross/spriteFrame',
-    'Textures/ui/icon_discord/spriteFrame',
-    'Textures/ui/icon_gear/spriteFrame',
-    'Textures/ui/icon_hand/spriteFrame',
-    'Textures/ui/icon_mail/spriteFrame',
-    'Textures/ui/icon_medal/spriteFrame',
-    'Textures/ui/ksp/spriteFrame',
-    'Textures/ui/icon_save/spriteFrame',
-    'Textures/ui/icon_shop/spriteFrame',
-    'Textures/ui/icon_shop2/spriteFrame',
-    'Textures/ui/icon_skill/spriteFrame',
-    'Textures/ui/icon_skill2/spriteFrame',
-    'Textures/ui/icon_star2/spriteFrame',
-    'Textures/ui/icon_stat/spriteFrame',
-    'Textures/ui/icon_steam/spriteFrame',
-    'Textures/ui/icon_steam2/spriteFrame',
-    'Textures/ui/icon_up/spriteFrame',
-    'Textures/ui/icon_upgrade/spriteFrame',
-    'Textures/ui/list_select/spriteFrame',
-    'Textures/ui/panel_deco/spriteFrame',
-    'Textures/ui/panel_wood/spriteFrame',
-    'Textures/ui/px_circle/spriteFrame',
-    'Textures/ui/px_dot/spriteFrame',
-    'Textures/ui/px_white/spriteFrame',
-    'Textures/ui/px_white2/spriteFrame',
-    'Textures/ui/round_rect/spriteFrame',
-    'Textures/ui/round_soft/spriteFrame',
-    'Textures/ui/slot/spriteFrame',
-    'Textures/ui/slot_hover/spriteFrame',
-    'Textures/ui/sq_brown/spriteFrame',
-    'Textures/ui/sq_brown2/spriteFrame',
-    'Textures/ui/sq_grey/spriteFrame',
-    'Textures/ui/wood_tab/spriteFrame',
-    'Textures/ui/wood_tab_dark/spriteFrame',
-    'Textures/ui/wood_banner_l/spriteFrame',
-    'Textures/ui/wood_banner_m/spriteFrame',
-    'Textures/ui/wood_banner_r/spriteFrame',
-    'Textures/ui/wood_rail/spriteFrame',
-    'Textures/ui/x_bg/spriteFrame',
-    'Textures/ui/x_logo/spriteFrame',
-    'Textures/ui/x_mail/spriteFrame',
+    'Textures/ui/icon/app_logo/spriteFrame',
+    'Textures/ui/icon/arrow_l/spriteFrame',
+    'Textures/ui/icon/arrow_r/spriteFrame',
+    'Textures/ui/misc/asset53/spriteFrame',
+    'Textures/ui/misc/asset54/spriteFrame',
+    'Textures/ui/bar/bar_bg/spriteFrame',
+    'Textures/ui/bar/bar_fill/spriteFrame',
+    'Textures/ui/bar/bar_fill2/spriteFrame',
+    'Textures/ui/panel/bg_placeholder/spriteFrame',
+    'Textures/ui/button/btn2_blue_active/spriteFrame',
+    'Textures/ui/button/btn2_blue_inactive/spriteFrame',
+    'Textures/ui/button/btn2_grey_inactive/spriteFrame',
+    'Textures/ui/button/btn2_plain_active/spriteFrame',
+    'Textures/ui/button/btn2_plain_inactive/spriteFrame',
+    'Textures/ui/button/btn2_purple_inactive/spriteFrame',
+    'Textures/ui/button/btn2_red_active/spriteFrame',
+    'Textures/ui/button/btn2_red_inactive/spriteFrame',
+    'Textures/ui/button/btn_blue/spriteFrame',
+    'Textures/ui/button/btn_close/spriteFrame',
+    'Textures/ui/button/btn_home/spriteFrame',
+    'Textures/ui/button/btn_long_active/spriteFrame',
+    'Textures/ui/button/btn_long_hover/spriteFrame',
+    'Textures/ui/button/btn_long_inactive/spriteFrame',
+    'Textures/ui/button/btn_orange/spriteFrame',
+    'Textures/ui/button/btn_small_blue/spriteFrame',
+    'Textures/ui/panel/card/spriteFrame',
+    'Textures/ui/panel/card_dark/spriteFrame',
+    'Textures/ui/panel/card_white/spriteFrame',
+    'Textures/ui/icon/circle78/spriteFrame',
+    'Textures/ui/icon/circle_outline/spriteFrame',
+    'Textures/ui/icon/circle_ring/spriteFrame',
+    'Textures/ui/icon/coin/spriteFrame',
+    'Textures/ui/bar/color_bar/spriteFrame',
+    'Textures/ui/icon/gam_icon/spriteFrame',
+    'Textures/ui/icon/icon_40/spriteFrame',
+    'Textures/ui/icon/icon_ach/spriteFrame',
+    'Textures/ui/icon/icon_ach2/spriteFrame',
+    'Textures/ui/icon/icon_back/spriteFrame',
+    'Textures/ui/icon/icon_cross/spriteFrame',
+    'Textures/ui/icon/icon_discord/spriteFrame',
+    'Textures/ui/icon/icon_gear/spriteFrame',
+    'Textures/ui/icon/icon_hand/spriteFrame',
+    'Textures/ui/icon/icon_mail/spriteFrame',
+    'Textures/ui/icon/icon_medal/spriteFrame',
+    'Textures/ui/icon/ksp/spriteFrame',
+    'Textures/ui/icon/icon_save/spriteFrame',
+    'Textures/ui/icon/icon_shop/spriteFrame',
+    'Textures/ui/icon/icon_shop2/spriteFrame',
+    'Textures/ui/icon/icon_skill/spriteFrame',
+    'Textures/ui/icon/icon_skill2/spriteFrame',
+    'Textures/ui/icon/icon_star2/spriteFrame',
+    'Textures/ui/icon/icon_stat/spriteFrame',
+    'Textures/ui/icon/icon_steam/spriteFrame',
+    'Textures/ui/icon/icon_steam2/spriteFrame',
+    'Textures/ui/icon/icon_up/spriteFrame',
+    'Textures/ui/icon/icon_upgrade/spriteFrame',
+    'Textures/ui/button/list_select/spriteFrame',
+    'Textures/ui/panel/panel_deco/spriteFrame',
+    'Textures/ui/panel/panel_wood/spriteFrame',
+    'Textures/ui/nine/nine_base/spriteFrame',
+    'Textures/ui/nine/nine_gloss/spriteFrame',
+    'Textures/ui/nine/nine_stroke/spriteFrame',
+    'Textures/ui/nine/nine_chip/spriteFrame',
+    'Textures/ui/nine/nine_chip_gloss/spriteFrame',
+    'Textures/ui/nine/nine_chip_stroke/spriteFrame',
+    'Textures/ui/pixel/px_circle/spriteFrame',
+    'Textures/ui/pixel/px_dot/spriteFrame',
+    'Textures/ui/pixel/px_white/spriteFrame',
+    'Textures/ui/pixel/px_white2/spriteFrame',
+    'Textures/ui/panel/round_rect/spriteFrame',
+    'Textures/ui/panel/round_soft/spriteFrame',
+    'Textures/ui/panel/slot/spriteFrame',
+    'Textures/ui/panel/slot_hover/spriteFrame',
+    'Textures/ui/panel/sq_brown/spriteFrame',
+    'Textures/ui/panel/sq_brown2/spriteFrame',
+    'Textures/ui/panel/sq_grey/spriteFrame',
+    'Textures/ui/button/wood_tab/spriteFrame',
+    'Textures/ui/button/wood_tab_dark/spriteFrame',
+    'Textures/ui/deco/wood_banner_l/spriteFrame',
+    'Textures/ui/deco/wood_banner_m/spriteFrame',
+    'Textures/ui/deco/wood_banner_r/spriteFrame',
+    'Textures/ui/deco/wood_rail/spriteFrame',
+    'Textures/ui/icon/x_bg/spriteFrame',
+    'Textures/ui/icon/x_logo/spriteFrame',
+    'Textures/ui/icon/x_mail/spriteFrame',
 ];
 
 export const AUDIO_PATHS: string[] = [
@@ -180,8 +187,8 @@ export class Res extends Component {
         this.bgmSource.loop = true;
     }
 
-    /** 预加载全部贴图 / 音频 / 字体 */
-    loadAll(done: (ok: boolean) => void) {
+    /** 预加载全部贴图 / 音频 / 字体 / 预制体；onProgress 为 0..1 加权进度（Boot 场景进度条用） */
+    loadAll(done: (ok: boolean) => void, onProgress?: (f: number) => void) {
         if (this.ready) { done(true); return; }
         this.pending.push(done);
         if (this.pending.length > 1) { return; }
@@ -192,17 +199,19 @@ export class Res extends Component {
             for (const p of ps) { p(ok); }
         };
 
-        let left = 3;
+        let left = 4;
         const oneDone = () => { left--; if (left <= 0) { finish(true); } };
         const guard = (fn: () => void) => {
             try { fn(); } catch (e) { console.warn('[Res]', e); oneDone(); }
         };
 
-        // ★ 引导层进度上报（build-templates/web-mobile/index.html 的 DOM 加载页）：
-        //    贴图占大头（0.85），音频 / 字体做零头（0.10 / 0.05）。
-        const bootP = (globalThis as any).__tbBootProgress as ((f: number) => void) | undefined;
-        const fr = { tex: 0, aud: 0, fnt: 0 };
-        const reportBoot = () => { if (bootP) { bootP(Math.min(1, fr.tex * 0.85 + fr.aud * 0.10 + fr.fnt * 0.05)); } };
+        // 加载进度（加载页进度条）：贴图占大头（0.75），预制体 0.10，音频 / 字体做零头（0.10 / 0.05）。
+        const fr = { tex: 0, aud: 0, fnt: 0, pf: 0 };
+        const reportBoot = () => { if (onProgress) { onProgress(Math.min(1, fr.tex * 0.75 + fr.pf * 0.10 + fr.aud * 0.10 + fr.fnt * 0.05)); } };
+
+        // 预制体（第 4 路）：UI / 游戏对象全部来自预制体，必须在进场景前就绪
+        Prefabs.boot();
+        guard(() => Prefabs.I.loadAll(() => { oneDone(); }, (f) => { fr.pf = f; reportBoot(); }));
 
         guard(() => resources.load(TEXTURE_PATHS, SpriteFrame, (fin: number, tot: number) => { fr.tex = tot > 0 ? fin / tot : 0; reportBoot(); }, (err, assets: SpriteFrame[]) => {
             if (err) { console.warn('[Res] texture load error', err); }

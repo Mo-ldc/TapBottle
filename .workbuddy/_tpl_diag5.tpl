@@ -1,0 +1,5 @@
+sleep:9000
+eval:(function(){window.__cc=0;try{cc.input.on(cc.Input.EventType.MOUSE_DOWN,function(){window.__cc++;});}catch(e){return 'reg EXC:'+e.message;}function find(root,nm){if(!root)return null;var q=[root];while(q.length){var n=q.shift();if(n.name===nm)return n;for(var i=0;i<n.children.length;i++)q.push(n.children[i]);}return null;}var cv=cc.director.getScene().getChildByName('Canvas');var sp=find(cv,'StartPage');var c=sp?sp.getComponent('StartPage'):null;return 'cc-input armed; sp comp enabled='+(c?c.enabled:'-')+' nodeActive='+(sp?sp.activeInHierarchy:'-');})()
+jsclick:(function(){var r=document.querySelector('canvas').getBoundingClientRect();return [r.x+r.width/2, r.y+r.height/2];})()
+sleep:400
+eval:(function(){function find(root,nm){if(!root)return null;var q=[root];while(q.length){var n=q.shift();if(n.name===nm)return n;for(var i=0;i<n.children.length;i++)q.push(n.children[i]);}return null;}var cv=cc.director.getScene().getChildByName('Canvas');var sp=find(cv,'StartPage');var c=sp?sp.getComponent('StartPage'):null;return 'ccInputFired='+window.__cc+' spEntered='+(c?c.entered:'-');})()

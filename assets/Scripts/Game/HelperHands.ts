@@ -5,7 +5,7 @@ import { Res } from '../Core/Res';
 import { BottleField } from './BottleField';
 import { CapMachine } from './CapMachine';
 import { FxLayer } from './Fx';
-import { nd, setFrame } from '../UI/UIKit';
+import { nd, setFrame } from '../UI/Base/UIKit';
 
 const { ccclass } = _decorator;
 

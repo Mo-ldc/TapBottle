@@ -100,7 +100,7 @@ TS 里用了一个没 import 的函数名，`strict: false` 下不一定会让�
 |---|---|---|---|
 | 1 | `GameRoot.ts` | 用了 `setFrame` 但没 import | ✅ 已修 |
 | 2 | `Game/HelperHands.ts` | 同上 | ✅ 已修 |
-| 3 | `UI/SettingsPanel.ts` | `toggle()`/`stepper()` 是**模块级**函数却调用 `openSettings()` 内部的 `refreshAll()` → 作用域不可见，点开关/音量抛 ReferenceError | ✅ 已修（`refresh` 改为入参） |
+| 3 | `UI/Panels/SettingsPanel.ts` | `toggle()`/`stepper()` 是**模块级**函数却调用 `openSettings()` 内部的 `refreshAll()` → 作用域不可见，点开关/音量抛 ReferenceError | ✅ 已修（`refresh` 改为入参） |
 | 4 | `Core/GameConfig.ts` | `p_cursor` 图标 `'env/cursorwhite'` 未登记 → 空白 | ✅ 已修（改用 `'env/cursor'`） |
 | 5 | `Core/GameConfig.ts` | `LAYOUT` 缺 `abilityY` → `Abilities` 读到 undefined，能力条坐标 NaN | ✅ 已修 |
 | 6 | `UI/DrawerContent.ts` | `BottleStatDef` 无 `base` 字段却被读 → 词条描述全 NaN | ✅ 已修（**2026-09-23 已整体重构**：词条矩阵进 `BottleStatDef.tiers[]`，描述改由 `等级×step` 推导，`TIERS[].success` 字段已随角度制判定一并删除） |
@@ -408,7 +408,7 @@ export function skinBtn(btn: Node, lb: Label, st: BtnState) { tint(bg, BTN_SKIN[
 ## J. 面板出场动效：中央 Q 弹 + 缩放消失（2026-09-23 定稿）
 
 > 用户明确要求：**任何面板都不许从下方滑入，要「Q 弹中间出现」，隐藏时「缩放回去」**。
-> 全部收敛到 `UI/UIKit.ts` 的 4 个函数，别在业务代码里手写 tween。
+> 全部收敛到 `UI/Base/UIKit.ts` 的 4 个函数，别在业务代码里手写 tween。
 
 ```ts
 /** Q 弹弹入：0.72 → 过冲 1.07 → 回落 1 */
@@ -763,6 +763,54 @@ hitTest(worldX: number, worldY: number): boolean {   // 放在物体自己的组
 
 ---
 
+## N. 竖屏适配层：Widget 平铺 + AutoNodeScale（2026-09-24 第五轮定稿）
+
+**口径**：适配全部由**编辑器实体**承担，不再运行时算尺寸。
+- 游戏：`Canvas` → `GameRoot`[`cc.Widget(45)` 平铺可见区] → `gameRoot`[UT 720×1280 + `AutoNodeScale`]；
+  `uiRoot`[Widget(45)] 1:1 平铺（**不**缩放）。
+- UI 预制体：`<Name>`[Widget(45) 跟随画布] → `mask`[Widget(45) 铺满] / `fit`[UT 720×1280 + `AutoNodeScale`]。
+- `AutoNodeScale`（`Core/AutoNodeScale.ts`）算 `s = min(父宽/自身宽, 父高/自身高)`，锚点 0.5 天然居中。
+  父节点铺满可见区时它**恒等于**旧的 `sA × DS`（FIXED_WIDTH 下父宽恒 1440 → `1440/720 = 2 = DS`）。
+
+### 坑 55 · `cc.Canvas` **不会**把节点的 `UITransform` 改成可见区
+
+引擎只用相机的 `orthoHeight` 表达屏幕适配，**不碰** `Canvas` 节点的 `contentSize`——场景里写多少就一直是
+多少。于是挂在 Canvas 子节点上的 `Widget(45)` 铺的是那个**手写值**，不是真实可见区：
+
+```ts
+// 场景里 Canvas 写 1440×2560，实际可见区 1440×2424（720×1280 窗口，浏览器窗口框吃掉 95px 高）
+// → GameRoot 被铺成 1440×2560 而不是 1440×2424
+// → gameRoot 的 AutoNodeScale 算出 s = min(1440/720, 2560/1280) = 2
+//   （正确值 min(2, 2424/1280) = 1.8936）→ 内容整体放大 5.6%，上下各被裁 ~68 设计单位
+```
+
+**改法**（二选一）：
+1. 参考工程 `StartConvenienceStore4` 的做法——`Canvas` 节点上直接挂 `cc.Widget(45)`（官方 2D 模板也这样）；
+2. 本工程沿用的做法——在 `GameRoot.alignCanvas()` 里补
+   `Canvas.UITransform.setContentSize(view.getVisibleSize())`（不挂 Widget，避免编辑器
+   `Canvas has not attached to a scene` 刷屏）。
+
+**排查口诀**：适配数值和预期差几个百分点，先同时打印 `view.getVisibleSize()`
+和 `Canvas.UITransform.width/height`——两者不等就是撞上这条。
+
+### 坑 56 · 改已有 prefab/scene 的组件，只「原地改写 + 末尾追加」，**绝不删除/重排**
+
+`.prefab` / `.scene` 里的 `{"__id__": N}` 就是**数组下标**。删掉任意一个对象，后面所有引用全错位，
+必须全量 remap，风险极高。两条安全改法：
+
+- **换组件类型**：把目标组件的 `__type__` 与字段**原地重写**，只保留 `__prefab` 交叉引用
+  （`c.clear(); c.update(newFields); c.update({k:v for k,v in old.items() if k=='__prefab'})`）。
+  未知字段（如旧组件的 `fitNode`）反序列化时会被自动忽略，不用手动删。
+- **加组件**：在**数组末尾**追加 `[组件, 它的 cc.CompPrefabInfo]` 并把 `__id__` 登记进
+  `node._components`。天然满足「组件与 CompPrefabInfo 相邻」，且不新增节点 → 每个节点的
+  `cc.PrefabInfo`「子树后置」顺序不变。
+  Cocos 反序列化是「先按 `__type__` 建对象、再按 `__id__` 填引用」的两阶段，**数组顺序无关**。
+
+⚠️ 别忘 `_id`：**prefab 里是空串 `""`，scene 里是标准 uuid**。写反了编辑器打不开。
+⚠️ 追加后必须跑 `check_prefab.py`（本工程归纳的 6 条 P 规则 + scene 的 S1）。
+
+---
+
 ## G. 卡住时的求助顺序
 
 1. `cc.d.ts` grep（API 存疑 100% 靠这个，别猜）。
@@ -770,3 +818,18 @@ hitTest(worldX: number, worldY: number): boolean {   // 放在物体自己的组
 3. `.workbuddy/memory/` 里的历史日志（本项目以前的决策与踩坑）。
 4. `read_console` 抓运行时报错。
 5. 实在不确定才问用户——优先自己验证。
+
+## 场景反序列化的 Sprite/Label 整树不渲染（2026-09-24，TapBottle 实测，12 轮探针定位）
+- **症状**：手写/脚本写入场景的 Sprite/Label，运行时节点树、组件、spriteFrame、颜色、layer、世界变换
+  **逐项检查全部正常**，但整棵子树不渲染；同一父节点下运行时 `addChild` 的新节点正常。
+  重建组件、`active=false/true`、`markForUpdateRenderData()` 全部无效。
+- **根因**：场景资源被 preload 提前实例化的时序下，渲染组件首次 `markForUpdateRenderData`
+  发生在渲染管线就绪之前 → dirty 请求被丢弃且永不重发（探针可见 `Sprite._dirtyVersion` 停在极小值，
+  而运行时新建组件的版本号是当前帧）。
+- **修复（一行事）**：把子树摘下来重新挂回（`_lpos`/`_siblingIndex` 都不动），强制重走 onEnable：
+  ```ts
+  parent.removeChild(layer); parent.addChild(layer); layer.setSiblingIndex(idx);
+  ```
+  已在 GameRoot.rebindSceneRenderers() 固化（重挂含场景渲染组件的层即可，子树级联恢复）。
+- **排查提示**：`.scene`/`.prefab` 编译产物（build/*/import/**.json）是压缩格式，
+  类型表在 `d[2]/d[3]`，可 grep uuid 验证依赖是否进包；运行时探针直接 eval 场景树最快。

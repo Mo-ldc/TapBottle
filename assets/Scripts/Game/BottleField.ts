@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Sprite, Vec2, Vec3, UIOpacity, UITransform, input, Input, EventTouch, EventMouse, tween } from 'cc';
+import { _decorator, Component, Node, Sprite, Vec2, Vec3, UIOpacity, UITransform, input, Input, EventTouch, EventMouse, tween, view } from 'cc';
 import { LAYOUT, PLAY_AREA, TIERS, VISIBLE_PER_TIER } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { chance, fmt } from '../Core/Util';
@@ -7,8 +7,8 @@ import { Res } from '../Core/Res';
 import { BOTTLE_ART, BOTTLE_SCALE, Bottle } from './Bottle';
 import { CapMachine } from './CapMachine';
 import { FxLayer } from './Fx';
-import { label, nd, setFrame, setSize } from '../UI/UIKit';
-import { Modal } from '../UI/Modal';
+import { label, nd, setFrame, setSize } from '../UI/Base/UIKit';
+import { Modal } from '../UI/Base/Modal';
 
 const { ccclass } = _decorator;
 
@@ -157,7 +157,7 @@ export class BottleField extends Component {
     start() {
         // 光标区域：按下即定位 + 命中判定翻瓶（GDD §3.1-2）
         //
-        // ⚠️ 点击**不再**走「瓶子的节点事件」，而是统一在这里自己做命中判定（见 tapAt）：
+        // ⚠️ 点击**不再**走「瓶子的节点事件」，而是统一在这里自己做命中判定（见 tapWorld）：
         //   节点自带的 hitTest 用的是 UITransform 矩形，和可见瓶身对不上（原来小一半多），
         //   于是点瓶口/瓶底会打空；打空后事件回落到场地的「空白处随机翻一只」，
         //   玩家看到的就是「点 A 结果 B 翻了」。重叠的瓶子也只有最上面那只收得到事件。
@@ -269,10 +269,21 @@ export class BottleField extends Component {
     /* ---------------- 布局 ---------------- */
 
     /**
-     * 把 UI 坐标（touch / mouse 的 getUILocation）换算成 field 的本地坐标。
-     * 世界层会随屏幕自适应缩放/平移，**不能**直接减半屏，必须用节点变换反算。
-     * （本工程的 UI 世界原点 = 可见设计区左下角，所以 getUILocation 与
-     *   convertToNodeSpaceAR 期望的入参是同一个空间，实测 localOf(worldOrigin) = (0,0)。）
+     * 把 UI 坐标（touch / mouse 的 getUILocation）换算成**世界坐标**。
+     *
+     * ★ getUILocation() 返回的是 UI 坐标系（原点=**视口**左下角），而
+     *   convertToNodeSpaceAR / hitTest 要的是世界坐标 —— 两者恒差一个
+     *   view.getVisibleOrigin()。旧代码假设它恒为 (0,0)，屏幕比例一偏离
+     *   9:16 就整片错位（超宽屏 +34px、超长屏 ±160px）→ 「点 A 翻 B」。
+     *   统一走这一个换算入口（用户口径：判定一律用世界坐标）。
+     */
+    private uiToWorld(uiX: number, uiY: number): Vec3 {
+        const vo = view.getVisibleOrigin();
+        return new Vec3(uiX + vo.x, uiY + vo.y, 0);
+    }
+
+    /**
+     * 光标定位（field 本地坐标，供光标圈/悬停触发用）。
      *
      * ⚠️ 这里**不**检查 `G.hasCursor`：pointer 同时承担「点击命中判定」，
      *    而开局是没解锁光标的 —— 之前加了这道门槛，导致没光标时 pointer 永远不更新，
@@ -282,41 +293,39 @@ export class BottleField extends Component {
         if (Modal.open) { return; }
         const ut = this.node.getComponent(UITransform);
         if (!ut) { return; }
-        const v = ut.convertToNodeSpaceAR(new Vec3(uiX, uiY, 0));
+        const v = ut.convertToNodeSpaceAR(this.uiToWorld(uiX, uiY));
         this.pointer.set(v.x, v.y);
     }
 
-    /** 按下：先定位光标，再做点击命中判定 */
+    /** 按下：先定位光标，再做点击命中判定（直接用世界坐标） */
     private pointerDown(uiX: number, uiY: number) {
         this.aim(uiX, uiY);
         if (Modal.open) { return; }
-        this.tapAt(this.pointer.x, this.pointer.y);
+        const w = this.uiToWorld(uiX, uiY);
+        this.lastWorld.set(w.x, w.y);
+        this.tapWorld(w.x, w.y);
     }
 
     /**
-     * 点击命中：一次按下命中的**所有**瓶子各自触发一次翻转判定。
+     * 点击命中：一次按下命中的**所有**瓶子各自触发一次翻转判定（入参=世界坐标）。
      *
      * 为什么自己算命中、不用节点自带事件：
      *  · 命中框与可见瓶身严格一致（点瓶口/瓶底也算中，点旁边空白不算中）；
      *  · **瓶子之间互不阻挡** —— 两只瓶子视觉上重叠时，重叠处按下两只都会翻，
      *    而不是只有渲染在上面的那只吃掉事件；
      *  · 点在空白处**不会**再「随机翻一只」（原来点 A 打空就翻 B，手感完全错）。
-     *
-     * ⚠️ 入参 x/y 是 field 本地坐标，但 `Bottle.hitTest` 内部用 `convertToNodeSpaceAR`，
-     *    它要的是**世界坐标** —— 两者差着 field 节点自身的位移/缩放，必须先换算。
+     * Bottle.hitTest 内部就是 convertToNodeSpaceAR（世界→本地）+ 瓶身矩形，
+     * 世界坐标直接喂给它，中间不再经过任何手写坐标换算。
      */
-    private tapAt(x: number, y: number) {
-        const ut = this.node.getComponent(UITransform);
-        if (!ut) { return; }
-        const tmp = this.node.getWorldPosition().clone();
-        tmp.x = x; tmp.y = y; tmp.z = 0;
-        const w = ut.convertToWorldSpaceAR(tmp);
+    private tapWorld(wx: number, wy: number) {
         for (const b of this.bottles) {
             if (!b.idle) { continue; }
             if (!b.node.activeInHierarchy) { continue; }   // 飞入途中（真瓶子藏起来）不参与命中
-            if (b.hitTest(w.x, w.y)) { this.flip(b); }
+            if (b.hitTest(wx, wy)) { this.flip(b); }
         }
     }
+    /** 最近一次按下判定的世界坐标（调试/无头验收用） */
+    lastWorld = new Vec2(0, 0);
 
     sync() {
         if (!this.node || !this.node.isValid) { return; }
@@ -343,8 +352,8 @@ export class BottleField extends Component {
             if (have[b.tier] > wantVis[b.tier]) {
                 have[b.tier]--;
                 this.bottles.splice(i, 1);
-                if (b.shadowNode && b.shadowNode.isValid) { b.shadowNode.destroy(); }
-                b.node.destroy();
+                // 走对象池回收（瓶身 + 影子一起归还），不再 destroy —— 稳态零分配
+                b.despawn();
             }
         }
 
@@ -358,7 +367,7 @@ export class BottleField extends Component {
                         y: (PLAY_AREA.y0 + PLAY_AREA.y1) / 2 + (Math.random() - 0.5) * 80 }
                     : this.pickSpot();
                 const b = Bottle.create(this.bottleHolder, this.shadowHolder, t, spot.x, spot.y);
-                // 不再挂 b.enableTouch：点击命中统一由 tapAt() 自己判定（见那里的注释）
+                // 不再挂 b.enableTouch：点击命中统一由 tapWorld() 自己判定（见那里的注释）
                 b.onLanded = (bb, oc) => this.onLanded(bb, oc);
                 this.bottles.push(b);
                 have[t]++;

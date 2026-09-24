@@ -13,8 +13,17 @@
  *  ② T4~T7 多行是整齐的 `Base: $10, R: 1.50`，疑似反编译缺失字段的填充值（按原文保留，待复核）。
  */
 
-export const DESIGN_W = 720;
-export const DESIGN_H = 1280;
+/**
+ * ★ 设计分辨率 = 1440×2560（2K 手机竖屏，用户口径）。
+ * 「创作空间（author space）」仍是 720×1280：全部布局常量（LAYOUT / SAFE_BLOCKS /
+ * 世界坐标 / UI 预制体）都按 720 口径书写，由场景里的 gameRoot / uiRoot 统一 ×DS
+ * 摆进 1440×2560 设计区 —— 改分辨率不用动任何业务常量。
+ */
+export const DESIGN_W = 1440;
+export const DESIGN_H = 2560;
+export const DS = DESIGN_W / 720;        // 设计/创作比 = 2
+export const AUTHOR_W = 720;             // 创作空间宽（全部布局常量的口径）
+export const AUTHOR_H = 1280;            // 创作空间高
 
 /** T1 单次基础金币（原版 BaseIncome = $1.0，§4.1） */
 export const BASE_INCOME = 1.0;

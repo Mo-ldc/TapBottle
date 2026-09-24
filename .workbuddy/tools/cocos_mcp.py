@@ -119,6 +119,22 @@ def main(argv):
             print(t["name"])
         return 0
 
+    if cmd == "schema":
+        # 打印工具的参数 schema（tools/list 里拿），便于不开 MCP 客户端也能查参数
+        try:
+            r = rpc("tools/list")
+        except Exception as e:
+            _dump({"status": "unreachable", "error": str(e)})
+            return 2
+        tools = r.get("result", {}).get("tools", [])
+        want = [a.lower() for a in argv[2:]]
+        for t in tools:
+            if want and not any(w in t["name"].lower() for w in want):
+                continue
+            _dump({"name": t["name"], "description": t.get("description"),
+                   "inputSchema": t.get("inputSchema")})
+        return 0
+
     if cmd == "call":
         if len(argv) < 3:
             print("需要工具名", file=sys.stderr)

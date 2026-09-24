@@ -1,0 +1,9 @@
+# 点击诊断：复算 hitTest 内部坐标
+sleep:4200
+eval:(function(){function find(root,nm){if(!root)return null;var q=[root];while(q.length){var n=q.shift();if(n.name===nm)return n;for(var i=0;i<n.children.length;i++)q.push(n.children[i]);}return null;}var cv=cc.director.getScene().getChildByName('Canvas');var bl=find(cv,'bootLayer');var bc=bl?bl.getComponent('Boot'):null;if(bc){bc.shown=bc.target=1;}return 'ready';})()
+sleep:1200
+jsclick:(function(){return [100,100];})()
+sleep:250
+jsclick:(function(){var r=document.querySelector('canvas').getBoundingClientRect();return [r.x+r.width/2, r.y+r.height/2];})()
+sleep:1500
+eval:(function(){function find(root,nm){if(!root)return null;var q=[root];while(q.length){var n=q.shift();if(n.name===nm)return n;for(var i=0;i<n.children.length;i++)q.push(n.children[i]);}return null;}var cv=cc.director.getScene().getChildByName('Canvas');var bs=find(cv,'bottles');var holder=bs?bs.getChildByName('bottles'):null;if(!holder||!holder.children.length)return 'no bottle';var b=holder.children[0];var B=b.getComponent('Bottle');var art=b.getChildByName('art')||b;var wp=art.getWorldPosition();var ut=b.getComponent('cc.UITransform');var p=ut.convertToNodeSpaceAR(new cc.Vec3(wp.x,wp.y,0));var aut=art.getComponent('cc.UITransform');var o=[];o.push('bottleWorld='+wp.x.toFixed(0)+','+wp.y.toFixed(0));o.push('localP='+p.x.toFixed(1)+','+p.y.toFixed(1));o.push('artSize='+(aut?aut.width+'x'+aut.height:'?'));o.push('nodeScale='+b.scale.x.toFixed(3));o.push('idle='+B.idle+' active='+b.activeInHierarchy);o.push('hitAtOwnWorld='+B.hitTest(wp.x,wp.y));var f=bs.getComponent('BottleField');o.push('fieldLocalPointer='+(f?f.pointer.x.toFixed(0)+','+f.pointer.y.toFixed(0):'?'));o.push('lastWorld='+(f?f.lastWorld.x.toFixed(0)+','+f.lastWorld.y.toFixed(0):'?'));var ModalCls=null;try{o.push('ModalOpen='+(window.__tb&&window.__tb.G?JSON.stringify(Object.keys(window.__tb.G).slice(0,5)):'-'));}catch(e){}return o.join(' | ');})()

@@ -5,17 +5,18 @@ import { Res } from '../Core/Res';
 import { t } from '../Core/Locale';
 import { BottleField } from './BottleField';
 import { FxLayer } from './Fx';
-import { button, img, label, nd, rect, setFrame, setSize } from '../UI/UIKit';
-import { Toast } from '../UI/Toast';
+import { applyFontDeep, button, img, label, nd, pressable, rect, setFrame, setSize } from '../UI/Base/UIKit';
+import { Toast } from '../UI/Base/Toast';
 
-const { ccclass } = _decorator;
+const { ccclass, property } = _decorator;
 
 /** 三大主动能力：飞行可乐 / 狂暴 / 武士处决（含底部能力条 UI） */
 @ccclass('Abilities')
 export class Abilities extends Component {
     cokeCd = 0;
     private cokeAlive: Node[] = [];
-    private bar: Node = null!;
+    @property({ type: Node, tooltip: '能力条（abilityBar，三个 ab_* 按钮各带 cd 遮罩 + lb 文字）' })
+    bar: Node = null!;
     private btns: Record<string, Node> = {};
     private overlays: Record<string, Node> = {};
     private labels: Record<string, Label> = {};
@@ -38,20 +39,48 @@ export class Abilities extends Component {
     }
 
     /* ---------------- 能力条 ---------------- */
+    /**
+     * ★ 场景实体化优先：navRoot 下已摆好 abilityBar（ab_coke/ab_berserk/ab_samurai）
+     *   → 只绑引用；否则运行时现建（与场景树逐节点同构）。事件统一在 wire() 接。
+     */
     buildBar(parent: Node) {
-        this.bar = nd(parent, 'abilityBar', 700, 110, 0, LAYOUT.abilityY);
+        if (!this.bindScene()) { this.construct(); }
+        this.wire();
+        this.layoutBar();
+        G.addListener(() => this.layoutBar());
+    }
+
+    /** 场景里已摆好能力条（有 abilityBar）→ 补齐引用，返回 true */
+    private bindScene(): boolean {
+        const barNode = this.bar && this.bar.isValid ? this.bar : this.node.getChildByName('abilityBar');
+        if (!barNode) { return false; }
+        this.bar = barNode;
+        this.btns = {}; this.overlays = {}; this.labels = {};
+        for (const d of ['coke', 'berserk', 'samurai']) {
+            const n = barNode.getChildByName('ab_' + d);
+            if (!n) { continue; }
+            this.btns[d] = n;
+            this.overlays[d] = n.getChildByName('cd') || null!;
+            this.labels[d] = n.getChildByName('lb')?.getComponent(Label) || null!;
+        }
+        applyFontDeep(barNode);
+        return Object.keys(this.btns).length > 0;
+    }
+
+    /** 运行时兜底搭建（与 Game.scene 里 abilityBar 的节点树逐节点同构） */
+    private construct() {
+        this.bar = nd(this.node, 'abilityBar', 700, 110, 0, LAYOUT.abilityY);
         const defs = [
-            { id: 'coke', icon: 'ability/flyingcoke', show: () => G.cokeUnlocked },
-            { id: 'berserk', icon: 'ability/berserk', show: () => G.berserkUnlocked },
-            { id: 'samurai', icon: 'ability/samurai', show: () => G.samuraiUnlocked },
+            { id: 'coke', icon: 'ability/flyingcoke' },
+            { id: 'berserk', icon: 'ability/berserk' },
+            { id: 'samurai', icon: 'ability/samurai' },
         ];
         for (const d of defs) {
             const n = button(this.bar, {
                 w: 104, h: 104, x: 0, y: 0,
-                tex: 'ui/card_white', inset: [26, 26, 26, 26],
-                texColor: '#2E3B52', sound: 'click',
+                tex: 'ui/panel/card_white', inset: [26, 26, 26, 26],
+                texColor: '#2E3B52', sound: null,
                 name: 'ab_' + d.id,
-                onClick: () => this.onAbility(d.id),
             });
             img(n, d.icon, 66, 66, 0, 8);
             const ov = rect(n, 92, 96, 0, 0, '#0B0F16CC', 'cd');
@@ -60,11 +89,18 @@ export class Abilities extends Component {
             ov.setPosition(0, 46, 0);
             this.overlays[d.id] = ov;
             this.labels[d.id] = label(n, '', 0, -8, 90, 40, { size: 22, color: '#FFE9A8', outline: '#101620', outlineWidth: 2 });
+            this.labels[d.id].node.name = 'lb';
             this.btns[d.id] = n;
             n.active = false;
         }
-        this.layoutBar();
-        G.addListener(() => this.layoutBar());
+    }
+
+    /** 接按钮事件（场景/运行时统一） */
+    private wire() {
+        for (const d of ['coke', 'berserk', 'samurai']) {
+            const n = this.btns[d];
+            if (n) { pressable(n, () => this.onAbility(d), 'click', 0.94); }
+        }
     }
 
     private layoutBar() {

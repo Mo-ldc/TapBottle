@@ -1,7 +1,7 @@
 import { _decorator, Component, Node, Sprite, Label, UIOpacity, Vec3 } from 'cc';
 import { CAP_COLOR, POOL } from '../Core/GameConfig';
 import { hex } from '../Core/Util';
-import { label, nd, setFrame } from '../UI/UIKit';
+import { label, nd, setFrame } from '../UI/Base/UIKit';
 
 const { ccclass } = _decorator;
 
@@ -76,7 +76,7 @@ export class FxLayer extends Component {
         // 预建：闪屏（全屏白块）
         const fn = nd(this.spriteLayer, 'flash', 1000, 1900, 0, 0);
         const fs = fn.addComponent(Sprite);
-        setFrame(fs, 'ui/px_white2', 1000, 1900);
+        setFrame(fs, 'ui/pixel/px_white2', 1000, 1900);
         this.flashes.push(newItem(fn, K_SPRITE, null, fs));
     }
 
@@ -195,7 +195,7 @@ export class FxLayer extends Component {
         const it = this.acquire(this.flashes, 3, () => {
             const n = nd(this.spriteLayer, 'flash', 1000, 1900, 0, 0);
             const sp = n.addComponent(Sprite);
-            setFrame(sp, 'ui/px_white2', 1000, 1900);
+            setFrame(sp, 'ui/pixel/px_white2', 1000, 1900);
             return newItem(n, K_SPRITE, null, sp);
         });
         if (!it) { return; }

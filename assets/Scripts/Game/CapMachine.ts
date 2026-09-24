@@ -4,10 +4,10 @@ import { G } from '../Core/State';
 import { fmt, hex } from '../Core/Util';
 import { Res } from '../Core/Res';
 import { FxLayer } from './Fx';
-import { label, nd, setFrame } from '../UI/UIKit';
-import { beltFace, WOOD, woodPlate, woodRail } from '../UI/Theme';
+import { label, nd, setFrame } from '../UI/Base/UIKit';
+import { beltFace, WOOD, woodPlate, woodRail } from '../UI/Base/Theme';
 
-const { ccclass } = _decorator;
+const { ccclass, property } = _decorator;
 
 /**
  * 履带上的一颗瓶盖。
@@ -70,10 +70,13 @@ function capColor(tier: number): string {
 export class CapMachine extends Component {
     static I: CapMachine = null!;
 
-    private chipsNode: Node = null!;
+    @property({ type: Node, tooltip: '瓶盖容器（chips；对象池节点运行时建在里面）' })
+    chipsNode: Node = null!;
+    @property({ type: Node, tooltip: '双倍闸门（gate，x 由 MACHINE.gateAt 配置驱动）' })
+    gateNode: Node = null!;
+    @property({ type: Label, tooltip: '在途计数（binLb，贴在出售箱上方）' })
+    binLb: Label = null!;
     private pool: Chip[] = [];
-    private binLb: Label = null!;
-    private gateNode: Node = null!;
     private beltNode: Node = null!;
 
     private built = false;
@@ -89,10 +92,36 @@ export class CapMachine extends Component {
     }
 
     /* ---------------- 搭建 ---------------- */
+    /**
+     * ★ 场景实体化优先：belt 节点下已摆好履带外观（railTop/railBot/belt/bin/feeder/gate/binLb/chips）
+     *   → 只绑引用；否则运行时现建（与场景树逐节点同构）。
+     *   闸门 x 始终由 MACHINE.gateAt 配置驱动（改配置不用回场景重摆）。
+     */
     private build() {
         if (this.built) { return; }
         this.built = true;
 
+        if (!this.bindScene()) { this.construct(); }
+        this.ensurePool();
+
+        // 双倍闸门位置：横置履带上是一根**竖**的闸条（垂直于行进方向）
+        const gx = MACHINE.beltEntryX + (MACHINE.beltExitX - MACHINE.beltEntryX) * MACHINE.gateAt;
+        if (this.gateNode && this.gateNode.isValid) { this.gateNode.setPosition(gx, 0, 0); }
+
+        this.refreshLock(true);
+    }
+
+    /** 场景里已摆好履带外观（有 railTop）→ 补齐引用，返回 true */
+    private bindScene(): boolean {
+        if (!this.node.getChildByName('railTop')) { return false; }
+        if (!this.gateNode || !this.gateNode.isValid) { this.gateNode = this.node.getChildByName('gate') || null!; }
+        if (!this.binLb || !this.binLb.isValid) { this.binLb = this.node.getChildByName('binLb')?.getComponent(Label) || null!; }
+        if (!this.chipsNode || !this.chipsNode.isValid) { this.chipsNode = this.node.getChildByName('chips') || null!; }
+        return true;
+    }
+
+    /** 运行时兜底搭建（与 Game.scene 里 belt 的节点树逐节点同构） */
+    private construct() {
         const bh = MACHINE.beltH;            // 86
 
         // 上下两根横木轨（贯穿三段：机器盒 → 履带 → 滚筒，两端被盒/筒盖住）
@@ -110,20 +139,26 @@ export class CapMachine extends Component {
         const gx = MACHINE.beltEntryX + (MACHINE.beltExitX - MACHINE.beltEntryX) * MACHINE.gateAt;
         this.gateNode = nd(this.node, 'gate', 22, bh, gx, 0);
         const gs = this.gateNode.addComponent(Sprite);
-        setFrame(gs, 'ui/px_white2', 22, bh - 20);
+        setFrame(gs, 'ui/pixel/px_white2', 22, bh - 20);
         gs.color = new Color(232, 200, 96, 210);
         for (const dy of [1, -1]) {
             const post = nd(this.gateNode, 'post', 30, 26, 0, dy * (bh / 2 - 6));
-            setFrame(post.addComponent(Sprite), 'ui/px_white2', 30, 26, WOOD.gold);
+            setFrame(post.addComponent(Sprite), 'ui/pixel/px_white2', 30, 26, WOOD.gold);
         }
 
         // 在途计数（贴在左端出售箱上方）
         this.binLb = label(this.node, '', MACHINE.binX, MACHINE.binH / 2 + 6, 170, 40, {
             size: 27, color: '#FFF3D0', outline: WOOD.line, outlineWidth: 3,
         });
+        this.binLb.node.name = 'binLb';
+    }
 
-        // 瓶盖容器 + 对象池（一次性预建，之后永不 new/destroy）
-        this.chipsNode = nd(this.node, 'chips', 1100, 900, 0, 0);
+    /** 瓶盖容器 + 对象池（一次性预建，之后永不 new/destroy；场景/运行时两条路径共用） */
+    private ensurePool() {
+        if (!this.chipsNode || !this.chipsNode.isValid) {
+            this.chipsNode = nd(this.node, 'chips', 1100, 900, 0, 0);
+        }
+        if (this.pool.length > 0) { return; }
         for (let i = 0; i < POOL.chip; i++) {
             const n = nd(this.chipsNode, 'chip', CHIP_W, CHIP_H, 0, 0);
             const sp = n.addComponent(Sprite);
@@ -135,8 +170,6 @@ export class CapMachine extends Component {
                 gated: false, spin: 0, jitter: 0, tier: 0,
             });
         }
-
-        this.refreshLock(true);
     }
 
     /**

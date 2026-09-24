@@ -42,16 +42,16 @@
 
 ## 2. 新增一个面板（商店/技能那种）
 
-抄 `UI/ShopPanel.ts` 的结构（它就是最标准的一个）。骨架：
+抄 `UI/Panels/SettingsPanel.ts` 的结构（它就是最标准的一个）。骨架：
 
 ```ts
-// assets/Scripts/UI/MyPanel.ts
+// assets/Scripts/UI/Panels/MyPanel.ts
 import { Node } from 'cc';
-import { G } from '../Core/State';
-import { t } from '../Core/Locale';
+import { G } from '../../Core/State';
+import { t } from '../../Core/Locale';
 import { openPanel, rowCard } from './Panel';
-import { label, button, img, nd } from './UIKit';
-import { Toast } from './Toast';
+import { label, button, img, nd } from '../Base/UIKit';
+import { Toast } from '../Base/Toast';
 
 export function openMyPanel(parent: Node) {
     const p = openPanel(parent, 'my_title');        // 遮罩+木框+标题+关闭按钮+滚动区 全有了
@@ -64,10 +64,11 @@ export function openMyPanel(parent: Node) {
 ```
 要点：
 - **`openPanel()` 已经处理了**：遮罩、淡入、圆角木框、标题、关闭按钮、`Modal.push()`、`popIn` 弹入、滚动区（`p.body` 是 `scrollView` 的 content）。
-- 内容重绘用「清空 + 重建」：`import { destroyChildren } from './UIKit'; destroyChildren(p.body);` 然后 `nd/rowCard/label/button` 铺一遍。
+- 内容重绘用「清空 + 重建」：`import { destroyChildren } from '../Base/UIKit'; destroyChildren(p.body);` 然后 `nd/rowCard/label/button` 铺一遍。
 - 一行的样式统一用 `rowCard(p.body, w, h, x, y, tint)`（圆角卡 + 描边）。
 - 资源不足提示用 `Panel.ts` 导出的 `denyToast(needCaps?)`。
-- 挂到导航：改 `GameRoot.buildUI()` 里的 `NavBar.build((id) => {...})` 分支，并在 `UI/NavBar.ts` 加按钮。
+- 挂到导航：改 `GameRoot.buildUI()` 里 `BottomPanel` 的分支。
+- **放哪**：内嵌面板 → `UI/Panels/`；可复用控件 → `UI/Widgets/`；基础设施 → `UI/Base/`。
 
 ---
 

@@ -3,176 +3,137 @@
 竖屏点瓶子（Bottle Flip Inc 复刻），Cocos 3.8.8（`D:\CoCosIDE\Creator\3.8.8`）。
 逐轮细节见 `.workbuddy/memory/2026-09-2*.md`；本文件只留**最难重新发现的规则**。
 
-## 硬约定
-- **无 Prefab**：UI 全由 `assets/Scripts/UI/*` 运行时构建；场景只有 Canvas+Camera+GameRoot。
-- 数值唯一真理源 `GDD_Bottle_Flip_Inc_Cocos_v1.1.md` → `Core/GameConfig.ts`；状态单例 `G`
-  （`Core/State.ts`，addListener/notify）；资源单例 `Res.I`，贴图必须登记 `Core/Res.ts` 的
-  `TEXTURE_PATHS`（只认 `assets/resources/`）。
-- 皮肤统一 `UI/Theme.ts`（`WOOD` + woodPlate/woodButton/chipPlate/woodBanner/woodRail/beltFace）；
-  控件用 Graphics 画，只有木纹/瓶身/机器/滚筒/猫爪/绿叶用贴图。
-- 购买引导统一走 `UI/Guidance.ts`（差额提示 + 「去研发」跳转 + 「下一步」）；跳转用注入的
-  NavBridge，别直接 import 面板（BottomPanel 反向依赖 Guidance，会成环）。
-- **底栏四件【商店】【升级】【技能树】【下拉框】**（第十轮起内嵌面板，非弹窗）：
-  `UI/BottomPanel.ts` 常驻在底栏下方（navRoot），内容口径对齐原版解析
-  （`E:\LDC_Fby\BottleFlipInc\_analysis\model.json` + report_cn.txt）：
-  · 商店（无下拉全平铺）= 每阶「买瓶数量」按钮 + 瓶盖机器 + 助手之手；
-  · 升级（无下拉全平铺）= 研发下一阶(页顶) + 每阶词条（名字加「瓶子·」前缀；悬停翻转也在升级页，原版数据如此）
-    + 光标圈大小(需光标天赋 p_cursor) + 瓶盖机收入(需机器) + 各阶助手许可(需助手)；
-  · 技能树 = 唯一带下拉框的页签，四条科技线（履带/挂机/手部/特殊）；
-    p_cursorsize / p_machineinc / h_bronze..h_diamond **不进树**（在升级页，见 TREE_*_NODES / HELPER_CAP_NODES）。
-  列表是**两列网格**（`UI/UpgradeRows.ts` makeCell，CELL 322×78 / COLS 2），只画能解锁的项
-  （locked/maxed 不出列表，空了给 all_done 占位行）；下拉菜单右缘对齐下拉框右缘、贴底栏顶沿弹出。
-  旧的 Drawer/SkillPanel/DrawerContent/NavBar 已删除；`__tb.bottom` 是类，实例 `.I`，
-  跳转 API `showTreeCategory(page)`（0→升级页 / 1履带 / 2手部 / 3特殊）。
+## 仓库与分支（2026-09-24）
+- 远端 `https://github.com/Mo-ldc/TapBottle`。
+  - `main` = 主线（正在做预制体化改造）。
+  - `legacy-runtime-ui` = **无预制体、运行时程序生成 UI** 的存档版，停在 `7a3168a`。
+- 本地两个副本：`TapBottle`（开发用）/ `TapBottle_old`（clone 的纯净副本，跑 legacy-runtime-ui 分支）。
+- 推送一律走系统代理：`unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy` +
+  `-c http.proxy=http://127.0.0.1:10808`（沙箱注入的 58048 时通时不通，别依赖）。
+
+## 架构（2026-09-24 起大改：代码生成 → 预制体化）
+- **旧状态已废**：此前 UI 全由 `Scripts/UI/*` 运行时 Graphics 生成、无 Prefab。
+  现在全面迁移为「场景实体化 + Prefab + 编辑器可调」，参考工程
+  `E:\LDC_Cocos_PJ\Cocos3X_2D\开个便利店_竖屏\项目\StartConvenienceStore4`：
+  GameEntry 场景(@property 进度条) → ResMgr/预制体按需加载 → UIMgr(pageRoot/dialogRoot/tipRoot)
+  + PoolMgr(Map<string,Node[]>) → director.preloadScene 进主场景。
+- 新基础设施：`Core/Prefabs.ts`（预制体清单+随 Res 预加载+make 实例化）、`Core/Pool.ts`（对象池）。
+- **★ 目录规范（第二十六轮重组，2026-09-24）**：按资源类型归位，不按界面分目录——
+  UI 预制体 = `resources/Prefabs/UI/<Name>.prefab`（`UIMgr.UI_ROOT='Prefabs/UI'`）；
+  UI 脚本 = `assets/Scripts/UI/` 内**按职责分层**（依赖单向 Base ← Widgets ← Hud/Panels ← Pages/Dialogs）：
+  `Base/`(UIBase/UIKit/Theme/Modal/Toast/Ads) `Widgets/`(行控件+AdButtons+UpgradeRows)
+  `Hud/`(Hud/BottomPanel/Guidance) `Panels/`(Panel+3个openXxx面板) `Pages/` `Dialogs/` `_legacy/`(UIFit)；
+  UI 贴图 = `resources/Textures/ui/<八分类>/`（nine/panel/button/icon/bar/deco/pixel/misc）。
+  旧 `UIRes/`、`UI/Common/` 已删；迁移工具 `reorg_ui.py` + `reorg_ui_scripts.py`，备份 `.workbuddy/reorg_bak/`。
+  ⚠️ 任何资源移动都要**连 .meta 一起移**（uuid 不变 → prefab 引用/cid 全不用改）。
+- 九宫格皮肤：`Textures/ui/nine/{nine_base,nine_gloss,nine_stroke}`(inset 26) +
+  `nine/{nine_chip,nine_chip_gloss,nine_chip_stroke}`(inset 27)，
+  白底三层叠加可整体 tint；meta 已写 borderSlice；Theme.woodPlate/chipPlate/woodButton 走 Sprite(SLICED)。
+  生成工具 `.workbuddy/tools/gen_nineslice.py`。
+- 数值唯一真理源 `GDD v1.1.md` → `Core/GameConfig.ts`；状态单例 `G`；资源单例 `Res.I`
+  （贴图登记 `TEXTURE_PATHS`，**任何一条路径失败 → 整批加载不到**）。
+- 底栏四件（商店/升级/技能树/下拉框）内嵌面板，口径对齐
+  `E:\LDC_Fby\BottleFlipInc\_analysis\model.json`；两列网格 CELL 322×78；跳转 API `showTreeCategory(page)`。
+- 购买引导走 `UI/Guidance.ts`，跳转用注入的 NavBridge（直接 import 面板会成环）。
 
 ## 流程
 1. 改完先 `python .workbuddy/tools/typecheck.py`（源码 0 错）再构建 —— 命令行构建**不因 TS 报错失败**。
 2. 构建：`unset ELECTRON_RUN_AS_NODE` 后
    `"D:/CoCosIDE/Creator/3.8.8/CocosCreator.exe" --project <项目> --build "platform=web-mobile;debug=true"`（~25s）。
-   **exit code 会骗人**（有人开着编辑器占 3000 端口 → 返回 36/SIGTERM，但产物已写好）→ 看日志
-   `build Task (web-mobile) Finished` + 在 `build/web-mobile/assets/main/index.js` grep 新字符串。
-3. 验收：`E:\LDC_Fby\_cdp.py`（无头 Chrome+CDP+本地 http server）跑 `.tpl`
-   （`sleep/eval/click/jsclick/shot`）。四比例窗口 `p16 720×1348 / tall 720×1668 / tab 720×1028 /
-   wide 1280×868`；**无头视口 = 窗口高 − 68**。
-   - ⚠️ **模板路径必须绝对**：`_cdp.py` 内部 `os.chdir(ROOT)`，相对路径会静默跳过整份脚本。
-   - ⚠️ 第 8 参可传独立 Chrome profile 目录：复用同一 profile 时 `--window-size` 会被上次
-     会话记住的窗口几何覆盖（四比例截成同一尺寸）；连跑两次之间旧 chrome 可能没死干净，
-     占住 9333 调试口 → `chrome did not start` / 403 / socket closed 三种死法，
-     **第 9 参可指定调试端口（连跑多次换端口）**，异常日志也落 `_cdp_log.txt`。
-   - ⚠️ **headless 首次 `Input.dispatchMouseEvent` 会被丢弃**（页面未激活）→ 点一下没反应先发
-     `jsdrag` 预热（mouseMoved）再点，别误判成业务 bug。
-   - ⚠️ **第 3 参是本地 HTTP 服务端口，绝不能传 9333**（= Chrome 调试口）：服务器先占 9333 →
-     chrome 起不来 → `chrome did not start`，极易误判成端口被残留占用。HTTP 端口传 8901+。
-   - ⚠️ 跑之前 `unset http_proxy https_proxy ...` + `export NO_PROXY=127.0.0.1,localhost`
-     （沙箱代理 env 和 Windows 注册表系统代理都会劫持 python→127.0.0.1 的请求）；
-     **Bash 沙箱内 Chrome 网络偶发丢请求（假 404/REFUSED）→ 验收用 dangerouslyDisableSandbox 跑**。
-   - ⚠️ headless 首次 `Input.dispatchMouseEvent` 会被丢弃（页面未激活）→ 点一下没反应先发
-     `jsdrag` 预热（mouseMoved）再点，别误判成业务 bug。
-   - ⚠️ **boot overlay（`#tb-boot`）与 headless**：进度/切标题已改为 **不依赖 rAF**
-     （样式一次写入 + CSS transition + setInterval 轮询，2026-09-24 修复 rAF 停摆根因）。
-     但 swiftshader 截图对带 transition/animation 的 fixed 层会出**陈旧纹理伪影**
-     （「双进度条」/标题页下还挂着加载条）——DOM 求值状态才是真相；要干净截图就在 tpl 开头
-     eval 注入 `*{transition:none!important;animation:none!important}`。旧绕过法（强删节点）仍可用。
-   - ⚠️ **同层后建节点吞触摸**：角标（newTag/adIcon）必须挂在**价格按钮下**当子节点（坐标用按钮
-     本地），挂在 cell 上会盖住按钮右上角、事件被角标吃掉 → 「点选项有晃动反馈但没效果」。
-   - ⚠️ `window.cc` 无 `cc.UITransform/UIOpacity/Vec3` → 用 `getComponent('cc.UITransform')`。
-   - `__tb.bottom`/`__tb.cap`/`__tb.field` 是**类**，实例在 `.I`；`__tb` 还带 `panels`、`ui`、`goal`。
-   - 本机 `tail/dirname` 不可用，`&&` 链会整条短路。
-4. **同一文件一次只发一处编辑**（并行多处会互相覆盖且都返回 success）。
-5. **打平台包（vivo/huawei/xiaomi/honor）需要本机 Node 环境**：插件在
-   `<Creator>/resources/tools/<平台>-pack-tools` 里跑 `npm install` + `npm run build|release`，
-   npm 不在 PATH 就报 `Command failed: npm.cmd install`；`mg -v` 不能跑就报
-   `Please install tools: npm install -g @vivo-minigame/cli`。已装 `D:\nodejs`（官方 LTS 便携版）
-   + 全局 `@vivo-minigame/cli`，均在 HKCU 用户 PATH。
-   **改完 PATH 必须完全重启编辑器**（`restart_cocos.py --full` 从 shell 重启不可靠，会继承工具的 POSIX PATH）；
-   **所有本机 npm 操作前先 `NODE_OPTIONS= NODE_PATH=`**（WorkBuddy 注入的 node shim 会搞坏目录）。
+   **exit code 会骗人**（编辑器占 3000 端口 → 返回 36，但产物已写好）→ 看日志
+   `build Task (web-mobile) Finished` + 在 index.js grep 新字符串。
+3. 验收：`E:\LDC_Fby\_cdp.py`（无头 Chrome+CDP+本地 http）跑 `.tpl`（sleep/eval/jsclick/jsdrag/shot）。
+   参数：`<webroot> <out.png> <http端口8901+> <WAIT**毫秒**> <宽> <高> <模板.tpl> <profile目录> <调试端口9350+>`。
+   ⚠️ 用 `C:/Users/A/.workbuddy/binaries/python/envs/default/Scripts/python.exe` 跑（裸 `python` 没有 requests）。
+   - ⚠️ **模板路径必须绝对**（内部 os.chdir，相对路径静默跳过）；HTTP 端口传 8901+，**绝不能传 9333**（调试口）。
+   - ⚠️ 连跑换独立 profile（第 8 参）+ 调试端口（第 9 参）；先 `unset http_proxy ...` + `NO_PROXY=127.0.0.1`；
+     **Bash 沙箱内 Chrome 网络偶发丢请求 → 用 dangerouslyDisableSandbox 跑**。
+   - ⚠️ headless 首次 `Input.dispatchMouseEvent` 会被丢弃 → 先 jsdrag 预热再点。
+   - ⚠️ **`jsclick:` 的坐标是屏幕像素（原点左上角）**，不是世界坐标：
+     `screenX=(wp.x-vo.x)*k`、`screenY=H-(wp.y-vo.y)*k`，`k=window.innerHeight/view.getVisibleSize().height`。
+     传错只表现为「点了没反应」，极易误判成业务 bug。
+   - ⚠️ `_cdp.py` 窗口传 720×1280 时 `window.innerWidth/Height` 实测只有 **704×1185**（窗口框吃高度）→
+     可见区是 1440×2424 而非 2560；排查适配偏差先打这个数。
+   - ⚠️ swiftshader 截图对带 CSS transition 的 fixed 层出陈旧纹理伪影 → DOM 求值状态才是真相。
+   - ⚠️ `window.cc` 无 `cc.UITransform` 等 → 用 `getComponent('cc.UITransform')`；`__tb.*` 类在 `.I`。
+     `F(scene,'bottles')` 命中的是**外层容器**（children=shadows/bottles/label），取瓶子用 `__tb.field.I.bottles[0].node`。
+   - ⚠️ `jsclick:`/`jsdrag:` 行 = 先 eval JS 拿 `[x,y]` 再 dispatchMouseEvent；**普通 `eval:` 行返回坐标不会点击**（只记录）——模板里点击必须用 `jsclick:` 前缀，写错是静默空操作（实测踩过）。
+   - 脚本被中途打断时 `finally` 不执行 → chrome 会泄漏（每次 ~10 进程/150MB）。
+     已修（taskkill /T /F + 按 user-data-dir 兜底），另加 `python _cdp.py cleanup` 一键清进程+profile。
+4. **同一文件一次只发一处编辑**（并行多处互相覆盖且都返回 success）。
+
+## 手写 .scene / .prefab 的硬性格式（缺一条编辑器就打不开）
+- **prefab 三件套**：`arr[0]=cc.Prefab`(data→1)；每个 Node 有 `_prefab`→`cc.PrefabInfo`
+  （root→1、asset→0、fileId 22 字符，DFS **后序**插在该节点组件之后）；
+  每个 Component 有 `__prefab`→`cc.CompPrefabInfo`（紧跟组件后）。
+- **prefab 里所有 node/component 的 `_id` 必须是空串 `""`**；**scene 里 `_id` 是标准 uuid**。
+  写反了编辑器当脏数据，双击打不开。（参考工程 463 个 prefab 节点 `_id` 全为空）
+- **scene 根 Canvas 的 `_parent` 必须显式指回 `arr[1]`(cc.Scene)**：否则 `node.scene===null`
+  → 整棵树 `UITransform.hitTest` 抛 `Cannot read properties of null (reading 'renderScene')`
+  → 表现是「画面完全正常，但所有点击全废」。
+- 验证闭环：`prefab_validate` → `prefab_edit{action:open}`（等价于双击）→ 看 `mode:"prefab-edit"`；
+  再 `close{save:true}` 后 diff，**只应差 fileId 随机值**（实测已验证字节级等价）。
 
 ## 坑（真金白银）
-- **一个节点只能挂一个渲染组件**（Sprite/Graphics/Label 都是 UIRenderer；warnID 12002）：
-  `addComponent` 第二个渲染组件会**静默失败**。Theme 里 woodPlate/chipPlate/beltFace/woodRail
-  的高光/描边/辊条各占一个**子节点** —— 2026-09-23 前描边从来没画出来过（按钮一直无描边）。
-- 运行时改色**必须整体赋值**（`new Color(...)` / `UIKit.tint`）：`Color.fromHEX(sp.color,..)` 与
-  `sp.color.set(..)` 是就地改内部 `_color`，引用未变 → setter 提前 return → `_updateColor()` 不跑
-  → 静默保持原贴图色。Graphics 改色要 `clear()` + 重描。
-- `buildBackground()` 必须在资源加载完之后调用（`img()/rect()` 依赖 `Res.I.sf()`，早了静默空白）。
-- 容器层要「**建完再顶到末尾**」（`setSiblingIndex(len-1)`），否则后建的节点盖住它（fxLayer 被桌面盖住）。
-- 组件挂在 `navRoot` 上时不能 `this.node.active=false`（会连底栏一起关）；组件要自带子节点当容器。
-- **全局 `input` 监听不受遮罩 BlockInputEvents 约束** → 模态必须 `Modal.push/pop`（Drawer、离线弹窗
-  已登记），否则在面板上点任何位置都会顺手翻一只背后的瓶子。
-- 兄弟创建序 = 渲染序；竖排（固定头+滚动体+固定底）必须用算术串竖带，各自按中心定位一定重叠。
-- ScrollView content 锚点 (0.5,1) → y 必须写 `viewH/2 - TOP_PAD`（写 0 会下沉半屏）；滚动区下沿要落进
-  行间隙 `SCROLL_H ≡ padTop + STEP_Y/2 (mod STEP_Y)`；滚动条 `UIScrollBar` 挂在视口外，改滚动区 Y 要一起搬。
-- 奶油底 `#F6E3C5` 上只能深棕字 `#7A4210`；深木牌底才用 `#F1E0C0`。**模态面必须实心 6 位 hex**。
-- UI 出场一律「中央 Q 弹」`popIn/popOut`（绝不上滑）；`popOut` 会把 UIOpacity 复位成 255，
-  不能对已淡到 0 的节点再调。
-- 点击命中自己算（`Bottle.hitTest` 逆变换判瓶身矩形 `150×375 / ay 0.34` + `BottleField.tapAt`）；
-  `pointer` 是点击与悬停**共用**输入源，`aim()` 不能带解锁条件；`hitTest` 要**世界坐标**；
-  输入四路都接（TOUCH 与 MOUSE 的 START/MOVE，桌面浏览器按下派发 MOUSE_DOWN）。
+- **一个节点只能挂一个渲染组件**（Sprite/Graphics/Label 都是 UIRenderer）：第二个 addComponent **静默失败**，多层效果各占子节点。
+- 运行时改色**必须整体赋值** `new Color(...)`：`Color.fromHEX(sp.color,..)`/`sp.color.set(..)` 就地改
+  内部 `_color`，引用未变 → setter 提前 return → 静默不变色。Graphics 改色要 clear()+重描。
+- 依赖贴图的构建必须在资源加载回调之后（早了静默空白只剩清屏色）。
+- 容器层「建完再顶到末尾」`setSiblingIndex(len-1)`；兄弟创建序 = 渲染序。
+- **全局 input 监听不受 BlockInputEvents 约束** → 模态必须 Modal.push/pop。
+- ScrollView content 锚点 (0.5,1) → y 写 `viewH/2 - TOP_PAD`；滚动区下沿落进行间隙。
+- UI 出场「中央 Q 弹」popIn/popOut；popOut 会把 UIOpacity 复位 255，不能对已淡出节点再调。
+- 瓶身 `body_0..6.png` 画的是**瓶口朝下**（angle=180 才正立）；点击命中自己算（Bottle.hitTest 世界坐标判矩形 150×375/ay 0.34）。
+- 本机 bash `tail/dirname` 不可用；`&&` 链会整条短路。
 
-## 数值与经济（2026-09-23 第十五轮口径）
-- **落地判定 = 纯概率制**（2026-09-24 第二十一轮拍板，**覆盖 GDD §3.1-3 的角度容差模型**）：
-  所有瓶子一个口径 —— 成功树立 **50%**（倒立 10% / 正立 40%），失败 50%；
-  各阶「翻转精通」`mastery` 每级 **+5%**，满 **10 级 = 100%**（必成立）。
-  实现：`FLIP.successBase/successStep/critShareOfSuccess` + `G.successChance/critChance/okChance/rollOutcome`；
-  **成功池内部恒为 1:4 分配** —— 倒立/正立占比之和恒 = 1（倒立 20% / 正立 80%，不是「倒立固定 10%」），
-  且 `critChance + okChance ≡ successChance`；满级 = 倒立 20% + 正立 80% = 100%。
-  `rollLanding/outcomeOf/tierTolerance` 与 `p_stability` 抗扰度**已不参与判定**（旧角度制仅存于 GDD 历史段）。
-  ⚠️ `mastery` 的 `base` 同时是**价格基数**（`State.statCost`），改效果只能改 `step` / `successStep`。
-- **瓶盖 = 每次落地 1 枚**：树立(ok)/倒立(crit) 都给 1 枚对应品质瓶盖（`doFlipResult` 统一 `caps=1`），
-  翻倒(fail) 无；没装瓶盖机器时 caps 归零（原版规则保留）。瓶盖**无爆散动画**，
-  直接从瓶身中心沿抛物线飞进右端入料机（CapMachine phase1 起）。
-- `CAP_GAIN_BASE` 已不在主流程使用（保留备用）；'capgain' 词条暂无实际效果。
-- 扣盖黑圈特效 = `Fx.shockwave`（`env/shockwave.png` 本身是黑色同心环）—— 已删，crit 只留金色星光。
-- 点瓶音效 = `pop3`（TAP_SFX 单元素）；Toast 提示条在**屏幕正中**（BAR_Y 0），成就横幅 y=110。
-- 顶栏**无横幅背景**（Hud.fitWidth 是 no-op）、无猫爪挂牌/绿叶装饰（buildDecor 已清空）。
-- 瓶盖机器是**商店设施 $1,000 金币**（`MACHINE.buyPrice`，存档 `data.machine`）；买之前不产瓶盖也不画
-  履带。装好后瓶盖先进 `pendingCaps`，靠 `CapMachine` 运到滚筒 `recycleCaps()` 才入账。
-- 助手是唯一吞吐放大器（`h_unlock` 1200 瓶盖；`handInterval` 1.5s；超 10 只走 `directFlip` 静默结算）。
-- 瓶盖三段特效（爆散→飞向履带→上带行进）全在 `CapMachine.update()` 手算，零 tween / 零 new；
-  颜色按阶走 `CAP_COLOR`（T7 从 `CAP_RAINBOW` 逐颗随机）。
+## 数值与经济
+- **落地判定 = 纯概率制**（覆盖 GDD §3.1-3 角度容差）：成功树立 50%（倒立:正立恒 1:4 分池），
+  mastery 每级 +5%，满 10 级=100%。`FLIP.*` + `G.successChance/rollOutcome`；
+  `rollLanding/p_stability` 已不参与。⚠️ mastery 的 `base` 同时是价格基数。
+- **瓶盖 = 每次成功落地 1 枚**（ok/crit 都给），失败无；没买瓶盖机器（$1000）时归零；
+  瓶盖先进 pendingCaps，CapMachine 运到滚筒才入账。助手 `h_unlock` 1200 盖、1.5s/次、超 10 只静默结算。
+- 瓶盖无爆散动画，抛物线飞右端入料机；履带**向左运**到左端出售箱（binX -252/feederX +252）。
 
-## 布局口径（木纹卡通，设计 1280，y 以屏幕中心为 0）
-- 顶栏 `barY 520 / barH 134` → 木桌（`statusY 386`、猫爪+绿叶在 hudRoot y≈384/398、
-  `PLAY_AREA y −90..270`）→ 底部块（第十轮串联）`abilityY −136 / beltY −256 h124(beltH) /
-  navY −356 h72 / panelY −508 panelH 216（内嵌面板，屏幕最底）`。
-  `SAFE_BLOCKS.topY 587 / topBottomY 453 / botTopY −85 / botBottomY −616`、`safeBottom 24`；
-  `botTopY` 要跟着「底部块最上面是谁」走（改错会白丢舞台高度）。
-- 底栏三件：商城 / 技能树 / 瓶子种类下拉框（各 214/214/246 宽），下面常驻内嵌升级面板。
-- 瓶子 `bottleH 96`（=原 160×0.6，用户要求）；`BOTTLE_SCALE = bottleH/375 = 0.256`。
-- 履带**向左运**（第十四轮用户口径）：瓶盖飞向**右端深色入料机**（黑色滚轮），通过履带
-  向左运到**左端出售箱**（木箱+瓶盖图示）回收入账。MACHINE 几何：`binX -252`（出售箱）/
-  `feederX +252`（入料机）/ `beltEntryX +160` / `beltExitX -160`（span 为负，闸门插值自动成立）。
-  履带横置挂 navRoot（UI 层，不随舞台缩放），**全部 Graphics 矢量画**
-  （木框机器盒+绿屏+深色辊面+右滚筒，总宽 654）；贴图拉伸是当初「履带变形」的根因。
-  世界↔屏幕换算用 `GameConfig.WORLD_XFORM`。
-- 顶栏**只留两个筹码**（金币 + 瓶盖数）——速率「/秒 $X」与「履带回收中 +N」副行文本已删。
-- 瓶身贴图 `body_0..6.png` 画的是**瓶口朝下**（`angle=180` 才正立）；画布比例 0.4、内容底对齐。
+## 适配层（2026-09-24 第二十五轮起：Widget 平铺 + AutoNodeScale）
+- **唯一适配组件** `Core/AutoNodeScale.ts`（从参考工程 `Init/Scripts/Tool/` 搬来，关掉 executeInEditMode）。
+  `s = min(父宽/自身宽, 父高/自身高)`，锚点 0.5 天然居中。编辑器实体化，不再运行时算尺寸。
+- **两边结构对称**：
+  - 游戏：`Canvas` → `GameRoot`[Widget(45) 平铺可见区] → `gameRoot`[UT 720×1280 + AutoNodeScale]；
+    `uiRoot`[Widget(45)] 1:1 平铺（**不**挂 AutoNodeScale）。
+  - UI 预制体：`<Name>`[Widget(45) 跟随画布] → `mask`[Widget(45) 铺满] / `fit`[UT 720×1280 + AutoNodeScale]。
+- **★ 引擎事实**：`cc.Canvas` **不会**把节点 `UITransform` 改成可见区（只管相机 orthoHeight）。
+  所以 `GameRoot.alignCanvas()` 必须自己 `Canvas.UITransform.setContentSize(view.getVisibleSize())`，
+  否则 Widget 铺的是场景里手写的 1440×2560，AutoNodeScale 会算大（实测 s=2 vs 正确 1.8936）。
+- **等价性**：父节点铺满可见区时 `s ≡ 旧的 sA×DS`（FIXED_WIDTH 下父宽恒 1440 → 1440/720=2）。
+  三视口实测 1.8936 / 1.845 / 0.5563 与改造前逐位一致。
+- 旧 `UIFit.ts`（现 `Scripts/UI/_legacy/`）已退役，保留仅供回溯。
+- 改造脚本：`.workbuddy/tools/fit_prefabs.py`（6 个 UI prefab）、`fit_game_scene.py`（Game.scene）。
+  **改法**：只「原地改写已有组件」+「数组末尾追加 [组件, 其 CompPrefabInfo]」，**绝不删除/重排**
+  （`__id__` 是数组下标，重排要全量 remap）。备份在 `.workbuddy/prefab_bak/`。
 
-## 引导层（加载页 + 标题页，2026-09-24）
-- 全在 **`build-templates/web-mobile/`**：`index.html`（生成版的完整复制 + `#tb-boot` 引导层，
-  **改引擎模板相关内容要同步这里**，构建时整体覆盖产物）+ `boot/loading_bg.jpg`（参考图原画）
-  + `boot/bottle.png`（body_4 逆时针转 90° 横躺）+ `boot/logo.png`（app_logo）。
-- 钩子：`Res.loadAll` onProgress 加权（tex .85/aud .10/fnt .05）→ `__tbBootProgress(f)`；
-  `GameRoot.afterReady` → `__tbBootReady()`；用户点击标题页 → `__tbOnStart()` → GameRoot
-  `music(false)+(true)` 重播 BGM（无手势首次播被浏览器自动播放策略拦掉）。
-- 语言自适应 `navigator.language` 前缀 zh。标题页 = logo + Bottle Flip Inc + 点瓶子 + 点击屏幕开始。
-- **进度/切标题不依赖 rAF**（headless/后台标签 rAF 停摆会永远卡加载页）；
-  动画全走 CSS transition，切标题 setInterval 轮询 450ms 后置 `.title`。
+## 布局口径（设计 1280，y 以屏幕中心为 0）
+- 顶栏 barY 520/h134 → 木桌 statusY 386 → 底部块 abilityY −136 / beltY −256 / navY −356 /
+  panelY −508（内嵌面板）。`SAFE_BLOCKS.botTopY −85` 要跟着「底部块最上面是谁」走。
+- 瓶子 bottleH 96，BOTTLE_SCALE=0.256；顶栏只留金币+瓶盖两个筹码。
+- 奶油底 #F6E3C5 配深棕字 #7A4210；深木牌底才 #F1E0C0；模态面必须实心 6 位 hex。
 
-## 可复用
-- 美术流水线 `E:\LDC_Fby\_art_pipe.py`：生成→抠底→规整→`assets/resources/Textures`。
-  别用 `floodfill(thresh=T)` 直接抠底（Pillow 的 `_color_diff` 是三通道差值和，近白底噪点即超阈值且
-  **静默失败**）→ 先造 L 二值掩膜再在掩膜上 `thresh=0` 泛洪；`RGBA.getbbox()` 不认 alpha，
-  要用 `im.split()[3].getbbox()`；可拉伸部件切 `_l/_m/_r` 三件拼。
+## 手写 .scene / .prefab（见下方格式节）
+- 生成器 `.workbuddy/tools/gen_scene.py` + `build_main_scene.py` / `build_prefabs.py`，
+  校验器 `check_prefab.py`（对参考工程 46 个 prefab 全通过才算规则归纳对）。
+  脚本组件 `__type__` 用**编译期 cid**（`scan_cid.py` 扫 `temp/programming`），不是脚本 uuid。
 
-## 贴图（2026-09-24 全量压到 200K 以下）
-- `assets/resources/Textures` 141 张 png，目录 **7.7MB → 2.6MB**，已无 >200K 的单图。
-- 工具 `.workbuddy/tools/tex_compress.py`（`--purge-dead` 移出死资源）、`tex_dryrun.py`（试算体积/PSNR）；
-  **原图备份 `.workbuddy/texture_src/`**（`unused/` 里是移出的死资源，含 meta，可直接拷回恢复）。
-- 压缩手法：唯一色 ≤256 的图走**精确调色板 PNG8（无损）**；其余 `quantize(256, FASTOCTREE)`
-  存 PNG8。全分辨率 PSNR 27~42dB，但**在真实显示尺寸下（tab 图标才 42px）都 ≥40dB**，
-  评价贴图压缩必须按显示尺寸算失真，别看全分辨率数字。
-- **已移出的死资源**（只在 `TEXTURE_PATHS` 里、全工程无绘制调用）：
-  `env/drum / env/fog / env/leaves / env/machine_box / env/paw_card` + `ui/wood_banner`
-  （木牌实际用 `wood_banner_l/m/r` 三件）；同时从 Res.ts 摘掉了前 5 条。
-- ⚠️ **`resources.load(数组)` 里任何一条路径失败 → 整批贴图都加载不到**（不是跳过单个）。
-  所以移走/改名贴图必须同步改 `Res.ts` 的 `TEXTURE_PATHS`，否则进游戏整屏只有清屏色。
-- 下一个包体大头是**字体**：`Fonts/NotoSansSC-Bold.ttf` 10.5MB + `Lato-Semibold.ttf` 669KB，
-  占 resources 的 11/15MB —— 中文字体子集化能省 10MB 量级（尚未做）。
+## 资产与工具
+- 贴图 141 张已压到 <200K/张（PNG8），工具 `tex_compress.py`/`tex_dryrun.py`，原图备份
+  `.workbuddy/texture_src/`（unused/ 含死资源可拷回）。字体 NotoSansSC-Bold 10.5MB 是下一个包体大头（未子集化）。
+- 音频全转 MP3（lameenc；bgm 96k 立体声），备份 `.workbuddy/audio_src/`。
+  ⚠️ lameenc 低码率会悄悄降采样率 → set_out_sample_rate；mp3 循环有 ~0.04s 间隙；
+  `clip.duration` 返回 undefined，要用 `clip.getDuration()`。
+- 美术流水线 `E:\LDC_Fby\_art_pipe.py`；抠底要先造 L 二值掩膜再 thresh=0 泛洪（floodfill 直接抠会静默失败）。
+- 打平台包需本机 npm（`D:\nodejs`）；npm 操作前 `NODE_OPTIONS= NODE_PATH=`；改 PATH 必须完全重启编辑器。
 
-## 音频（2026-09-24 全量转 MP3）
-- **assets/resources/Audio 下只有 13 个 .mp3**（wav+meta 已删），代码按 `'Audio/xxx'` 路径加载
-  不带扩展名，无需改 TS；uuid 已变（旧 uuid 无引用）。
-- **本机无 ffmpeg** → 用 venv 里的 `lameenc`（纯 wheel 自带 LAME）编码；
-  工具 `.workbuddy/tools/audio_conv.py`（转换+备份+--purge 删 wav）、`audio_verify.py`（解析 MPEG 帧
-  校验时长/声道/采样率）、`audio_info.py`。**原始 wav 备份在 `.workbuddy/audio_src/`**（含旧 meta）。
-- 码率分档：bgm 96k 立体声（20.5MB→1.37MB）、win/buy/hit/slash 128k 立体声、button 96k、
-  click/click2/pop1-5 64k 单声道。总计 20.32MB → 1.40MB（6.9%）。
-- ⚠️ **lameenc 低码率时会悄悄把输出降到 32kHz**（LAME 自动优化）→ 必须
-  `set_out_sample_rate(与源相同)` 保持 44.1k/48k。
-- mp3 有 ~0.04s 编码器延时（576+1152 采样）；**BGM `loop=true` 循环点会有一小段静音间隙**
-  （mp3 固有，浏览器不解码 LAME gapless tag）——原版 wav 是无缝的，用户若反馈循环断裂，需
-  换回 wav/ogg 或改用 Web Audio 手动 buffer 循环。
-- Cocos web 端 AudioClip：`clip.duration` getter 返回 `undefined`（序列化字段），要用
-  **`clip.getDuration()`**（本机实测 mp3 正确返回 116.61s）；`_nativeAsset` 是 AudioMeta 对象
-  `{url,type,player}`，不是 ArrayBuffer。
+## 场景渲染注册坑（2026-09-24）
+- 场景反序列化的 Sprite/Label 可能整树不渲染（节点/贴图/颜色全正常）：preload 提前实例化时
+  markForUpdateRenderData 被丢且永不重发。**修复 = removeChild+addChild 重挂子树**，已固化在
+  `GameRoot.rebindSceneRenderers()`（afterReady 重挂 hudRoot/navRoot/adRoot）。详见 cocos-3.8.8 技能 pitfalls。
+- 玩法 UI 已全部实体化进 Game.scene（build_gameplay_ui.py，580 对象）；组件 bindScene 按节点名接手，
+  construct() 是运行时兜底，**两边节点名必须同构**（Hud 曾因 moneyLb 摆放位置不一致每帧 TypeError）。

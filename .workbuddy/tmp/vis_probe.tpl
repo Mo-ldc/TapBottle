@@ -1,0 +1,1 @@
+eval:JSON.stringify({vis:cc.view.getVisibleSize(),des:cc.view.getDesignResolutionSize(),innerW:window.innerWidth,innerH:window.innerHeight,dpr:window.devicePixelRatio,ortho:(function(){var s=cc.director.getScene();var cam=s.getChildByName('Camera');if(!cam)return null;var c=cam.getComponent('cc.Camera');return c?c.orthoHeight:null})()})

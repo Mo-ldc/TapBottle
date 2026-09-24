@@ -75,7 +75,7 @@ agent_created: true
 | `references/tween-fx-api.md` | tween/Tween 完整方法、全部缓动名、`ITweenOption`、粒子替代方案、Animation/Spine |
 | `references/resource-audio-api.md` | `resources` / `assetManager` / bundle、Prefab 实例化、场景加载、AudioSource 与音频、JsonAsset/TextAsset |
 | `references/input-physics-api.md` | 输入事件（触摸/鼠标/键盘）、`EventTouch` 取坐标、2D/3D 物理、射线、常用 `sys` 能力 |
-| `references/editor-ops.md` | ★ **编辑器操作手册（实测版）**：MCP 客户端用法、重载/重启三档、编辑器能力地图（读/写/跑）、3.8.8 不可用清单、安全边界 |
+| `references/editor-ops.md` | ★ **编辑器操作手册（实测版）**：MCP 客户端用法、重载/重启三档、编辑器能力地图（读/写/跑）、3.8.8 不可用清单、安全边界、**§9 手写 .scene/.prefab 的硬性格式与验证闭环** |
 | `references/editor-mcp.md` | `cocos-creator-mcp` 扩展的工具清单（含 README 原始条目）、接入方式、限制 |
 | `references/cookbook.md` | 任务配方：加面板 / 加技能 / 加档位 / 加成就 / 调数值 / 加音效贴图 / 排查不显示不响应 |
 | `references/pitfalls.md` | 踩坑清单 A–I 节（含运行时改色 `tint`、竖直自适应几何、工具链与无头验收坑）+ D 节历史缺陷清单（均已修复） |

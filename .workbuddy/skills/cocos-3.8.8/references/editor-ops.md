@@ -189,3 +189,45 @@ setInterval(() => {
 3. `taskkill /F /IM CocosCreator.exe` 会杀掉**所有** Cocos Creator 窗口，包括其它工程。只在 `--force` 下触发，且会先提示。
 4. `execute_editor_script` 有编辑器完整权限，**只能用于本地开发**，别把它接到任何外部输入上。
 5. 预览窗口、截图、录屏都会在 `temp/` 下堆文件。`temp/screenshots/` 记得定期清。
+
+## 9. 手写 .scene / .prefab（绕过编辑器直接生成文件）
+
+编辑器 MCP 的 `scene_manage open` 在 3.8.8 上实测**返回 success 但不真的切场景**（树建到了未命名场景上）。
+需要批量/程序化建场景时，改为**直接生成 .scene / .prefab 文件**，可控且可校验。
+本机工具：`.workbuddy/tools/gen_scene.py`（库）+ `build_main_scene.py` / `build_prefabs.py`（脚本）
++ `check_prefab.py`（校验器）+ `scan_cid.py`（脚本 cid 扫描）。
+
+### 9.1 硬性格式规则（缺一条编辑器就打不开）
+
+| # | 规则 | 反例后果 |
+|---|------|---------|
+| 1 | `arr[0]` 必须是 `cc.Prefab`（`data` → 根节点 idx 1） | 不识别为预制体 |
+| 2 | 每个 **Node** 有 `_prefab` → `cc.PrefabInfo`（`root`→1、`asset`→0、`fileId` 22 字符） | 双击打不开 |
+| 3 | 每个 **Component** 有 `__prefab` → `cc.CompPrefabInfo`（`fileId`） | 双击打不开 |
+| 4 | **prefab 里所有 node/component 的 `_id` 必须是空串 `""`** | 被当成脏数据 |
+| 5 | **scene 里 `_id` 是标准 uuid**（与 prefab 相反！） | — |
+| 6 | scene 根 Canvas 的 `_parent` 必须显式指回 `arr[1]`(cc.Scene) | 见下 |
+| 7 | PrefabInfo 插入位置 = **DFS 后序**（该节点的子组件全部排完之后） | — |
+
+规则 6 漏掉的后果极隐蔽：`node.scene === null` → 整棵树 `UITransform.hitTest` 抛
+`Cannot read properties of null (reading 'renderScene')` → **画面完全正常，但所有点击全废**。
+
+### 9.2 脚本组件的 `__type__` 是编译期 cid，不是脚本 uuid
+`temp/programming/packer-driver/targets/editor/chunks/**` 里有
+`_RF.push({}, "<22字符cid>", "<类名>")`。用 `scan_cid.py` 扫出「类名→cid」映射表并缓存到
+`.workbuddy/_cid_map.json`。写错会用 uuid，构建报 `Script ... is missing or invalid`。
+
+### 9.3 验证闭环（三重）
+1. `check_prefab.py <file>` —— 拿参考工程的 prefab 跑一遍确认校验器自身规则归纳正确；
+2. `prefab_validate{uuid}` → `valid:true`，再 `prefab_edit{action:"open", path, force:true}`
+   → 返回 `mode:"prefab-edit"` 即等价于双击打开成功，再用 `scene_manage{hierarchy}` 看树；
+3. `prefab_edit{action:"close", save:true}` 让编辑器保存一次，diff 保存前后
+   —— **只应差 `fileId` 随机值**（实测字节级等价）。
+
+### 9.4 meta 字段（照抄编辑器真产物）
+`ver:"1.1.50"`、`imported:true`、`files:[".json"]`、`userData.syncNodeName:<根节点名>`。
+**补全 meta 时要保留已有 uuid**，重分配会静默断掉按 uuid 的引用。
+
+### 9.5 改完必须跑
+`typecheck.py` → 命令行构建 → 无头验收。构建 exit code 会骗人（编辑器占 3000 端口返回 36），
+看日志 `build Task (web-mobile) Finished` + 0 个 `missing or invalid` 才作数。
