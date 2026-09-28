@@ -3,6 +3,7 @@ import { DESIGN_H, DESIGN_W } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { Res } from '../Core/Res';
 import { UIMgr, UIName } from '../Core/UIMgr';
+import { installPreviewInputBridge } from '../Core/PreviewInputBridge';
 
 const { ccclass, property } = _decorator;
 
@@ -63,6 +64,8 @@ export class LoadScene extends Component {
 
     onLoad() {
         LoadScene.I = this;
+        // 预览页输入修复（必须最先做：构建产物零影响，详见 PreviewInputBridge.ts 顶部注释）
+        installPreviewInputBridge();
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
         this.alignCanvas();
 

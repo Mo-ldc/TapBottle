@@ -3,6 +3,7 @@ import { CAP_COLOR, CAP_FX, CAP_RAINBOW, MACHINE, POOL, WORLD_XFORM } from '../C
 import { G } from '../Core/State';
 import { fmt, hex } from '../Core/Util';
 import { Res } from '../Core/Res';
+import { Prefabs } from '../Core/Prefabs';
 import { FxLayer } from './Fx';
 import { label, nd, setFrame } from '../UI/Base/UIKit';
 import { beltFace, WOOD, woodPlate, woodRail } from '../UI/Base/Theme';
@@ -37,15 +38,32 @@ interface Chip {
     tier: number;
 }
 
-/** 瓶盖统一贴图：靠染色区分品阶 → 全带瓶盖共用一张图，天然合批 */
-const CHIP_TEX = 'bottle/capchip_0';
+/** 瓶盖统一贴图：靠染色区分品阶 → 全带瓶盖共用一张图，天然合批
+ *  （预制体 `Prefabs/Game/Cap` 里烘的就是这张；这里保留常量给兜底路径与箱体图示用） */
+const CHIP_TEX = 'bottle/capchip_6';   // capchip_0 已随废弃资源清理移除（2026-09-28），兜底图改用顶栏瓶盖贴图
 const CHIP_W = 40, CHIP_H = 36;
 
-/** 取某阶瓶盖的颜色（T7 彩虹瓶逐颗随机取色） */
-function capColor(tier: number): string {
+/** 瓶盖预制体 key（`Prefabs/Game/Cap`）—— 池节点的实例来源 */
+const CAP_PREFAB = 'Game/Cap';
+
+/**
+ * 预建染色 Color（★ 第四十三轮优化）。
+ * ⚠️ 之前每颗瓶盖 `new Color(...)` → 一次扣盖最多分配几十个 Color 对象，白给 GC 压力；
+ *    现在按阶预建常量，`tint` 直接赋引用（Sprite.color 的 setter 会把值拷进内部 _color，
+ *    共享同一 Color 实例是安全的）。
+ */
+const TIER_COLOR: Color[] = CAP_COLOR.map((c) => new Color(
+    parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16), 255));
+const RAINBOW_COLOR: Color[] = CAP_RAINBOW.map((c) => new Color(
+    parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16), 255));
+/** 闸门翻倍后的高亮色（原 #FFE894） */
+const GATE_GOLD = new Color(255, 232, 148, 255);
+
+/** 取某阶瓶盖的颜色常量引用（T7 彩虹瓶逐颗随机取色） */
+function capColor(tier: number): Color {
     const t = Math.max(0, Math.min(6, tier | 0));
-    if (t === 6) { return CAP_RAINBOW[(Math.random() * CAP_RAINBOW.length) | 0]; }
-    return CAP_COLOR[t];
+    if (t === 6) { return RAINBOW_COLOR[(Math.random() * RAINBOW_COLOR.length) | 0]; }
+    return TIER_COLOR[t];
 }
 
 /**
@@ -84,6 +102,11 @@ export class CapMachine extends Component {
     private gateOn = false;
     private lastBin = -1;
     private churn = 0;
+    /** 在途数文本节流计时（第四十三轮） */
+    private binAcc = 0;
+    /** 入账飘字：间隔内累加金额 + 计时（第四十三轮合并节流） */
+    private fxAcc = 0;
+    private fxCt = 0;
 
     onLoad() { CapMachine.I = this; }
     start() {
@@ -102,6 +125,8 @@ export class CapMachine extends Component {
         this.built = true;
 
         if (!this.bindScene()) { this.construct(); }
+        this.reskinBelt();
+        this.reskinGate();
         this.ensurePool();
 
         // 双倍闸门位置：横置履带上是一根**竖**的闸条（垂直于行进方向）
@@ -111,9 +136,41 @@ export class CapMachine extends Component {
         this.refreshLock(true);
     }
 
-    /** 场景里已摆好履带外观（有 railTop）→ 补齐引用，返回 true */
-    private bindScene(): boolean {
-        if (!this.node.getChildByName('railTop')) { return false; }
+    /**
+     * ★ 整图换皮（bd02）：出售箱+履带+入料机本来就是一张完整 UI 图，
+     *   替换掉旧的「木轨/履带节/箱/机」分段拼装件（场景版和运行时版都拆）。
+     *   尺寸按场景坐标反推：bin/feeder 中心 ±252 → 整图 639×145（源图 709×161 × 0.9016），
+     *   两端机器中心恰好落回 ±252，履带面高度 ≈ beltH(86)。
+     *   gate / binLb / chips 保留，整图压到它们底下。
+     */
+    private reskinBelt() {
+        for (const name of ['railTop', 'railBot', 'belt', 'bin', 'feeder']) {
+            this.node.getChildByName(name)?.destroy();
+        }
+        if (!this.node.getChildByName('beltFull')) {
+            const full = nd(this.node, 'beltFull', 639, 145, 0, 0);
+            setFrame(full.addComponent(Sprite), 'skin/main/belt_composite', 639, 145);
+            full.setSiblingIndex(0);
+        }
+    }
+
+    /**
+     * ★ 闸门换皮（zz）：双倍闸门换成主界面切图 zz.png（竖木牌，源 57×147），
+     *   替换旧的「白色像素条 + 金色 tint + 上下两个 post 堵头」拼装件
+     *   （场景版和运行时兜底版统一在这里拆 post、换整图）。
+     *   尺寸 46×119（保持源图比例），x 仍由 MACHINE.gateAt 配置驱动。
+     */
+    private reskinGate() {
+        if (!this.gateNode || !this.gateNode.isValid) { return; }
+        for (const c of [...this.gateNode.children]) {
+            if (c.name === 'post') { c.destroy(); }
+        }
+        const sp = this.gateNode.getComponent(Sprite) || this.gateNode.addComponent(Sprite);
+        setFrame(sp, 'skin/main/gate', 46, 119, '#FFFFFF');
+    }
+
+    /** 场景里已摆好履带骨架（有 gate；旧分段件 railTop 等已删，beltFull 由 reskinBelt 运行时建）→ 补齐引用，返回 true */
+    private bindScene(): boolean {        if (!this.node.getChildByName('gate')) { return false; }
         if (!this.gateNode || !this.gateNode.isValid) { this.gateNode = this.node.getChildByName('gate') || null!; }
         if (!this.binLb || !this.binLb.isValid) { this.binLb = this.node.getChildByName('binLb')?.getComponent(Label) || null!; }
         if (!this.chipsNode || !this.chipsNode.isValid) { this.chipsNode = this.node.getChildByName('chips') || null!; }
@@ -153,16 +210,27 @@ export class CapMachine extends Component {
         this.binLb.node.name = 'binLb';
     }
 
-    /** 瓶盖容器 + 对象池（一次性预建，之后永不 new/destroy；场景/运行时两条路径共用） */
+    /**
+     * 瓶盖容器 + 对象池（一次性预建，之后永不 new/destroy；场景/运行时两条路径共用）。
+     *
+     * ★ 第四十三轮：节点改为优先由**预制体** `Prefabs/Game/Cap` 实例化（外观/尺寸在编辑器
+     *   可视化，不再运行时拼 UITransform+Sprite）；预制体没就绪时退回 `nd()+addComponent` 兜底。
+     *   ⚠️ 池节点**常驻 chips 容器**、只切 active —— 不走通用 `Pool.acquire/release`：
+     *     后者每次都 `removeFromParent/addChild`，会反复重建渲染合批，比常驻更慢。
+     */
     private ensurePool() {
         if (!this.chipsNode || !this.chipsNode.isValid) {
             this.chipsNode = nd(this.node, 'chips', 1100, 900, 0, 0);
         }
         if (this.pool.length > 0) { return; }
         for (let i = 0; i < POOL.chip; i++) {
-            const n = nd(this.chipsNode, 'chip', CHIP_W, CHIP_H, 0, 0);
-            const sp = n.addComponent(Sprite);
-            setFrame(sp, CHIP_TEX, CHIP_W, CHIP_H);
+            let n = Prefabs.boot().make(CAP_PREFAB, this.chipsNode);
+            if (!n) {
+                n = nd(this.chipsNode, 'chip', CHIP_W, CHIP_H, 0, 0);
+                setFrame(n.addComponent(Sprite), CHIP_TEX, CHIP_W, CHIP_H);
+            }
+            n.name = 'chip';
+            const sp = n.getComponent(Sprite) || n.addComponent(Sprite);
             n.active = false;
             this.pool.push({
                 node: n, sp, active: false, phase: 0, t: 0, bt: CAP_FX.burstTime, ft: 1,
@@ -327,26 +395,26 @@ export class CapMachine extends Component {
             node.setPosition(c.fx, c.fy, 0);
             node.angle = 0;
             node.setScale(1.0, 1.0, 1);
-            this.tint(c, capColor(tier));
-        }
+            this.tint(c, capColor(tier));        }
     }
 
     /**
-     * 染色必须**整体赋值**一个新 Color。
-     * ⚠️ 原来的 `sp.color.set(...)` 是就地改内部 _color → Renderable2D 的 setter 提前 return
+     * 染色：直接赋**预建 Color 常量**（第四十三轮去掉每颗一次 `new Color` → 减 GC）。
+     *
+     * ⚠️ 历史坑：`sp.color.set(...)` 是就地改内部 _color → Renderable2D 的 setter 提前 return
      *    → _updateColor() 从不执行 → 渲染还是贴图原色（表现为「所有瓶盖都是白的」）。
+     *    必须整体赋值；赋共享的常量 Color 实例是安全的（setter 内部会拷贝值）。
      */
-    private tint(c: Chip, tintStr: string) {
-        c.sp.color = new Color(
-            parseInt(tintStr.slice(1, 3), 16),
-            parseInt(tintStr.slice(3, 5), 16),
-            parseInt(tintStr.slice(5, 7), 16),
-            255);
-    }
+    private tint(c: Chip, col: Color) { c.sp.color = col; }
+
+    /** 池游标：从上次位置往后找空位（均摊 O(1)，避免每次都从 0 扫） */
+    private cur = 0;
 
     private acquire(): Chip | null {
-        for (let i = 0; i < this.pool.length; i++) {
-            if (!this.pool[i].active) { return this.pool[i]; }
+        const n = this.pool.length;
+        for (let k = 0; k < n; k++) {
+            const i = (this.cur + k) % n;
+            if (!this.pool[i].active) { this.cur = (i + 1) % n; return this.pool[i]; }
         }
         return null;
     }
@@ -369,8 +437,12 @@ export class CapMachine extends Component {
         if (!G.hasMachine) { return; }
 
         const pend = Math.round(G.pendingCaps);
-        if (pend !== this.lastBin && this.binLb && this.binLb.isValid) {
+        // ★ 第四十三轮：在途数文本**节流**（每帧写 Label.string 会触发系统字体 canvas 重绘
+        //   + 纹理上传，瓶盖陆续到箱时等于每帧一次；限到 0.12s 一次，肉眼无差别）
+        this.binAcc += dt;
+        if (pend !== this.lastBin && this.binAcc >= 0.12 && this.binLb && this.binLb.isValid) {
             this.lastBin = pend;
+            this.binAcc = 0;
             this.binLb.string = pend > 0 ? '+' + fmt(pend) : '';
         }
 
@@ -441,7 +513,7 @@ export class CapMachine extends Component {
                 c.gated = true;
                 if (Math.random() < gateChance) {
                     c.value *= MACHINE.gateMult;
-                    this.tint(c, '#FFE894');
+                    this.tint(c, GATE_GOLD);
                     const w = this.toWorld(gateX, c.y);
                     FxLayer.I?.sparkle(w.x, w.y, 40, '#FFE07A');
                 }
@@ -457,12 +529,22 @@ export class CapMachine extends Component {
             }
         }
 
+        // ★ 第四十三轮：瓶盖入账飘字**合并 + 节流**。
+        //   原来每帧只要有一颗到箱就发一条 `+N` 飘字 —— 一串瓶盖陆续到箱时等于每帧都在
+        //   借还飘字节点 + 改 Label.string（每次都是系统字体重绘 + 纹理上传），是掉帧主源。
+        //   现在把间隔内的金额**累加**，每 0.35s 只发一条（数值正确、观感更干净）。
+        if (!G.data.settings.hideCaps) { this.fxAcc += lastVal; }
         if (recycled > 0) {
             this.churn += dt;
             if (this.churn > 0.22) { this.churn = 0; G.checkAch(); }
-            if (!G.data.settings.hideCaps) {
+        }
+        if (this.fxAcc > 0) {
+            this.fxCt += dt;
+            if (this.fxCt >= 0.35) {
                 const w = this.toWorld(lastX, 40);
-                FxLayer.I?.floatText(w.x, w.y, '+' + fmt(lastVal), '#FFF3D0', 24, 46, 0.55);
+                FxLayer.I?.floatText(w.x, w.y, '+' + fmt(this.fxAcc), '#FFF3D0', 24, 46, 0.55);
+                this.fxAcc = 0;
+                this.fxCt = 0;
             }
         }
     }

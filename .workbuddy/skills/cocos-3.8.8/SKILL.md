@@ -79,6 +79,7 @@ agent_created: true
 | `references/editor-mcp.md` | `cocos-creator-mcp` 扩展的工具清单（含 README 原始条目）、接入方式、限制 |
 | `references/cookbook.md` | 任务配方：加面板 / 加技能 / 加档位 / 加成就 / 调数值 / 加音效贴图 / 排查不显示不响应 |
 | `references/pitfalls.md` | 踩坑清单 A–I 节（含运行时改色 `tint`、竖直自适应几何、工具链与无头验收坑）+ D 节历史缺陷清单（均已修复） |
+| `references/asset-hygiene.md` | 无用资源盘点与清理：三线索判定口径（路径/uuid/子资源）、`__uuid__@f9941` 复合格式与路径前缀两个扫描器坑、安全删除顺序、工具 `scan_unused.py`/`clean_unused.py` |
 
 工具（都在 `.workbuddy/tools/`）：
 
@@ -88,6 +89,8 @@ agent_created: true
 | `verify_assets.py` | 资源路径一致性检查：代码引用的贴图/音效路径 ↔ `Res.ts` 的 `TEXTURE_PATHS`/`AUDIO_PATHS` ↔ 磁盘文件，三向对齐。**改过资源路径或加过 `Res.sf()` 调用就跑一次** |
 | `cocos_mcp.py` | 编辑器 MCP 的命令行客户端：`health` / `tools` / `call <tool> <json>` / `res <uri>`。不用把 MCP 挂进客户端也能调编辑器 |
 | `restart_cocos.py` | **重载/重启项目**，治「引擎不自动更新」。`--status` / `--soft` / `--soft --hard-cache` / `--full`（`--dry-run` 预演） / `--launch` |
+| `scan_unused.py` | **无用资源只读扫描**：路径/uuid/子资源三线索判定，分目录出报告（含 `.workbuddy` 备份体积）。口径与坑见 `references/asset-hygiene.md` |
+| `clean_unused.py` | 配套清理：无参 dry-run 列清单，`--go` 真删（死资源先备份到 `.workbuddy/dead_res_bak/`，连 .meta 一起删） |
 | `tsconfig.check.json` | 上述 typecheck 用的配置，只 include `assets/**/*.ts`（`types` 路径是相对本文件解析的，别挪位置） |
 
 ```bash

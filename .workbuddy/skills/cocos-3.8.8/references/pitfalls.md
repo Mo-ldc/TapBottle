@@ -833,3 +833,36 @@ hitTest(worldX: number, worldY: number): boolean {   // 放在物体自己的组
   已在 GameRoot.rebindSceneRenderers() 固化（重挂含场景渲染组件的层即可，子树级联恢复）。
 - **排查提示**：`.scene`/`.prefab` 编译产物（build/*/import/**.json）是压缩格式，
   类型表在 `d[2]/d[3]`，可 grep uuid 验证依赖是否进包；运行时探针直接 eval 场景树最快。
+
+## L. 2D 场景相机投影回归：ORTHO 才是唯一正确值（2026-09-24 第二十七轮）
+
+**事故**：手写 `.scene` 的相机写了 `"_projection": 1`（PERSPECTIVE；枚举 ORTHO=0 / PERSPECTIVE=1，
+见 cc.d.ts `CameraProjection`），引发连环假象：
+
+1. 竖屏窗口（9:16）下 UI 全消失，只剩背景+瓶子；横屏窗口反而"看起来正常"。
+   原因：透视相机在 z=1000 看 z=0 平面，可见高 = 2·D·tan(fov/2)，fov45 时仅 ~828 世界单位，
+   2560 高的竖屏布局大部分在视锥外；横屏时内容恰好装得下 → 反差假象。
+2. 用户凭手感把 FOV 调到 70/100 "修好显示"——fov 只在透视下生效，**有人调 fov 就是投影错的信号**。
+   fov70 → 可见高 1400；fov100 → 2384（≈2560 全高，所以 Load 场景 100"正好"）。这些全是补偿值。
+3. FOV 补偿后"显示正常"但**点击全失效**：节点布局/命中按正交口径算，屏幕↔世界映射已变。
+4. 第二处补偿值：GameRoot 的 cc.Widget 边距被调成 345/345/380/380（内容居中缩小、四周黑边）。
+
+**修复**：场景相机 `_projection: 0` + fov 回 45（正交下 fov 无效，orthoHeight 由 cc.Canvas 运行时管）；
+GameRoot Widget 边距归 0（平铺可见区）；生成器 `gen_scene.py` 的 Camera() 同步改 `_projection=0`。
+
+**验证口径**：`getComponentsInChildren('cc.Camera')[0].projection === 0`；GameRoot UITransform 应恒等于
+`view.getVisibleSize()`（FIXED_WIDTH 下宽恒 1440）；AutoNodeScale s = min(父宽/720, 父高/1280)。
+
+**排查教训**：headless Chrome 的 `Page.captureScreenshot` 常返回**陈旧帧**（同一会话 A/B 截图对比可证），
+别信截图下结论——先 `jsdrag` 强制出一帧再截，节点/相机 DOM 求值状态才是真相。
+
+## 手写 prefab：子节点 `_parent` 指错 → instantiate 后整棵子树脱挂（2026-09-28）
+**症状**：预制体实例 addChild 进场景后**完全不渲染**，控制台刷 `Node xxx has not attached to a scene.`
+（errorID 1640，来自 `Node._updateScene` 的 `this._parent == null` 分支）；按节点名全场景搜不到实例。
+**根因**：生成器递归里把子节点的 `_parent` 写成了外层参数（null）而不是当前节点的数组下标——
+**每个 cc.Node 的 `_parent` 必须指回自己父节点在 arr 里的下标**，children 数组和 `_parent` 双向都要对。
+**连带坑**：`instantiate(prefab)` 会把实例**根节点改名为 prefab 文件名**（如 `UpgradeRow`），
+不是 prefab 里根节点的 `_name`——运行时按名找实例根节点、或验收模板按名搜节点时别用内部名。
+**组件格式**：每个 Component 除了紧跟一个 `cc.CompPrefabInfo` 条目，自身还要有
+`__prefab: {__id__: 指向该条目}` 字段，缺了 check_prefab.py 报 P3。
+**工具**：`build_row_prefab.py`（递归 emit_node：node 占位 → children 子树 → 组件+CompPrefabInfo → PrefabInfo）。

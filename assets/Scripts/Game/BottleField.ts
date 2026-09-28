@@ -21,14 +21,14 @@ const DW = 720, DH = 1280;
 /* ---------------- 光标（解锁「玩家科技·光标」后出现） ----------------
  * 拆成两个**独立**节点，因为它们的层级需求正好相反：
  *   cursorRing = 范围圈，是地面落点指示 → setSiblingIndex(0)，压在影子/瓶子之下
- *   cursorPin  = 手指指针，必须在**所有东西之上** → 追加到子节点末尾
+ *   cursorPin  = 指针（gqiun 光圈贴图），必须在**所有东西之上** → 追加到子节点末尾
  * 原来两者共用一个容器、容器整体 setSiblingIndex(0)，手指跟着一起沉到瓶层下面，
  * 被桌子和瓶子挡得看不见（用户反馈「图片不在上层，被挡住了」）。
  */
 const CURSOR_PIN_H = 60;                                     // 指针高度（设计像素）
-const CURSOR_PIN_W = Math.round(CURSOR_PIN_H * 73 / 78);     // 贴图 73×78，按比例给宽
-/** env/cursor.png 的指尖在贴图内的比例偏移（+x 右 / +y 上），用 PIL 量的 = (−0.048, +0.487) */
-const TIP_RX = -0.048, TIP_RY = 0.487;
+const CURSOR_PIN_W = CURSOR_PIN_H;                           // 贴图 gqiun 光圈 209×209，1:1 正方形
+/** env/cursor.png（gqiun 光圈）圆形对称 → 热点就是贴图中心，无偏移 */
+const TIP_RX = 0, TIP_RY = 0;
 /** 让「指尖」正好落在 pointer 上 → 贴图中心要往右下各让这么多 */
 const PIN_DX = -TIP_RX * CURSOR_PIN_W;
 const PIN_DY = -TIP_RY * CURSOR_PIN_H;
@@ -44,7 +44,7 @@ export class BottleField extends Component {
     private overflowLb: Node = null!;
     /** 范围圈（地面贴片，压在瓶子之下） */
     private cursorRing: Node = null!;
-    /** 手指指针（顶层，盖过瓶子） */
+    /** 指针（gqiun 光圈贴图；顶层，盖过瓶子） */
     private cursorPin: Node = null!;
     private pointer = new Vec2(0, 0);
     /**
@@ -122,7 +122,7 @@ export class BottleField extends Component {
         setFrame(n.addComponent(Sprite), 'bottle/body_' + TIERS[b.tier].art, BOTTLE_ART.w, BOTTLE_ART.h);
         n.setSiblingIndex(layer.children.length - 1);
         n.setScale(BOTTLE_SCALE, BOTTLE_SCALE, 1);    // ★ 用户口径：全程真实瓶高，不从格子图标大小长起
-        n.angle = 180;                                // 与桌面静置姿态一致（贴图 0° 是瓶口朝下）
+        n.angle = 0;                                  // 与桌面静置姿态一致（贴图已转正，0° = 瓶口朝上）
         n.addComponent(UIOpacity).opacity = 255;
 
         const dur = 0.44;
@@ -137,14 +137,14 @@ export class BottleField extends Component {
                 b.node.active = true;
                 if (b.shadowNode && b.shadowNode.isValid) { b.shadowNode.active = true; }
                 b.node.setScale(BOTTLE_SCALE, BOTTLE_SCALE, 1);
-                b.node.angle = 180;
+                b.node.angle = 0;
                 this.sortDepth();
                 // ★ 用户口径（第十七轮）：飞入落地直接判定正反并结算，不再原地起跳重翻一次
                 b.settle(G.rollOutcome(b.tier));
             }, 0))
             .start();
-        // 自旋：180 → 540（整一圈，落回 180，接得上静置姿态）
-        tween(n).to(dur, { angle: 540 }, { easing: 'quadInOut' }).start();
+        // 自旋：0 → 360（整一圈，落回 0，接得上静置姿态）
+        tween(n).to(dur, { angle: 360 }, { easing: 'quadInOut' }).start();
     }
 
     onLoad() {
@@ -218,14 +218,14 @@ export class BottleField extends Component {
             this.cursorRing.addComponent(UIOpacity).opacity = 55;
         }
         if (cursorOn && (!this.cursorPin || !this.cursorPin.isValid)) {
-            // ② 手指指针：顶层 —— 追加到子节点末尾，永远盖在瓶子之上（用户要求「要在上层」）；
-            //    贴图中心按指尖偏移让位，保证**指尖**精准落在触摸点上。
+            // ② 指针：顶层 —— 追加到子节点末尾，永远盖在瓶子之上（用户要求「要在上层」）；
+            //    贴图已由「手指」换成 gqiun 光圈（2026-09-28），圆形对称热点居中，直接叠在 pointer 上。
             //
-            // ⚠️ 投影必须是 pin 的**子节点**且排在手指前面：Cocos 的 UI 渲染是深度优先，
+            // ⚠️ 投影必须是 pin 的**子节点**且排在光圈前面：Cocos 的 UI 渲染是深度优先，
             //    同一个节点自己的 Sprite 先画、子节点后画 —— 把投影做成 pin 自身 Sprite 的
-            //    兄弟会盖在手指上面（实测手指被染成灰色）。所以这里是「无渲染的容器 + 两个子节点」。
+            //    兄弟会盖在光圈上面。所以这里是「无渲染的容器 + 两个子节点」。
             this.cursorPin = nd(this.node, 'cursorPin', CURSOR_PIN_W, CURSOR_PIN_H, 0, -999);
-            // 投影：同一张贴图染黑、往右下偏几像素。瓶子也是粗黑描边，手指直接叠上去会糊成一团，
+            // 投影：同一张贴图染黑、往右下偏几像素。瓶子是粗黑描边，光圈直接叠上去会糊成一团，
             // 有这层黑影手指才读得出「浮在桌面上」而不是「被瓶子挡住」。
             const shadow = nd(this.cursorPin, 'shadow', CURSOR_PIN_W, CURSOR_PIN_H, 3, -4);
             setFrame(shadow.addComponent(Sprite), 'env/cursor', CURSOR_PIN_W, CURSOR_PIN_H, '#101010');
@@ -382,7 +382,10 @@ export class BottleField extends Component {
         const extra = total - visTotal;
         if (extra > 0) {
             this.overflowLb.active = true;
-            (this.overflowLb.getComponent('cc.Label') as any).string = '+' + extra;
+            // ★ 第四十三轮：先比对再写（Label 改字 = 重排 + 重绘 + 纹理上传）
+            const olb = this.overflowLb.getComponent('cc.Label') as any;
+            const otxt = '+' + extra;
+            if (olb && olb.string !== otxt) { olb.string = otxt; }
         } else {
             this.overflowLb.active = false;
         }

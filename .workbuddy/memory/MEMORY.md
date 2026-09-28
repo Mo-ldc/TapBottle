@@ -32,8 +32,11 @@
   生成工具 `.workbuddy/tools/gen_nineslice.py`。
 - 数值唯一真理源 `GDD v1.1.md` → `Core/GameConfig.ts`；状态单例 `G`；资源单例 `Res.I`
   （贴图登记 `TEXTURE_PATHS`，**任何一条路径失败 → 整批加载不到**）。
-- 底栏四件（商店/升级/技能树/下拉框）内嵌面板，口径对齐
+- 底栏五件（商店138/升级138/技能树154/下拉框188/列表展开把手56，NAV_W/NAV_X）内嵌面板，口径对齐
   `E:\LDC_Fby\BottleFlipInc\_analysis\model.json`；两列网格 CELL 322×78；跳转 API `showTreeCategory(page)`。
+  ★ 列表展开把手（bd16 整图 `expandBtn`）：面板底边钉死向上长 180（216→396，可视 2行→4行=8格），
+  盖住底栏/履带；把手 y 跟面板顶边走、scaleY 翻转（伸出/回收），挂 bottomPanel 末位保证 z 最高；
+  内容超 4 格或已展开才显示（★ 展开态必须强制显示，否则收不回去）。
 - 购买引导走 `UI/Guidance.ts`，跳转用注入的 NavBridge（直接 import 面板会成环）。
 
 ## 流程
@@ -49,6 +52,9 @@
    - ⚠️ 连跑换独立 profile（第 8 参）+ 调试端口（第 9 参）；先 `unset http_proxy ...` + `NO_PROXY=127.0.0.1`；
      **Bash 沙箱内 Chrome 网络偶发丢请求 → 用 dangerouslyDisableSandbox 跑**。
    - ⚠️ headless 首次 `Input.dispatchMouseEvent` 会被丢弃 → 先 jsdrag 预热再点。
+   - ⚠️ headless **游戏时间快进**：短 dur 动画截图前就播完（疑「不渲染」实为已回池）→
+     验证动画截图必须 dur 拉到 10s+；`jsdrag:` 的 JS 要返回**两组**坐标 `[[x,y],[x+30,y]]`；
+     `_cdp.py` 跑完模板会用第 2 参 OUT 再截一张，**覆盖模板里第一张同名 shot**。
    - ⚠️ **`jsclick:` 的坐标是屏幕像素（原点左上角）**，不是世界坐标：
      `screenX=(wp.x-vo.x)*k`、`screenY=H-(wp.y-vo.y)*k`，`k=window.innerHeight/view.getVisibleSize().height`。
      传错只表现为「点了没反应」，极易误判成业务 bug。
@@ -75,6 +81,15 @@
   再 `close{save:true}` 后 diff，**只应差 fileId 随机值**（实测已验证字节级等价）。
 
 ## 坑（真金白银）
+- **★ 编辑器预览(7456)点击全灭 = 引擎输入时序 bug，非项目代码**：mouse-input 构造在模块求值时
+  取 GameCanvas，预览页 canvas 插入更晚 → `?.` 静默跳过全部 canvas 监听（window 有监听/canvas 0 个
+  即可实锤）。修复 `Core/PreviewInputBridge.ts`（LoadScene+GameRoot onLoad 调，幂等）。
+  无头测预览的 jsclick 坐标要走 canvasRect 映射（设备模拟画布不满窗），全窗换算必失手。
+- **★ 2D 场景相机必须 `_projection:0`（ORTHO，ORTHO=0/PERSPECTIVE=1）**：透视相机会让
+  cc.Canvas/Widget/AutoNodeScale/Bottle.hitTest 全链路错位——症状=竖屏 UI 全消失、横屏反而"正常"、
+  改 FOV 能"看起来对"但点击失效。fov 是透视专用补偿值，正交下无效；看到有人调 fov 就是投影错的信号。
+  另：GameRoot Widget 边距 345/380 曾被当补偿值调出（→内容居中缩小四周黑边），必须 0（平铺可见区）。
+  排查时 headless 截图常是陈旧帧 → 截图前先 jsdrag 强制出帧，节点 DOM 状态才是真相。
 - **一个节点只能挂一个渲染组件**（Sprite/Graphics/Label 都是 UIRenderer）：第二个 addComponent **静默失败**，多层效果各占子节点。
 - 运行时改色**必须整体赋值** `new Color(...)`：`Color.fromHEX(sp.color,..)`/`sp.color.set(..)` 就地改
   内部 `_color`，引用未变 → setter 提前 return → 静默不变色。Graphics 改色要 clear()+重描。

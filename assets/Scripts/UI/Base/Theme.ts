@@ -221,27 +221,9 @@ export function wobble(n: Node, deg = 6) {
 }
 
 /**
- * 木牌横幅：左端盖 + 可横向拉伸的中段 + 右端盖。
- * 直接用整张木牌硬拉会把木纹和铆钉一起拽变形，所以拆三件拼。
+ * 木牌横幅（wood_banner_l/m/r）已随废弃资源清理移除（2026-09-28）：
+ * 全工程无调用者，三张贴图由用户删除，函数一并删除。
  */
-export function woodBanner(parent: Node, w: number, h: number, x: number, y: number, capW = 120, name = 'banner'): Node {
-    const n = nd(parent, name, w, h, x, y);
-    const capL = Math.min(capW, w * 0.32);
-    const capR = capL;
-    const midW = Math.max(2, w - capL - capR);
-
-    const mk = (tex: string, sw: number, px: number, pname: string) => {
-        const c = nd(n, pname, sw, h, px, 0);
-        const sp = c.addComponent(Sprite);
-        setFrame(sp, tex, sw, h);
-        sp.type = Sprite.Type.SIMPLE;
-        return sp;
-    };
-    mk('ui/deco/wood_banner_l', capL, -w / 2 + capL / 2, 'capL');
-    mk('ui/deco/wood_banner_m', midW, -w / 2 + capL + midW / 2, 'mid');
-    mk('ui/deco/wood_banner_r', capR, w / 2 - capR / 2, 'capR');
-    return n;
-}
 
 /** 深棕筹码底板（顶栏的金币/瓶盖数）—— 三层各占一个节点（nine_chip 组，圆角更大更接近胶囊） */
 export function chipPlate(parent: Node, w: number, h: number, x: number, y: number, name = 'chip'): Node {

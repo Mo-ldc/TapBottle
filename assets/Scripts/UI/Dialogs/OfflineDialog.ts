@@ -81,6 +81,25 @@ export class OfflineDialog extends UIBase {
         Ads.I.show('offline_x3', () => this.onAdX3());
     }
 
+    /** 确定：离线收益在进弹窗前已入账，这里只负责关弹窗 */
+    onOk(): void {
+        this.close();
+    }
+
+    onLoad(): void {
+        // ★ 修复「离线收益按钮点不了」：prefab 里没有 cc.Button/clickEvents，
+        //   必须像 ConfirmDialog 一样在代码里绑 TOUCH_END（此前两个按钮是死节点，
+        //   模态遮罩又挡住全屏 → 整局卡死）。
+        if (this.adBtn) {
+            this.adBtn.off(Node.EventType.TOUCH_END);
+            this.adBtn.on(Node.EventType.TOUCH_END, this.onClickAd, this);
+        }
+        if (this.okBtn) {
+            this.okBtn.off(Node.EventType.TOUCH_END);
+            this.okBtn.on(Node.EventType.TOUCH_END, this.onOk, this);
+        }
+    }
+
     private render(): void {
         const m = this.money * (this.tripled ? OFFLINE_AD_MULT : 1);
         const c = this.caps * (this.tripled ? OFFLINE_AD_MULT : 1);

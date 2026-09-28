@@ -23,7 +23,10 @@ export const BOTTLE_SCALE = LAYOUT.bottleH / ART_H;
  * ★ 用户口径（第十六轮）：影子再往**上** 7 像素 —— 正立时瓶身整体上抬（restDy），
  *   影子还停在原地就会离瓶底太远，看着像「飘在桌面上」。
  */
-const SHADOW_DY = LAYOUT.bottleH * 0.375 - 7;
+/** 影子中心相对地面线的下沉量。
+ *  ★ 第四十一轮：-7 → -27（影子上移 20px）—— 正立瓶底就落在地面线（homeY−1.9），
+ *  原 29 的下沉量让影子顶沿距瓶底悬空约 20px，看起来瓶子浮在影子上面。 */
+const SHADOW_DY = LAYOUT.bottleH * 0.375 - 27;
 
 /**
  * 瓶身视觉中心相对节点原点的上移量。
@@ -104,8 +107,9 @@ export class Bottle extends Component {
         this.body = bn.getComponent(Sprite) || bn.addComponent(Sprite);
         setFrame(this.body, 'bottle/body_' + TIERS[tier].art, ART_W, ART_H);
 
-        // 贴图本身画的是「瓶口朝下」，所以静置默认要转 180° 才是瓶口朝上
-        this.node.angle = 180;
+        // ★ 用户口径（第三十三轮）：贴图已转正（bottle/body_*.png 瓶口朝上），
+        //   静置默认 0° 就是正立；倒立/平放姿态全部由这张正立图旋转复用，无第二套资源。
+        this.node.angle = 0;
         this.restDy = LAYOUT.bottleH * 0.32;
         this.applyRest(false);
     }
@@ -171,18 +175,21 @@ export class Bottle extends Component {
      *  - fail 平放：随机倒向左侧或右侧躺平，不得钱
      */
     private static poseOf(outcome: 'crit' | 'ok' | 'fail'): Pose {
-        // 关键：贴图 bottle/body_*.png 画的是「瓶口朝下」（原版 water-bottle-flip 的立瓶姿态），
-        // 所以 0° = 瓶口朝下，180° = 瓶口朝上。
+        // ★ 用户口径（第三十三轮）：贴图已转正（瓶口朝上），所以 0° = 正立，180° = 瓶口朝下。
+        //   倒立没有单独资源 —— 全部是正立贴图的旋转复用。
         if (outcome === 'ok') {
-            // 瓶口朝上：翻正后原本的最低点变成瓶底，整体上抬，避免插进桌面
-            return { angle: 180, dx: 0, dy: LAYOUT.bottleH * 0.32 };
+            // 瓶口朝上：贴图原姿态即可
+            return { angle: 0, dx: 0, dy: LAYOUT.bottleH * 0.32 };
         }
         if (outcome === 'crit') {
-            // 瓶口朝下（扣盖）：贴图原姿态即可
-            return { angle: 0, dx: 0, dy: 0 };
+            // 瓶口朝下（扣盖）：正立图旋转 180°
+            return { angle: 180, dx: 0, dy: 0 };
         }
         // 平放：绕瓶底偏上 0.34 处转 ±93°，瓶身最低点是节点原点下方 0.234*bottleH，
         // 贴图锚点在瓶底上方 0.34*bottleH —— 两者之差即让「躺瓶」正好落在桌面线上。
+        // （矩形旋转 180° 后仍是同一矩形，±93° 的贴地推导对新图依然成立。）
+        // ⚠️ 方向语义（换正立图后反了）：+93° = 视觉向**左**倒，-93° = 向**右**倒 ——
+        //    滑倒方向 dir 在 land()/flip() 里按这个新语义取 sign。
         return { angle: Math.random() < 0.5 ? -93 : 93, dx: 0, dy: -LAYOUT.bottleH * 0.106 };
     }
 
@@ -225,7 +232,7 @@ export class Bottle extends Component {
         const pose = Bottle.poseOf(outcome);
         const landX = target ? target.x : this.homeX;
         const landY = target ? target.y : this.homeY;
-        const endX = landX + (outcome === 'fail' ? (pose.angle < 0 ? -42 : 42) : 0);
+        const endX = landX + (outcome === 'fail' ? (pose.angle < 0 ? 42 : -42) : 0);
         const endY = landY + pose.dy;
 
         const start = this.node.angle;
@@ -272,7 +279,8 @@ export class Bottle extends Component {
 
         if (outcome === 'fail') {
             // 平放：向随机一侧滑倒并保持躺姿
-            const dir = pose.angle < 0 ? -1 : 1;
+            // ⚠️ 换正立图后方向语义反转：+93° = 视觉左倒（dir -1），-93° = 右倒（dir +1）
+            const dir = pose.angle < 0 ? 1 : -1;
             this.restDx = dir * 42;
             this.applyRest(true);
             const op = this.node.getComponent(UIOpacity);
@@ -323,7 +331,7 @@ export class Bottle extends Component {
         const s = BOTTLE_SCALE;
         const jump = 130 + Math.random() * 70;
         const start = this.node.angle;
-        const end = start + 360 + Bottle.angDelta(start, 0);
+        const end = start + 360 + Bottle.angDelta(start, 180);
         const sy = this.homeY + this.restDy;
 
         tween(this.node).to(dur * 2, { angle: end }, { easing: 'sineInOut' }).start();
@@ -331,7 +339,7 @@ export class Bottle extends Component {
             .to(dur, { position: new Vec3(this.homeX, sy + jump, 0) }, { easing: 'quadOut' })
             .to(dur, { position: new Vec3(this.homeX, this.homeY, 0) }, { easing: 'quadIn' })
             .call(() => {
-                this.node.angle = 0;
+                this.node.angle = 180;
                 this.restDx = 0;
                 this.restDy = 0;
                 tween(this.node).to(0.05, { scale: new Vec3(s * 1.16, s * 0.82, 1) })
@@ -353,12 +361,12 @@ export class Bottle extends Component {
         const dur = Math.max(0.12, 0.26 / (1 + speedMul));
         const s = BOTTLE_SCALE;
         const start = this.node.angle;
-        const end = start + 360 + Bottle.angDelta(start, 0);
+        const end = start + 360 + Bottle.angDelta(start, 180);
 
         tween(this.node).to(dur * 2, { angle: end }, { easing: 'sineInOut' }).start();
         tween(this.node).to(dur, { position: new Vec3(this.homeX, this.homeY, 0) }, { easing: 'quadIn' })
             .call(() => {
-                this.node.angle = 0;
+                this.node.angle = 180;
                 this.restDx = 0;
                 this.restDy = 0;
                 tween(this.node).to(0.06, { scale: new Vec3(s * 1.22, s * 0.76, 1) })

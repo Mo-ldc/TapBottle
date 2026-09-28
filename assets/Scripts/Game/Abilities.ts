@@ -116,35 +116,34 @@ export class Abilities extends Component {
 
     private refreshBar() {
         if (!this.bar || !this.bar.isValid) { return; }
+        // ⚠️ 写 Label.string 前一律先比对（★ 第四十三轮）：
+        //    系统字体 Label 每次改字都要重排 + 重绘 canvas + 上传纹理，而这里是**每帧**调用；
+        //    实测 3 秒内三个能力 Label 被写了 525 次（≈每帧 1 次）→ 是掉帧主源之一。
+        const put = (lb: Label | null, txt: string) => {
+            if (lb && lb.isValid && lb.string !== txt) { lb.string = txt; }
+        };
         // 可乐冷却
         const coke = this.overlays['coke'];
         if (coke && coke.isValid) {
             const frac = G.cokeUnlocked ? Math.max(0, this.cokeCd) / Math.max(1, G.cokeCooldown) : 1;
             const ut = coke.getComponent('cc.UITransform') as any;
             ut.setContentSize(92, 96 * frac);
-            const lb = this.labels['coke'];
-            if (lb && lb.isValid) { lb.string = G.cokeUnlocked ? (frac > 0.02 ? Math.ceil(this.cokeCd) + 's' : 'READY') : ''; }
+            put(this.labels['coke'], G.cokeUnlocked ? (frac > 0.02 ? Math.ceil(this.cokeCd) + 's' : 'READY') : '');
         }
         const ber = this.overlays['berserk'];
         if (ber && ber.isValid) {
             const on = G.berserkFlips > 0;
             ber.active = !on;
-            const lb = this.labels['berserk'];
-            if (lb && lb.isValid) {
-                lb.string = on ? ('×' + G.berserkFlips) : (G.berserkStreak + '/' + G.berserkNeed);
-            }
+            put(this.labels['berserk'], on ? ('×' + G.berserkFlips) : (G.berserkStreak + '/' + G.berserkNeed));
         }
         const sam = this.overlays['samurai'];
         if (sam && sam.isValid) {
             const g = G.samuraiActive ? 0 : (G.samuraiArmed ? 0 : 1 - G.samuraiGauge);
             const ut = sam.getComponent('cc.UITransform') as any;
             ut.setContentSize(92, 96 * Math.max(0, Math.min(1, g)));
-            const lb = this.labels['samurai'];
-            if (lb && lb.isValid) {
-                lb.string = G.samuraiActive ? t('samurai_active', G.lang)
-                    : G.samuraiArmed ? t('samurai_ready', G.lang)
-                        : Math.floor(G.samuraiGauge * 100) + '%';
-            }
+            put(this.labels['samurai'], G.samuraiActive ? t('samurai_active', G.lang)
+                : G.samuraiArmed ? t('samurai_ready', G.lang)
+                    : Math.floor(G.samuraiGauge * 100) + '%');
         }
     }
 

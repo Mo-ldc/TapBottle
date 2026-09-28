@@ -22,7 +22,8 @@ const { ccclass, property } = _decorator;
  *  · 旧版是一块深蓝圆角条 + 四个图标按钮，风格是扁平冷色；
  *  · 新版通栏木牌（左端盖/中段/右端盖三件拼，中段可拉伸不变形），
  *    两个**深棕筹码**各带一枚圆形图标，数字是白字深描边 —— 完全是参考图的口径。
- *  · 原来的设置/成就/统计/语言四个入口：返回按钮 → 设置，右端三个小按钮 → 成就/统计/语言。
+ *  · 原来的设置/成就/统计/语言四个入口：返回按钮 → **回开始界面**（设置入口在开始界面），
+ *    右端三个小按钮 → 成就/统计/语言。
  */
 @ccclass('Hud')
 export class Hud extends Component {
@@ -46,17 +47,56 @@ export class Hud extends Component {
     /** 数字伸缩动画的剩余锁定时间（>0 = 正在伸缩，不再接受新的伸缩） */
     private moneyBumpT = 0;
     private capsBumpT = 0;
+    /**
+     * 货币数字的**文本刷新节流**（★ 第四十三轮）。
+     * 金币是缓动插值（shownMoney 每帧逼近 target）→ 原来缓动期间**每帧**都在写
+     * `Label.string`，而系统字体 Label 每次改字都要重绘 canvas 再上传纹理（移动端 1~3ms/次）。
+     * 限到 ~16 次/秒：滚动观感完全一样（人眼在 60fps 滚动里看不出 60ms 的粒度）。
+     */
+    private moneyTxtAcc = 0;
 
     build(cb: {
-        onSettings: () => void, onAch: () => void, onStats: () => void,
+        onBack: () => void, onAch: () => void, onStats: () => void,
         onLang: () => void,
     }, bottomRoot?: Node) {
         void bottomRoot;
         // ★ 场景实体化优先：hudRoot 下已摆好整棵顶栏 → 只绑引用；
         //   旧场景 / 漏摆时才运行时现建（construct 与场景树逐节点同构）。
         if (!this.bindScene()) { this.construct(); }
+        this.reskinChips();
         this.wire(cb);
         G.addListener(() => this.refresh());
+    }
+
+    /**
+     * ★ 货币筹码换皮（bd05）：金币/瓶盖筹码底板换成主界面切图 bd05
+     *   （深棕圆角条，源 145×52，拉到筹码 169×58 —— 比例接近不变形）。
+     *   场景版（SLICED 九宫格）和运行时兜底版（chipPlate）统一在这里盖掉；
+     *   尺寸沿用节点现有 contentSize，白 memset 清掉旧 tint。
+     */
+    private reskinChips() {
+        for (const name of ['chipCoin', 'chipCap']) {
+            const n = this.node.getChildByName(name);
+            if (!n || !n.isValid) { continue; }
+            const sp = n.getComponent(Sprite) || n.addComponent(Sprite);
+            sp.type = Sprite.Type.SIMPLE;
+            setFrame(sp, 'skin/main/chip_bg', undefined, undefined, '#FFFFFF');
+            // ★ 用户口径：筹码旧皮肤是「底板 + gloss 高光 + stroke 描边」三层叠加，
+            //   换成 bd05 整图后那两层圆形装饰与外框重复 → 隐藏，只留新底板一层。
+            for (const c of [...n.children]) {
+                if (c.name === 'gloss' || c.name === 'stroke') { c.active = false; }
+            }
+        }
+        // ★ 返回（回开始界面）按钮换皮（bd04）：左上返回按钮是完整 UI 图
+        //   （奶油圆角方 + 橙色左箭头，源 97×97），拆掉旧的
+        //   「底板 + gloss + stroke + icon」四层拼装件，整图直贴 96×96。
+        const back = this.node.getChildByName('btn_back');
+        if (back && back.isValid) {
+            for (const c of [...back.children]) { c.destroy(); }
+            const sp = back.getComponent(Sprite) || back.addComponent(Sprite);
+            sp.type = Sprite.Type.SIMPLE;
+            setFrame(sp, 'skin/main/btn_back', undefined, undefined, '#FFFFFF');
+        }
     }
 
     /** 场景里已摆好顶栏（有 btn_back）→ 补齐没绑的 @property 引用，返回 true */
@@ -99,14 +139,15 @@ export class Hud extends Component {
 
         /* ---- 金币筹码 ---- */
         const cw = LAYOUT.chipW, ch = LAYOUT.chipH;
-        // 数字框：从图标右侧一直用到筹码右沿（金额最长形如 $888.8M，字号会自动缩）
+        // 数字框：从图标右侧一直用到筹码右沿（金额最长形如 888.8M，字号会自动缩）
         const lbW = cw - ch - 6;
         const lbX = LAYOUT.coinChipX - cw / 2 + ch + lbW / 2 - 4;
         const capLbX = LAYOUT.capChipX - cw / 2 + ch + lbW / 2 - 4;
         chipPlate(this.node, cw, ch, LAYOUT.coinChipX, Y, 'chipCoin');
         const coinX = LAYOUT.coinChipX - cw / 2 + ch / 2;
         img(this.node, 'ui/icon/coin', ch + 6, ch + 6, coinX, Y);
-        this.moneyLb = label(this.node, '$0', lbX, Y + 2, lbW, 42, {
+        // ★ 用户口径（第三十二轮）：顶栏金币已有金币图标，数字前不再加 `$`
+        this.moneyLb = label(this.node, '0', lbX, Y + 2, lbW, 42, {
             size: 28, color: '#FFFFFF', hAlign: 'center', outline: WOOD.line, outlineWidth: 3,
             overflow: 'shrink',
         });
@@ -163,10 +204,10 @@ export class Hud extends Component {
     }
 
     /** 接按钮事件（场景节点 / 运行时节点同一套手感：按压缩放 + click 音 + 回调） */
-    private wire(cb: { onSettings: () => void, onAch: () => void, onStats: () => void, onLang: () => void }) {
+    private wire(cb: { onBack: () => void, onAch: () => void, onStats: () => void, onLang: () => void }) {
         const byName = (s: string) => this.node.getChildByName(s);
         const back = byName('btn_back');
-        if (back) { pressable(back, cb.onSettings); }
+        if (back) { pressable(back, cb.onBack); }
         const ach = byName('tool_ach');
         if (ach) { pressable(ach, cb.onAch); }
         const stats = byName('tool_stats');
@@ -218,8 +259,11 @@ export class Hud extends Component {
         const k = 1 - Math.exp(-9 * dt);
         this.shownMoney += (target - this.shownMoney) * k;
         if (Math.abs(target - this.shownMoney) < Math.max(0.5, target * 0.0005)) { this.shownMoney = target; }
-        const ms = '$' + fmt(this.shownMoney);
-        if (ms !== this.cMoney) {
+        // 文本节流：缓动期间 ~16 次/秒刷新足够（见 moneyTxtAcc 注释）
+        this.moneyTxtAcc += dt;
+        const ms = fmt(this.shownMoney);
+        if (ms !== this.cMoney && (this.moneyTxtAcc >= 0.06 || this.shownMoney === target)) {
+            this.moneyTxtAcc = 0;
             this.cMoney = ms;
             this.moneyLb.string = ms;
             this.pulse(this.moneyLb.node, 'money');

@@ -1,4 +1,4 @@
-import { _decorator, Component, Font, SpriteFrame, AudioClip, AudioSource, resources, assetManager, Sprite } from 'cc';
+import { _decorator, Component, SpriteFrame, AudioClip, AudioSource, resources, assetManager, Sprite } from 'cc';
 import { Prefabs } from './Prefabs';
 
 const { ccclass, property } = _decorator;
@@ -12,6 +12,38 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/ability/flyingcoke2/spriteFrame',
     'Textures/ability/katana/spriteFrame',
     'Textures/ability/samurai/spriteFrame',
+    'Textures/skin/main/ab_berserk/spriteFrame',
+    'Textures/skin/main/btn_arrow_up/spriteFrame',
+    'Textures/skin/main/ab_cursor_big/spriteFrame',
+    'Textures/skin/main/ab_double_cap/spriteFrame',
+    'Textures/skin/main/ab_double_coin/spriteFrame',
+    'Textures/skin/main/belt_composite/spriteFrame',
+    'Textures/skin/main/gate/spriteFrame',
+    'Textures/skin/main/chip_bg/spriteFrame',
+    'Textures/skin/main/btn_back/spriteFrame',
+    'Textures/skin/main/row_bg/spriteFrame',
+    'Textures/skin/main/tab_on/spriteFrame',
+    'Textures/skin/main/tab_off/spriteFrame',
+    'Textures/skin/main/tab_ic_up/spriteFrame',
+    'Textures/skin/main/tab_ic_tree/spriteFrame',
+    'Textures/skin/main/tab_ic_shop/spriteFrame',
+    'Textures/skin/main/new_badge/spriteFrame',
+    'Textures/bottle/name_0/spriteFrame',
+    'Textures/bottle/name_1/spriteFrame',
+    'Textures/bottle/name_2/spriteFrame',
+    'Textures/bottle/name_3/spriteFrame',
+    'Textures/bottle/name_4/spriteFrame',
+    'Textures/bottle/name_5/spriteFrame',
+    'Textures/bottle/name_6/spriteFrame',
+    'Textures/skin/tier/dik_1/spriteFrame',
+    'Textures/skin/tier/dik_2/spriteFrame',
+    'Textures/skin/tier/dik_3/spriteFrame',
+    'Textures/skin/tier/dik_4/spriteFrame',
+    'Textures/skin/tier/dik_5/spriteFrame',
+    'Textures/skin/tier/dik_6/spriteFrame',
+    'Textures/skin/tier/dik_7/spriteFrame',
+    'Textures/skin/tier/ztk_1/spriteFrame',
+    'Textures/skin/tier/ztk_2/spriteFrame',
     'Textures/bottle/body_0/spriteFrame',
     'Textures/bottle/body_1/spriteFrame',
     'Textures/bottle/body_2/spriteFrame',
@@ -26,19 +58,8 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/bottle/capart_4/spriteFrame',
     'Textures/bottle/capart_5/spriteFrame',
     'Textures/bottle/capart_6/spriteFrame',
-    'Textures/bottle/capchip_0/spriteFrame',
-    'Textures/bottle/capchip_1/spriteFrame',
-    'Textures/bottle/capchip_2/spriteFrame',
-    'Textures/bottle/capchip_3/spriteFrame',
-    'Textures/bottle/capchip_4/spriteFrame',
-    'Textures/bottle/capchip_5/spriteFrame',
     'Textures/bottle/capchip_6/spriteFrame',
     'Textures/env/areacircle/spriteFrame',
-    'Textures/env/belt/spriteFrame',
-    'Textures/env/belt_frame/spriteFrame',
-    'Textures/env/belt_leg_l/spriteFrame',
-    'Textures/env/belt_leg_r/spriteFrame',
-    'Textures/env/container/spriteFrame',
     'Textures/env/cursor/spriteFrame',
     'Textures/env/disc/spriteFrame',
     'Textures/env/hand/spriteFrame',
@@ -46,9 +67,6 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/env/recycle/spriteFrame',
     'Textures/env/shockwave/spriteFrame',
     'Textures/env/star/spriteFrame',
-    'Textures/env/table/spriteFrame',
-    'Textures/env/table_leg_l/spriteFrame',
-    'Textures/env/table_leg_r/spriteFrame',
     'Textures/env/vignette/spriteFrame',
     'Textures/env/wood_table/spriteFrame',
     'Textures/stat/bonus/spriteFrame',
@@ -69,7 +87,6 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/stat/size/spriteFrame',
     'Textures/stat/time/spriteFrame',
     'Textures/stat/unlock/spriteFrame',
-    'Textures/ui/icon/app_logo/spriteFrame',
     'Textures/ui/icon/arrow_l/spriteFrame',
     'Textures/ui/icon/arrow_r/spriteFrame',
     'Textures/ui/misc/asset53/spriteFrame',
@@ -127,7 +144,6 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/ui/icon/icon_upgrade/spriteFrame',
     'Textures/ui/button/list_select/spriteFrame',
     'Textures/ui/panel/panel_deco/spriteFrame',
-    'Textures/ui/panel/panel_wood/spriteFrame',
     'Textures/ui/nine/nine_base/spriteFrame',
     'Textures/ui/nine/nine_gloss/spriteFrame',
     'Textures/ui/nine/nine_stroke/spriteFrame',
@@ -140,19 +156,12 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/ui/pixel/px_white2/spriteFrame',
     'Textures/ui/panel/round_rect/spriteFrame',
     'Textures/ui/panel/round_soft/spriteFrame',
-    'Textures/ui/panel/slot/spriteFrame',
-    'Textures/ui/panel/slot_hover/spriteFrame',
     'Textures/ui/panel/sq_brown/spriteFrame',
     'Textures/ui/panel/sq_brown2/spriteFrame',
     'Textures/ui/panel/sq_grey/spriteFrame',
     'Textures/ui/button/wood_tab/spriteFrame',
     'Textures/ui/button/wood_tab_dark/spriteFrame',
-    'Textures/ui/deco/wood_banner_l/spriteFrame',
-    'Textures/ui/deco/wood_banner_m/spriteFrame',
-    'Textures/ui/deco/wood_banner_r/spriteFrame',
     'Textures/ui/deco/wood_rail/spriteFrame',
-    'Textures/ui/icon/x_bg/spriteFrame',
-    'Textures/ui/icon/x_logo/spriteFrame',
     'Textures/ui/icon/x_mail/spriteFrame',
 ];
 
@@ -170,7 +179,6 @@ export class Res extends Component {
     private clips: Record<string, AudioClip> = {};
     private sfxSource: AudioSource = null!;
     private bgmSource: AudioSource = null!;
-    font: Font | null = null;
 
     static I: Res = null!;
 
@@ -199,17 +207,18 @@ export class Res extends Component {
             for (const p of ps) { p(ok); }
         };
 
-        let left = 4;
+        let left = 3;
         const oneDone = () => { left--; if (left <= 0) { finish(true); } };
         const guard = (fn: () => void) => {
             try { fn(); } catch (e) { console.warn('[Res]', e); oneDone(); }
         };
 
-        // 加载进度（加载页进度条）：贴图占大头（0.75），预制体 0.10，音频 / 字体做零头（0.10 / 0.05）。
-        const fr = { tex: 0, aud: 0, fnt: 0, pf: 0 };
-        const reportBoot = () => { if (onProgress) { onProgress(Math.min(1, fr.tex * 0.75 + fr.pf * 0.10 + fr.aud * 0.10 + fr.fnt * 0.05)); } };
+        // 加载进度（加载页进度条）：贴图占大头（0.75），预制体 0.10，音频 0.15。
+        // ★ 第三十八轮起不再加载自定义字体（全工程走系统默认字体）→ 少了字体那 0.05 权重。
+        const fr = { tex: 0, aud: 0, pf: 0 };
+        const reportBoot = () => { if (onProgress) { onProgress(Math.min(1, fr.tex * 0.75 + fr.pf * 0.10 + fr.aud * 0.15)); } };
 
-        // 预制体（第 4 路）：UI / 游戏对象全部来自预制体，必须在进场景前就绪
+        // 预制体（第 3 路）：UI / 游戏对象全部来自预制体，必须在进场景前就绪
         Prefabs.boot();
         guard(() => Prefabs.I.loadAll(() => { oneDone(); }, (f) => { fr.pf = f; reportBoot(); }));
 
@@ -222,11 +231,6 @@ export class Res extends Component {
         guard(() => resources.load(AUDIO_PATHS, AudioClip, (fin: number, tot: number) => { fr.aud = tot > 0 ? fin / tot : 0; reportBoot(); }, (err, assets: AudioClip[]) => {
             if (err) { console.warn('[Res] audio load error', err); }
             else { for (let i = 0; i < assets.length; i++) { this.clips[AUDIO_PATHS[i]] = assets[i]; } }
-            oneDone();
-        }));
-
-        guard(() => resources.load('Fonts/NotoSansSC-Bold', Font, (fin: number, tot: number) => { fr.fnt = tot > 0 ? fin / tot : 0; reportBoot(); }, (err, f: Font) => {
-            if (!err) { this.font = f; } else { console.warn('[Res] font load error', err); }
             oneDone();
         }));
     }

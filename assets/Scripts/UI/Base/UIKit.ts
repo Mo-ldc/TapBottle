@@ -82,6 +82,25 @@ export function img(parent: Node, path: string, w: number, h: number, x: number,
     return sp;
 }
 
+/** 「新」角标底板贴图（buco06 红圆徽章整图，33×33 原尺寸） */
+export const NEW_BADGE_SIZE = 33;
+
+/**
+ * 把「新」角标节点统一换皮为 buco06 红圆徽章底板（第四十四轮）。
+ * 场景/预制体里烘的是旧版 Graphics 圆角矩形（bg 子节点），bindScene/bindRow
+ * 接手后调这里强制校正：清子节点 + 挂整图 Sprite + 尺寸 33×33。
+ * 文字（t('tag_new')）由调用方重建 —— 本函数只管底板。
+ */
+export function newBadgePlate(tag: Node | null): Sprite | null {
+    if (!tag || !tag.isValid) { return null; }
+    for (const ch of [...tag.children]) { ch.destroy(); }
+    const sp = tag.getComponent(Sprite) || tag.addComponent(Sprite);
+    setFrame(sp, 'skin/main/new_badge', NEW_BADGE_SIZE, NEW_BADGE_SIZE);
+    sp.type = Sprite.Type.SIMPLE;
+    setSize(tag, NEW_BADGE_SIZE, NEW_BADGE_SIZE);
+    return sp;
+}
+
 /** 九宫格图片（Cocos 原生 SLICED） */
 export function sliced(parent: Node, path: string, w: number, h: number, x: number, y: number,
     inset: [number, number, number, number], color?: Color | string, name?: string): Sprite {
@@ -154,7 +173,10 @@ export function label(parent: Node, text: string, x: number, y: number, w: numbe
     lb.overflow = ov === 'clamp' ? Label.Overflow.CLAMP
         : ov === 'shrink' ? Label.Overflow.SHRINK
             : ov === 'resize' ? Label.Overflow.RESIZE_HEIGHT : Label.Overflow.NONE;
-    if (Res.I && Res.I.font) { lb.font = Res.I.font; lb.useSystemFont = false; }
+    // ★ 第三十八轮：全工程改用**系统默认字体**（原来接的是 NotoSansSC-Bold 自定义字体资产，
+    //   已删除）。useSystemFont = true + fontFamily 'Arial' 在 web 上由浏览器按 CSS 字体栈
+    //   渲染，中文自动回落到系统无衬线中文字体；不用再预加载 11MB 字体资产。
+    lb.useSystemFont = true;
     if (o?.outline) {
         // Cocos 3.8：描边已内置到 Label，无需 LabelOutline 组件
         const ol = (lb as any);
@@ -226,15 +248,17 @@ export function pressable(n: Node, onClick: () => void, sound: string | null = '
 }
 
 /**
- * 场景实体化的 Label 在编辑器里只能是系统字体（字体资产引用运行时才有）。
- * 进场景拿到 Res.I.font 后，把子树里所有 Label 换成自定义字体 ——
- * 字号/行高/描边都是属性，换字体不影响排版参数。
+ * 把子树里所有 Label 统一回**系统默认字体**。
+ *
+ * 历史：场景实体化的 Label 在编辑器里是系统字体，进场景后被换成 Res.I.font（自定义
+ * NotoSansSC 资产）。第三十八轮起自定义字体资产已删除，这里改为「兜底清掉任何残留的
+ * 自定义字体引用」——场景/预制体里若还烘着已删字体的 uuid，运行时会拿到空字体，
+ * 表现为文字不渲染，所以进场景后统一在这里复位。
  */
 export function applyFontDeep(root: Node) {
-    if (!Res.I || !Res.I.font) { return; }
     const walk = (n: Node) => {
         const lb = n.getComponent(Label);
-        if (lb && lb.useSystemFont) { lb.font = Res.I.font; lb.useSystemFont = false; }
+        if (lb && !lb.useSystemFont) { lb.useSystemFont = true; }
         for (const c of n.children) { walk(c); }
     };
     walk(root);

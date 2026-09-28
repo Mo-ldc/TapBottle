@@ -8,7 +8,7 @@ import { Modal } from './Modal';
 import { Toast } from './Toast';
 
 /** 广告位 */
-export type AdPlacement = 'buff_coin' | 'buff_cap' | 'buff_halo' | 'money_gap' | 'caps_gap' | 'offline_x3';
+export type AdPlacement = 'buff_coin' | 'buff_cap' | 'buff_halo' | 'buff_berserk' | 'money_gap' | 'caps_gap' | 'offline_x3';
 export type AdBuffKind = 'coin' | 'cap' | 'halo';
 
 /**

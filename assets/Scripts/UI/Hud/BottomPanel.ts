@@ -6,8 +6,8 @@ import {
 import { G, SKILL_BY_ID, UNLOCK_SKILL } from '../../Core/State';
 import { t } from '../../Core/Locale';
 import { fmt, hex } from '../../Core/Util';
-import { applyFontDeep, label, nd, pressable, setFrame, sliced, destroyChildren, roundedPanel, scrollView, UIScrollBar } from '../Base/UIKit';
-import { WOOD, wobble, woodButton, woodPlate, woodPlateRefill } from '../Base/Theme';
+import { applyFontDeep, label, nd, newBadgePlate, pressable, setFrame, setSize, sliced, destroyChildren, roundedPanel, scrollView, UIScrollBar, sizeOf } from '../Base/UIKit';
+import { WOOD, wobble, woodButton, woodPlate } from '../Base/Theme';
 import { applyRow, makeCell, COLS, CELL_W, CELL_H, GAP_X, GAP_Y, RowSpec, RowUI, skillSub, statSub, successText } from '../Widgets/UpgradeRows';
 import { capsShortAd, MACHINE_PRICE, moneyShortAd, nextGoalText } from './Guidance';
 import { Toast } from '../Base/Toast';
@@ -41,6 +41,13 @@ const { ccclass, property } = _decorator;
  */
 type Tab = 'shop' | 'up' | 'tree';
 
+/** ★ 页签换皮（buco 系列）：底板选中 buco01 / 未选中 buco02，图标 buco03/04/05 */
+const TAB_PLATE: Record<Tab, { on: string, off: string, icon: string, iconH: number }> = {
+    shop: { on: 'skin/main/tab_on', off: 'skin/main/tab_off', icon: 'skin/main/tab_ic_shop', iconH: 42 },
+    up: { on: 'skin/main/tab_on', off: 'skin/main/tab_off', icon: 'skin/main/tab_ic_up', iconH: 42 },
+    tree: { on: 'skin/main/tab_on', off: 'skin/main/tab_off', icon: 'skin/main/tab_ic_tree', iconH: 42 },
+};
+
 interface CatDef {
     id: string;
     /** Locale key（瓶子模块没有 key，名字直接取 TIERS） */
@@ -63,7 +70,7 @@ interface CatDef {
  *     · 特殊技能 ← 挂机模式（p_idle）
  */
 const TREE_TECHS: CatDef[] = [
-    { id: 'belt', key: 'tree_cat_belt', icon: 'env/belt', req: 'p_stability' },
+    { id: 'belt', key: 'tree_cat_belt', icon: 'skin/main/belt_composite', req: 'p_stability' },
     { id: 'idle', key: 'tree_cat_idle', icon: 'stat/time', req: 'p_cursor' },
     { id: 'hand', key: 'tree_cat_hand', icon: 'env/hand', req: 'p_cursor' },
     { id: 'abil', key: 'tree_cat_ability', icon: 'ability/flyingcoke', req: 'p_idle' },
@@ -91,6 +98,20 @@ const SCROLL_W = 664;
  * 滚动视口高度（★ 第十九轮：格子尺寸不变，只是把提示带压薄 1px，两行仍完整可见）。
  */
 const SCROLL_H = 170;
+/**
+ * 底栏五件等距宽度：商店 / 升级 / 技能树 / 种类下拉框 / 列表展开按钮。
+ * ★ 第三十四轮：为塞下第 5 件（展开/收起把手），四件各缩窄，总宽仍 706（左右各留 7）。
+ */
+const NAV_W = [138, 138, 154, 188, 56];
+const NAV_GAP = 8;
+/** 五件的中心 x（和 674 + 4×8 间隙 = 706 → 左缘 -353，右缘 +353） */
+const NAV_X = [-284, -138, 16, 195, 325];
+/**
+ * 列表展开额外高度：可视区 170 → 350（2 行 → 4 行 = 8 格）。
+ * ★ 用户口径：面板**底边钉死**（LAYOUT.panelY - panelH/2 = -616 贴屏幕底），
+ *   变高的部分全部向上生长，展开后盖住履带/能力条/底栏（把手按钮 z 最高仍可点）。
+ */
+const EXPAND_DH = 180;
 
 @ccclass('BottomPanel')
 export class BottomPanel extends Component {
@@ -135,6 +156,12 @@ export class BottomPanel extends Component {
     private ddX = 235;
     private menuOpen = false;
 
+    /** 列表展开态（bd16 把手：箭头向上=伸出 8 格 / 向下=回收 4 格） */
+    private expanded = false;
+    private expandBtn: Node = null!;
+    /** 滚动视口当前高度（随展开切换；rebuild/滚动条都按它算） */
+    private get VH(): number { return SCROLL_H + (this.expanded ? EXPAND_DH : 0); }
+
     private rows: RowUI[] = [];
     private built = false;
     private acc = 0;
@@ -156,6 +183,8 @@ export class BottomPanel extends Component {
         if (this.built) { return; }
         this.built = true;
         if (!this.bindScene()) { this.construct(); }
+        this.reskinTabs();
+        this.normalizeDropdown();
         this.wire();
         G.addListener(() => this.onLang());
         this.lastLang = G.lang;
@@ -173,7 +202,10 @@ export class BottomPanel extends Component {
         if (!this.ddNode || !this.ddNode.isValid) { this.ddNode = g('dropdown')!; }
         if ((!this.ddLb || !this.ddLb.isValid) && this.ddNode) { this.ddLb = this.ddNode.getChildByName('ddLb')?.getComponent(Label) || null!; }
         if ((!this.ddNew || !this.ddNew.isValid) && this.ddNode) { this.ddNew = this.ddNode.getChildByName('newTag') || null!; }
+        // ★ 第四十四轮：场景烘的 ddNew 是旧版 Graphics 底板 → 强制换 buco06 圆徽章
+        this.reskinDdNew();
         if (!this.panel || !this.panel.isValid) { this.panel = g('panel')!; }
+        if (!this.expandBtn || !this.expandBtn.isValid) { this.expandBtn = g('expandBtn') || null!; }
         if (this.panel) {
             if (!this.hintLb || !this.hintLb.isValid) { this.hintLb = this.panel.getChildByName('hintLb')?.getComponent(Label) || null!; }
             if (!this.msLb || !this.msLb.isValid) { this.msLb = this.panel.getChildByName('msLb')?.getComponent(Label) || null!; }
@@ -189,6 +221,20 @@ export class BottomPanel extends Component {
             if (!n) { return; }
             this.tabUis[id] = { node: n, lb: n.getChildByName('label')?.getComponent(Label) || null! };
             this.tabNew[id] = n.getChildByName('tabNew') || null!;
+            // ★ 第四十四轮：场景烘的是旧版 Graphics 底板 → 强制换 buco06 圆徽章（代码为布局真源）
+            const tg = this.tabNew[id];
+            if (tg && tg.isValid) {
+                const ut = sizeOf(n);
+                tg.setPosition(ut.width / 2 - 14, ut.height / 2 - 12, 0);
+                newBadgePlate(tg);
+                if (!tg.getChildByName('lb')) {
+                    const lb = label(tg, t('tag_new', G.lang), 0, 1, 24, 20, { size: 13, color: '#FFFFFF', overflow: 'shrink' });
+                    lb.node.name = 'lb';
+                    // ★ 场景渲染注册坑：运行时新建组件挂场景烘焙节点下不渲染，重挂子树救活
+                    lb.node.removeFromParent();
+                    tg.addChild(lb.node);
+                }
+            }
         };
         mk('shop', this.tabShop);
         mk('up', this.tabUp);
@@ -200,8 +246,8 @@ export class BottomPanel extends Component {
             sb.sv = this.scrollSV;
             sb.content = this.content;
             sb.thumb = track?.getChildByName('thumb') || null!;
-            sb.trackH = SCROLL_H - 24;
-            sb.viewH = SCROLL_H;
+            sb.trackH = this.VH - 24;
+            sb.viewH = this.VH;
         }
         if (this.ddNode) { this.ddW = this.ddNode.getComponent(UITransform)?.width || 236; this.ddX = this.ddNode.position.x; }
         // 编辑器里摆的 Label 是系统字体，进场景后统一换成 NotoSansSC
@@ -213,16 +259,12 @@ export class BottomPanel extends Component {
     private construct() {
         const root = this.node;
 
-        /* ---- 底栏：【商店】【升级】【技能树】【瓶子种类下拉框】 ---- */
+        /* ---- 底栏：五件等距铺满 720：【商店】【升级】【技能树】【下拉框】【展开/回收】 ----
+         *   138 + 138 + 154 + 188 + 56 + 4×8 间隙 = 706，左右各留 7（见 NAV_W / NAV_X） */
         const H = LAYOUT.navH;
         const Y = LAYOUT.navY;
-        // 四件等距铺满 720：142 + 142 + 162 + 236 + 3×8 间隙 = 706，左右各留 7
-        const W1 = 142, W2 = 142, W3 = 162, W4 = 236;
-        const x0 = -(W1 + W2 + W3 + W4 + 24) / 2;              // 整排左缘
-        const shopX = x0 + W1 / 2;
-        const upX = shopX + W1 / 2 + 8 + W2 / 2;
-        const treeX = upX + W2 / 2 + 8 + W3 / 2;
-        const ddX = treeX + W3 / 2 + 8 + W4 / 2;
+        const [W1, W2, W3, W4, W5] = NAV_W;
+        const [shopX, upX, treeX, ddX, exX] = NAV_X;
 
         const mkTab = (id: Tab, x: number, w: number, key: string, icon: string) => {
             const n = woodButton(root, {
@@ -235,9 +277,10 @@ export class BottomPanel extends Component {
             });
             this.tabUis[id] = { node: n, lb: n.getComponentInChildren(Label)! };
             // ★ 用户口径（第十八轮）：该页签里有「新出现的、还没点过」的项 → 按钮右上角挂「新」
-            const tg = nd(n, 'tabNew', 40, 26, w / 2 - 20, H / 2 - 10);
-            roundedPanel(tg, 40, 26, 0, 0, '#E8556D', 10, '#7A1E33', 2, 'bg');
-            label(tg, t('tag_new', G.lang), 0, 1, 36, 22, { size: 14, color: '#FFF3D0', overflow: 'shrink' });
+            //   底板 = buco06 红圆徽章整图（33×33 原尺寸，第四十四轮换皮）
+            const tg = nd(n, 'tabNew', 33, 33, w / 2 - 14, H / 2 - 12);
+            setFrame(tg.addComponent(Sprite), 'skin/main/new_badge', 33, 33);
+            label(tg, t('tag_new', G.lang), 0, 1, 24, 20, { size: 13, color: '#FFFFFF', overflow: 'shrink' });
             tg.active = false;
             this.tabNew[id] = tg;
         };
@@ -257,24 +300,31 @@ export class BottomPanel extends Component {
         this.ddW = W4;
         this.ddX = ddX;
         dd.active = this.tab === 'tree';
-        this.ddLb = label(dd, '', -26, 2, W4 - 76, H, {
-            size: 24, color: WOOD.text, overflow: 'shrink',
+        this.ddLb = label(dd, '', -12, 2, 124, 40, {
+            size: 20, color: WOOD.text, overflow: 'shrink', hAlign: 'center',
         });
         this.ddLb.node.name = 'ddLb';
-        // 三角箭头用 Graphics 画（字体里不一定有 ▼）
-        const chev = nd(dd, 'chev', 30, 20, W3 / 2 - 26, 0);
+        // 三角箭头用 Graphics 画（字体里不一定有 ▼）—— 贴下拉框右缘
+        const chev = nd(dd, 'chev', 30, 20, W4 / 2 - 26, -6);
         const cg = chev.addComponent(Graphics);
         cg.fillColor = hex(WOOD.text);
         cg.moveTo(-14, 7); cg.lineTo(14, 7); cg.lineTo(0, -9); cg.close(); cg.fill();
 
         // ★ 用户口径（第十五轮）：有没点开过的技能模块 → 下拉框右上角挂「新」标签，点过即消
-        this.ddNew = nd(dd, 'newTag', 46, 30, W4 / 2 - 16, H / 2 - 4);
-        roundedPanel(this.ddNew, 46, 30, 0, 0, '#E8556D', 12, '#7A1E33', 2, 'bg');
-        label(this.ddNew, t('tag_new', G.lang), 0, 1, 42, 24, { size: 16, color: '#FFF3D0', overflow: 'shrink' });
+        //   底板 = buco06 红圆徽章整图（33×33 原尺寸，第四十四轮换皮）
+        this.ddNew = nd(dd, 'newTag', 33, 33, 70, 10);
+        setFrame(this.ddNew.addComponent(Sprite), 'skin/main/new_badge', 33, 33);
+        label(this.ddNew, t('tag_new', G.lang), 0, 1, 24, 20, { size: 13, color: '#FFFFFF', overflow: 'shrink' });
         this.ddNew.active = false;
 
         /* ---- 提示带 + 列表（内嵌面板本体） ---- */
         this.buildPanel(root);
+
+        /* ---- 列表展开/回收把手（bd16 整图；建在 panel 之后 → z 在面板之上，
+         *      展开时面板盖住底栏，把手仍可点；y 跟面板顶边走，见 applyExpand） ---- */
+        const eb = nd(root, 'expandBtn', W5, 52, exX, LAYOUT.panelY + LAYOUT.panelH / 2 + 30);
+        setFrame(eb.addComponent(Sprite), 'skin/main/btn_arrow_up', W5, 52);
+        this.expandBtn = eb;
     }
 
     /**
@@ -340,6 +390,72 @@ export class BottomPanel extends Component {
                 this.toggleMenu();
             });
         }
+        // 列表展开/回收把手（bd16；pressable 自带 click 音 + 按压缩放）
+        if (this.expandBtn && this.expandBtn.isValid) {
+            pressable(this.expandBtn, () => {
+                wobble(this.expandBtn);
+                this.toggleExpand();
+            });
+        }
+    }
+
+    /* ================= 列表展开 / 回收（第三十四轮） ================= */
+    /**
+     * ★ 用户口径：面板底边钉死（贴屏幕底），变高部分全部向上生长；
+     *   展开后盖住履带/能力条/底栏页签 —— 把手按钮 z 最高（bottomPanel 末位）+ y 跟面板顶边走，始终可点。
+     */
+    private toggleExpand() {
+        this.expanded = !this.expanded;
+        this.applyExpand();
+        this.rebuild();   // 按新视口高度重夹滚动位置 + 刷新把手显隐
+    }
+
+    /** 把面板/底板/提示带/滚动视口/滚动条/把手切到当前展开态（SLICED 底板改尺寸即拉伸） */
+    private applyExpand() {
+        if (!this.panel || !this.panel.isValid) { return; }
+        const h = LAYOUT.panelH + (this.expanded ? EXPAND_DH : 0);
+        const cy = (LAYOUT.panelY - LAYOUT.panelH / 2) + h / 2;
+        this.panel.setPosition(0, cy, 0);
+        setSize(this.panel, PANEL_W, h);
+        for (const nm of ['bg', 'inner']) {
+            const n = this.panel.getChildByName(nm);
+            if (!n) { continue; }
+            const inset = nm === 'inner' ? 12 : 0;
+            setSize(n, PANEL_W - inset, h - inset);
+            const st = n.getChildByName('stroke');
+            if (st) { setSize(st, PANEL_W - inset, h - inset); }
+        }
+        // 提示带贴新顶边
+        const top = h / 2 - 21;
+        if (this.hintLb && this.hintLb.isValid) { this.hintLb.node.setPosition(this.hintLb.node.position.x, top, 0); }
+        if (this.msLb && this.msLb.isValid) { this.msLb.node.setPosition(this.msLb.node.position.x, top, 0); }
+        // 滚动视口（Mask=GRAPHICS_RECT 监听 SIZE_CHANGED 自动重绘）；视口中心 y 恒 -15（底边固定推导）
+        if (this.scrollRoot && this.scrollRoot.isValid) {
+            setSize(this.scrollRoot, SCROLL_W, this.VH);
+            const view = this.scrollRoot.getChildByName('view');
+            if (view) { setSize(view, SCROLL_W, this.VH); }
+            const sb = this.scrollRoot.getComponent(UIScrollBar);
+            if (sb) { sb.trackH = this.VH - 24; sb.viewH = this.VH; }
+        }
+        const sbar = this.panel.getChildByName('sbar');
+        if (sbar) { setSize(sbar, 6, this.VH - 24); sbar.setPosition(SCROLL_W / 2 + 12, -15, 0); }
+        // ★ 用户口径（第三十四轮）：列表向上伸出时，底栏 3 个页签（+下拉框）**跟着一起上移**，
+        //   始终贴在列表上方，不会被变高的面板盖住 —— 整条底栏随面板顶边抬高 EXPAND_DH。
+        const dy = this.expanded ? EXPAND_DH : 0;
+        for (const id of ['shop', 'up', 'tree'] as Tab[]) {
+            const ui = this.tabUis[id];
+            if (ui && ui.node && ui.node.isValid) {
+                ui.node.setPosition(ui.node.position.x, LAYOUT.navY + dy, 0);
+            }
+        }
+        if (this.ddNode && this.ddNode.isValid) {
+            this.ddNode.setPosition(this.ddNode.position.x, LAYOUT.navY + dy, 0);
+        }
+        // 把手：y 跟面板顶边走；箭头向上=伸出 / 向下=回收（scaleY 翻转，图内无文字可放心翻）
+        if (this.expandBtn && this.expandBtn.isValid) {
+            this.expandBtn.setPosition(NAV_X[4], cy + h / 2 + 30, 0);
+            this.expandBtn.setScale(1, this.expanded ? -1 : 1, 1);
+        }
     }
 
     /* ================= 下拉框（只服务技能树页签） ================= */
@@ -392,6 +508,56 @@ export class BottomPanel extends Component {
      * ★ 用户要求「下拉框在选项按钮的正上方」：菜单右缘对齐下拉框右缘、
      *   底缘贴底栏顶沿 —— 不是整屏居中。
      */
+    /**
+     * ★ 第四十轮（用户口径「列表按钮 ui 重叠了，下拉框太大了」）：矫正场景烘的 dropdown。
+     * 两个历史遗留问题（探针实测）：
+     *  ① gloss/stroke 视觉底板 **236×72**，比节点槽位（188×72，五件套布局的格位）左右各溢
+     *     24px —— 左边压住「技能树」页签、右边顶到展开把手，看起来就是「按钮互相重叠」；
+     *  ② ddLb 文字盒 112×144（=逻辑 56×72）+ 自动换行 —— 「普通塑料瓶」5 个字被掰成
+     *     三行竖排、字号 24 也偏大，字直接压在图标/箭头上。
+     * 这里双路径统一矫正：底板收到槽位内（176×58），ddLb 整只重建（单行 SHRINK、20 号），
+     * 「新」角标同步收进缩小后的底板右上角。
+     */
+    private normalizeDropdown() {
+        const dd = this.ddNode;
+        if (!dd || !dd.isValid) { return; }
+        const shrink = (name: string) => {
+            const ut = dd.getChildByName(name)?.getComponent(UITransform);
+            if (ut) { ut.setContentSize(176, 58); }
+        };
+        shrink('gloss');
+        shrink('stroke');
+        // 箭头下移一点，给右上角的「新」角标让位（两者在缩小后的底板里不再打架）
+        const chev = dd.getChildByName('chev');
+        if (chev) { chev.setPosition(chev.position.x, -6, 0); }
+        // ddLb 重建：场景版的盒(56 逻辑宽)+wrap 必然三行竖排，直接换一只单行的
+        if (this.ddLb && this.ddLb.isValid && this.ddLb.node && this.ddLb.node.isValid) {
+            this.ddLb.node.destroy();
+        }
+        this.ddLb = label(dd, '', -12, 2, 124, 40, {
+            size: 20, color: WOOD.text, overflow: 'shrink', hAlign: 'center',
+        });
+        this.ddLb.node.name = 'ddLb';
+        if (this.ddNew && this.ddNew.isValid) {
+            // ★ 第四十四轮：「新」角标换 buco06 圆徽章（33×33），贴缩小后底板右上角
+            this.reskinDdNew();
+        }
+    }
+
+    /** ddNew 统一换皮：buco06 圆徽章 33×33 + 原生字体白字（bindScene 接手 / normalizeDropdown 收窄后都走这） */
+    private reskinDdNew() {
+        const tg = this.ddNew;
+        if (!tg || !tg.isValid) { return; }
+        tg.setPosition(70, 10, 0);
+        newBadgePlate(tg);
+        const lb = label(tg, t('tag_new', G.lang), 0, 1, 24, 20, { size: 13, color: '#FFFFFF', overflow: 'shrink' });
+        lb.node.name = 'lb';
+        // ★ 场景渲染注册坑：运行时新建的组件挂在**场景烘焙节点**下不进渲染注册
+        //   （红圆能显示是因为复用场景烘的 Sprite 组件只换贴图；新建 Label 必须重挂子树）
+        lb.node.removeFromParent();
+        tg.addChild(lb.node);
+    }
+
     private toggleMenu() {
         this.menuOpen = !this.menuOpen;
         if (!this.menuOpen) {
@@ -399,15 +565,17 @@ export class BottomPanel extends Component {
             return;
         }
         if (!this.ddMenu || !this.ddMenu.isValid) {
-            this.ddMenu = nd(this.node, 'ddMenu', 280, 10, 0, 0);
+            this.ddMenu = nd(this.node, 'ddMenu', 240, 10, 0, 0);
         }
         this.ddMenu.removeAllChildren();
         const list = this.cats();
         const cur = this.catDef().id;
-        const IH = 52, PAD = 6, MW = 280;
+        // ★ 第四十轮（用户口径「下拉框太大了」）：菜单整体缩一档 —— 项高 52→42、宽 280→240，
+        //   字号/图标/角标同步缩小；行距 4 不变。
+        const IH = 42, PAD = 5, MW = 240;
         const mh = list.length * (IH + 4) + PAD * 2;
         (this.ddMenu.getComponent(UITransform) as any).setContentSize(MW, mh);
-        roundedPanel(this.ddMenu, MW, mh, 0, 0, '#3E2C1A', 16, '#1E1408', 4, 'mbg');
+        roundedPanel(this.ddMenu, MW, mh, 0, 0, '#3E2C1A', 12, '#1E1408', 4, 'mbg');
 
         // 右缘对齐下拉框右缘（超宽屏也不出屏：再夹一道屏幕右边界）
         const rightEdge = Math.min(this.ddX + this.ddW / 2, 360 - 8);
@@ -419,22 +587,43 @@ export class BottomPanel extends Component {
             const c = list[i];
             const y = mh / 2 - PAD - IH / 2 - i * (IH + 4);
             const on = c.id === cur;
-            const sp = sliced(this.ddMenu, 'ui/panel/card_white', MW - 12, IH, 0, y, [24, 24, 24, 24],
-                on ? '#F2C34E' : '#5C2E12', 'it' + i);
-            const iw = c.icon.indexOf('bottle/body_') === 0 ? 14 : 34;   // 瓶身贴图瘦高比 0.4，同比例缩小
-            const icNode = nd(sp.node, 'ic', iw, 34, -104, 0);
-            setFrame(icNode.addComponent(Sprite), c.icon, iw, 34);
-            // 文字紧贴图标右侧（锚点靠左），不要居中 —— 和参考图的下拉项一致
-            // ★ 第十九轮：字号 21 → 23（下拉项也是「选项」，和列表同步放大）
-            const lb = label(sp.node, this.catName(c), -76, 1, 170, IH, {
-                size: 23, color: on ? '#7A4210' : '#F1E0C0', hAlign: 'left', anchorX: 0, overflow: 'shrink',
-            });
-            void lb;
+            // ★ 第三十五轮：选项背景换品阶底框 dik —— 瓶子项用本阶色 dik_{tier+1}，
+            //   非瓶子功能项默认第一块 dik_1；整图 SIMPLE（dik 无九宫格边）。
+            //   选中态 = 淡金 tint 提亮（彩色底框不能再用深棕 tint 压暗）。
+            const bgPath = c.tier !== undefined ? 'skin/tier/dik_' + (c.tier + 1) : 'skin/tier/dik_1';
+            const sp = sliced(this.ddMenu, 'ui/panel/card_white', MW - 10, IH, 0, y, [24, 24, 24, 24],
+                on ? '#FFE9B8' : '#FFFFFF', 'it' + i);
+            sp.type = Sprite.Type.SIMPLE;
+            setFrame(sp, bgPath, MW - 10, IH, on ? '#FFE9B8' : '#FFFFFF');
+            const iw = c.icon.indexOf('bottle/body_') === 0 ? 11 : 26;   // 瓶身贴图瘦高比 0.4，同比例缩小
+            const icNode = nd(sp.node, 'ic', iw, 26, -88, 0);
+            setFrame(icNode.addComponent(Sprite), c.icon, iw, 26);
+            if (c.tier !== undefined) {
+                // ★ 瓶子项名字用美术字 wzi（自带阶色底）：按**高度**定标（扁字图不能方形 contain）
+                //   ⚠️ packable 小图的 sf.width/height 是动态图集尺寸（2048×2048 方形）——
+                //   直接用会把 nw2 算成 18 → 美术字压成 18×18 的小方块糊成一团
+                //   （第三十五轮就埋了，坑同 UpgradeRows 的 nameImg：必须读 originalSize）。
+                const nm = nd(sp.node, 'nameImg', 60, 20, 0, 0);
+                const nmSp = setFrame(nm.addComponent(Sprite), 'bottle/name_' + c.tier, 60, 20);
+                const osz = nmSp.spriteFrame ? nmSp.spriteFrame.originalSize : null;
+                const ow = osz ? osz.width : 60, oh = osz ? osz.height : 20;
+                const nk = oh > 0 ? 20 / oh : 1;
+                const nw2 = Math.round(ow * nk);
+                (nm.getComponent(UITransform) as any).setContentSize(nw2, 20);
+                nm.setPosition(-64 + nw2 / 2, 0, 0);
+            } else {
+                // 文字紧贴图标右侧（锚点靠左），不要居中 —— 和参考图的下拉项一致
+                const lb = label(sp.node, this.catName(c), -64, 1, 150, IH, {
+                    size: 19, color: '#7A4210', hAlign: 'left', anchorX: 0, overflow: 'shrink',
+                });
+                void lb;
+            }
             // ★ 用户口径（第十五轮）：没被玩家点过的技能模块在行右侧挂「新」标签，点过即消
+            //   底板 = buco06 红圆徽章整图（33×33 原尺寸，第四十四轮换皮）
             if (!G.itemSeen(c.id)) {
-                const tg = nd(sp.node, 'newTag', 54, 30, (MW - 12) / 2 - 34, 0);
-                roundedPanel(tg, 54, 30, 0, 0, '#E8556D', 10, '#7A1E33', 2, 'bg');
-                label(tg, t('tag_new', G.lang), 0, 1, 50, 22, { size: 16, color: '#FFF3D0', overflow: 'shrink' });
+                const tg = nd(sp.node, 'newTag', 33, 33, (MW - 10) / 2 - 13, 0);
+                setFrame(tg.addComponent(Sprite), 'skin/main/new_badge', 33, 33);
+                label(tg, t('tag_new', G.lang), 0, 1, 24, 20, { size: 13, color: '#FFFFFF', overflow: 'shrink' });
             }
             sp.node.on(Node.EventType.TOUCH_END, () => {
                 G.markItemSeen(c.id);
@@ -512,7 +701,7 @@ export class BottomPanel extends Component {
         // ★ 用户口径（第十七轮）：列表滚动位置由玩家掌控 —— 同页签同模块的重建（买瓶后指纹变化、
         //    定时 refresh 重建等）要保留当前滚动位置；只有换页签/换模块才回到顶部。
         const sameCat = this.lastCatKey !== '' && this.lastCatKey === this.tab + ':' + cat.id;
-        const savedY = sameCat ? this.content.position.y : (SCROLL_H / 2);
+        const savedY = sameCat ? this.content.position.y : (this.VH / 2);
 
         // 惯性还在滚的话先停掉，避免 ScrollView 用旧速度把 content 拽走
         if (this.scrollSV && this.scrollSV.isValid) { this.scrollSV.stopAutoScroll(); }
@@ -539,10 +728,15 @@ export class BottomPanel extends Component {
         }
         const h = nrows * (CELL_H + GAP_Y) - GAP_Y + 8;
         (this.content.getComponent(UITransform) as any).setContentSize(COLS * CELL_W + GAP_X, h);
+        // 展开把手：内容超过一屏（4 格）或已展开时显示 —— ★ 展开态必须保持可见，否则收不回去
+        if (this.expandBtn && this.expandBtn.isValid) {
+            const need = this.expanded || h > SCROLL_H + 2;
+            if (this.expandBtn.active !== need) { this.expandBtn.active = need; }
+        }
         // content 锚点在顶部 → 位置写「视口半高」（见 UIKit.scrollView 注释）。
         // 同模块重建时夹回新内容高度的合法范围（列表变短了就停在末尾），否则恢复顶部。
-        const maxY = SCROLL_H / 2;
-        const minY = maxY - Math.max(0, h - SCROLL_H);
+        const maxY = this.VH / 2;
+        const minY = maxY - Math.max(0, h - this.VH);
         const y = Math.min(maxY, Math.max(minY, savedY));
         this.content.setPosition(0, y, 0);
         this.sig = this.fingerprint(cat, specs.length);
@@ -662,6 +856,9 @@ export class BottomPanel extends Component {
         return {
             id: seenId,
             icon: def.icon,
+            // ★ 第三十八轮：解锁阶行也有 ztk 底框 + 等级进度（解锁节点 max=1 → 买下即满金）
+            lv: G.skLv(id),
+            lvMax: def ? def.max : 0,
             name: t(def.name, G.lang).replace(/\n/g, ' '),
             sub: skillSub(def),
             label: fmt(cost),
@@ -698,6 +895,9 @@ export class BottomPanel extends Component {
         return {
             id: seenId,
             icon: def ? def.icon : 'stat/unlock',
+            // ★ 第三十八轮：模块解锁行也有 ztk 底框（max=1 → 买下即满金）
+            lv: G.skLv(id),
+            lvMax: def ? def.max : 0,
             name: t(nameKey, G.lang),
             sub: t(descKey, G.lang),
             label: fmt(cost),
@@ -746,6 +946,12 @@ export class BottomPanel extends Component {
             out.push({
                 id: 'sh:b' + tier,
                 icon: 'bottle/body_' + d.art,
+                // ★ 第三十五轮：瓶子行统一「ztk 底框 + 名字美术字」——
+                //   badge 启用左侧底框（ztk_1 + ztk_2 进度填充），nameImg 用 wzi 名字图
+                badge: 'bottle/body_' + d.art,
+                nameImg: 'bottle/name_' + d.art,
+                lv: G.data.bottles[tier],
+                lvMax: cap,
                 name: G.lang === 'zh' ? d.zh : d.en,
                 // ★ 第十九轮：说明压短（原来「拥有 3/30 · +$1/次 · ±18°」13 个字在 172px 里会被 SHRINK 压小）
                 // ★ 第十七轮：判定改纯概率 → 末尾改成「成功 50%」（= 50% + 精通 ×5%）
@@ -767,14 +973,15 @@ export class BottomPanel extends Component {
             row.cur = maxed ? undefined : 'coin';
             // 金币不足但有广告出路 → 价格照常显示，右上角再亮 ksp 广告图标
             row.ad = !maxed && G.data.money < cost;
-            row.onBuy = (after, btn) => {
+            // ★ 第三十九轮：`from` 是**被点的整个格子**（整格即按钮，见 UpgradeRows.makeCell）
+            row.onBuy = (after, from) => {
                 if (G.data.bottles[tier] >= G.tierCap(tier)) {
                     Toast.I?.show(t('bought_out', G.lang), '#FFD98A');
                     return;
                 }
                 // ★ 先登记飞入、再扣钱：buyBottle 内部同步 notify → BottleField.sync 立刻建出
                 //   这只新瓶子，飞行动画只有在那一次 sync 里接上才对得上（失败则撤销登记）。
-                BottleField.I?.queueFlyIn(tier, btn ?? null);
+                BottleField.I?.queueFlyIn(tier, from ?? null);
                 if (!G.buyBottle(tier)) {
                     BottleField.I?.cancelFlyIn();
                     // 金币不足 → 广告出路：看广告补足后自动重试（补足不显示差额）
@@ -937,6 +1144,9 @@ export class BottomPanel extends Component {
             icon: 'bottle/body_' + TIERS[tier].art,
             badge: d.icon,
             badgeBg: TIERS[tier].color,
+            // ★ 第三十五轮：底框进度按词条等级填充（ztk_2 FILLED），点满显示完全
+            lv: G.statLv(tier, d.id),
+            lvMax: G.statMaxLevel(tier, d.id),
             name: t(d.name, G.lang),
             sub: statSub(d, tier),
             label: fmt(cost),
@@ -969,6 +1179,9 @@ export class BottomPanel extends Component {
         return {
             id: seenId,
             icon: def.icon,
+            // ★ 第三十八轮：功能板块行也有 ztk 底框 + 等级进度（与瓶子行同一套口径）
+            lv: G.skLv(id),
+            lvMax: def ? def.max : 0,
             name: t(def.name, G.lang).replace(/\n/g, ' '),
             sub: skillSub(def),
             label: fmt(cost),
@@ -1010,6 +1223,9 @@ export class BottomPanel extends Component {
             out.push({
                 id: 'tr:k:' + n.id,
                 icon: def.icon,
+                // ★ 第三十八轮：科技节点行也有 ztk 底框 + 等级进度
+                lv: G.skLv(n.id),
+                lvMax: def.max,
                 name: t(def.name, G.lang).replace(/\n/g, ' '),
                 sub: skillSub(def),
                 label: fmt(cost),
@@ -1053,13 +1269,17 @@ export class BottomPanel extends Component {
     }
 
     private refreshHead() {
+        // ★ 第四十三轮：提示带/里程碑条的文本先比对再写（面板每 0.25s 刷一次，
+        //   无条件写 string 会白触发系统字体重绘 + 纹理上传）
         if (this.hintLb && this.hintLb.isValid) {
-            this.hintLb.string = t('next_goal', G.lang) + '：' + nextGoalText();
+            const hint = t('next_goal', G.lang) + '：' + nextGoalText();
+            if (this.hintLb.string !== hint) { this.hintLb.string = hint; }
         }
         if (this.msLb && this.msLb.isValid) {
             const next = G.msNext;
-            this.msLb.string = t('ms_chip', G.lang).replace('{n}', String(G.milestone))
+            const ms = t('ms_chip', G.lang).replace('{n}', String(G.milestone))
                 + ' · ' + (next ? (fmt(G.msProgress) + '/' + fmt(next.need)) : t('ms_max', G.lang));
+            if (this.msLb.string !== ms) { this.msLb.string = ms; }
         }
         this.refreshNewTag();
         this.refreshTabTags();
@@ -1106,8 +1326,46 @@ export class BottomPanel extends Component {
             if (!ui || !ui.node.isValid) { continue; }
             // 技能树没买瓶盖机器前是「暗着」的（点了会提示，见 showTab）
             const locked = id === 'tree' && !G.hasMachine;
-            woodPlateRefill(ui.node, id === this.tab ? WOOD.gold : (locked ? '#C9B79B' : WOOD.cream));
+            this.applyTabPlate(id, locked);
             ui.lb.string = t(keys[id], G.lang);
+        }
+    }
+
+    /**
+     * ★ 页签底板/图标换皮（buco 系列，第三十六轮）：
+     *   选中 = buco01 金色圆角条、未选中 = buco02 奶油圆角条（整图 SIMPLE，白 tint）；
+     *   图标 = 商店 buco05 / 升级 buco03 / 技能树 buco04，按 originalSize contain 到 42 高；
+     *   旧的九宫格 gloss/stroke 层隐藏（buco 图自带高光描边）；场景版/运行时兜底统一走这里。
+     */
+    private applyTabPlate(id: Tab, locked = false) {
+        const ui = this.tabUis[id];
+        if (!ui || !ui.node || !ui.node.isValid) { return; }
+        const cfg = TAB_PLATE[id];
+        const n = ui.node;
+        const on = id === this.tab;
+        const sp = n.getComponent(Sprite) || n.addComponent(Sprite);
+        sp.type = Sprite.Type.SIMPLE;
+        setFrame(sp, on ? cfg.on : cfg.off, undefined, undefined, !on && locked ? '#C9B79B' : '#FFFFFF');
+        for (const ch of n.children) {
+            if (ch.name === 'gloss' || ch.name === 'stroke' || ch.name === 'inner') { ch.active = false; }
+        }
+        const ic = n.getChildByName('icon');
+        if (ic) {
+            const isp = ic.getComponent(Sprite) || ic.addComponent(Sprite);
+            setFrame(isp, cfg.icon, undefined, undefined, '#FFFFFF');
+            const sf = isp.spriteFrame;
+            if (sf) {
+                const os = sf.originalSize;
+                const k = Math.min(1, 42 / os.height, 42 / os.width);
+                (ic.getComponent(UITransform)!).setContentSize(Math.round(os.width * k), Math.round(os.height * k));
+            }
+        }
+    }
+
+    /** build 时一次性换皮（refreshTabs 里切页签时再按选中态重刷） */
+    private reskinTabs() {
+        for (const id of ['shop', 'up', 'tree'] as Tab[]) {
+            this.applyTabPlate(id, id === 'tree' && !G.hasMachine);
         }
     }
 

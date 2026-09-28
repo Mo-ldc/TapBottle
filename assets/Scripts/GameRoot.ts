@@ -6,6 +6,7 @@ import { Res } from './Core/Res';
 import { t } from './Core/Locale';
 import { button, img, label, MASK_SIZE, nd, rect, setFrame, setSize } from './UI/Base/UIKit';
 import { Toast } from './UI/Base/Toast';
+import { installPreviewInputBridge } from './Core/PreviewInputBridge';
 import { Hud } from './UI/Hud/Hud';
 import { BottomPanel } from './UI/Hud/BottomPanel';
 import { debugGoal, registerNav } from './UI/Hud/Guidance';
@@ -66,6 +67,8 @@ export class GameRoot extends Component {
     private abilities: Abilities = null!;
     private saveT = 0;
     private started = false;
+    /** 正在淡出返回标题页（防连点重复 loadScene） */
+    private leaving = false;
 
     /** 场景未实体化的层用运行时兜底（与旧行为一致）。
      *  游戏层全部是**创作空间 720×1280** 的 UT；×DS×sA 的整体缩放挂在 gameRoot 上。
@@ -102,6 +105,8 @@ export class GameRoot extends Component {
     }
 
     onLoad() {
+        // 预览页输入修复（构建产物零影响，详见 PreviewInputBridge.ts 顶部注释）
+        installPreviewInputBridge();
         // ★ 模块级单例在「重载场景」后仍然存在：如果重载那会儿正好有模态面板开着，
         //   Modal.count 会残留 >0 → BottleField 的 aim()/pointerDown() 永远 return
         //   → 整局再也点不动瓶子。所以每次进场景都要清一次。
@@ -241,7 +246,9 @@ export class GameRoot extends Component {
         this.hud = this.hudRoot.getComponent(Hud) || this.hudRoot.addComponent(Hud);
         const ui = UIMgr.I;
         this.hud.build({
-            onSettings: () => ui.showDialog(UIName.SettingDialog),
+            // ★ 用户口径（第三十三轮）：左上角是**返回**按钮 —— 直接回开始界面；
+            //   设置入口已挪到开始界面的「设置按钮」（StartPage.bindButtons）。
+            onBack: () => this.backToTitle(),
             onAch: () => ui.showDialog(UIName.AchDialog),
             onStats: () => ui.showDialog(UIName.StatsDialog),
             onLang: () => {
@@ -290,9 +297,32 @@ export class GameRoot extends Component {
         ad.build();
     }
 
+    /* ---------------- 返回开始界面 ---------------- */
+
+    /**
+     * ★ 顶栏左上按钮 = **返回开始界面**（用户口径）：整页淡出 → 切回 Load 场景的标题页。
+     *
+     * ⚠️ 为什么直接 loadScene('Load') 而不是做「遮罩+显示标题页」：
+     *   Load 场景里 Res 节点是 addPersistRootNode 常驻的，资源与音频都不重载
+     *   （loadAll 命中的是缓存），所以回标题就是「几十毫秒重建一棵 UI 树」的代价，
+     *   比在 Game 场景里再挂一份 StartPage 预制体干净得多（不会有两套 BGM/资源单例）。
+     * ⚠️ 必须显式 G.save()：存档是定时的（saveT），刚买的瓶子不能因为切场景丢掉。
+     */
+    private backToTitle() {
+        if (this.leaving) { return; }
+        this.leaving = true;
+        try { Res.I?.play('button'); } catch (e) { /* ignore */ }
+        try { G.save(); } catch (e) { /* ignore */ }
+        const op = this.node.getComponent(UIOpacity) || this.node.addComponent(UIOpacity);
+        tween(op).to(0.22, { opacity: 0 }).call(() => { director.loadScene('Load'); }).start();
+    }
+
     /* ---------------- 启动（Boot 场景标题页点击后进入） ---------------- */
     private afterReady() {
         this.rebindSceneRenderers();
+        // 飘字节点预热：资源已就绪，这里一次性把 FloatText 预制体实例化进对象池，
+        // 免得第一只瓶子落地时现场 instantiate 掉帧（Pool.warm 内部对未加载情况静默返回）
+        FxLayer.I?.warmup(8);
         Res.I.masterScale = G.data.settings.master;
         this.applySafeLayout();
         const off = G.applyOffline();

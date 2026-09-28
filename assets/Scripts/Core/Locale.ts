@@ -399,6 +399,7 @@ export const L: Record<string, Entry> = {
     ad_grant_coin:    { zh: '金币翻倍已激活（3 分钟）', en: 'Double coins ON (3 min)' },
     ad_grant_cap:     { zh: '瓶盖翻倍已激活（3 分钟）', en: 'Double caps ON (3 min)' },
     ad_grant_halo:    { zh: '光圈已放大（3 分钟）', en: 'Halo enlarged (3 min)' },
+    ad_grant_berserk: { zh: '狂暴模式已激活！', en: 'Berserk ON!' },
     ad_offer_title:   { zh: '金币不足', en: 'Not Enough Coins' },
     ad_offer_body:    { zh: '看一条广告立即补足金币', en: 'Watch an ad to get coins instantly' },
     ad_watch_now:     { zh: '看广告解锁', en: 'Watch Ad' },

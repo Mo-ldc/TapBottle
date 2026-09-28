@@ -55,7 +55,38 @@ export class State {
 
     addListener(fn: () => void) { this.listeners.push(fn); this.dirty = true; }
     clearListeners() { this.listeners.length = 0; this.dirty = true; }
-    notify() { this.dirty = true; for (const f of this.listeners) { f(); } }
+
+    /** 同批合并用（见 notify 注释） */
+    private notifyBusy = false;
+    private notifyAgain = false;
+
+    /**
+     * 广播状态变化（所有 UI 模块的重绘入口）。
+     *
+     * ★ 第四十三轮性能优化：**同一批内多次 notify 合并**。
+     *   一次「扣盖落地」链路上就会连发好几次 notify（结算金币 / 狂暴计数 / 成就检查 /
+     *   里程碑 / buff 到期），每次都是全量广播（`BottleField.sync` 对账瓶子、
+     *   `Panel.dirty` + 各面板重建、`LocLabel` × N、`Hud.refresh`…）。
+     *   多只助手 + 狂暴同帧结算时更明显，是「生成瓶盖时帧率波动」的 CPU 侧主因之一。
+     *
+     * 语义保证：**首次调用仍然同步广播**（调用点之后读 UI 状态就是新的，与原来一致），
+     * 同一批内（宏任务周期）的后续调用只记一个待补标记，随后的 setTimeout(0) 里补播一次。
+     * 用 setTimeout 而不是 director 事件，是为了不依赖 director 是否在跑（暂停/后台也安全）。
+     */
+    notify() {
+        this.dirty = true;
+        if (this.notifyBusy) { this.notifyAgain = true; return; }
+        this.notifyBusy = true;
+        try {
+            for (const f of this.listeners) { f(); }
+        } finally {
+            const unlock = () => {
+                this.notifyBusy = false;
+                if (this.notifyAgain) { this.notifyAgain = false; this.notify(); }
+            };
+            if (typeof setTimeout === 'function') { setTimeout(unlock, 0); } else { unlock(); }
+        }
+    }
 
     /* ================= 科技树（消耗瓶盖，GDD §5.1） ================= */
     sk(id: string): number {

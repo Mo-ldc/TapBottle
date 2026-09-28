@@ -21,7 +21,10 @@ export const PREFAB_PATHS: string[] = [
     // 游戏对象
     'Game/Bottle',
     'Game/BottleShadow',
-    // UI（Chip / Hud 迁移完成后再加回来）
+    'Game/Cap',        // 履带瓶盖单元（CapMachine 池的实例来源；节点常驻 chips 容器、只切 active）
+    // UI
+    'UI/UpgradeRow',   // 底栏内嵌面板的列表行单元（商店/升级/技能树共用）
+    'UI/FloatText',    // 飘字单元（金币 / 瓶盖 / 提示）—— 高频借还，走 Pool
 ];
 
 export class Prefabs {

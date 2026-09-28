@@ -70,31 +70,31 @@ export const TIERS: TierDef[] = [
         passiveZh: '基础款，质量轻、起步翻转', passiveEn: 'Starter bottle, light body',
     },
     {
-        tier: 1, key: 'bronze', zh: '铜质能量瓶', en: 'Bronze Energy Bottle', rarity: 'Rare', color: RARITY_COLOR.Rare,
+        tier: 1, key: 'bronze', zh: '翠影青瓶', en: 'Jade Bottle', rarity: 'Rare', color: RARITY_COLOR.Rare,
         art: 1, mass: 1.2, techCost: 1600, shopBase: 2000, shopGrowth: 1.20,
         timesIncome: 2.0, baseIncome: 5.0, cap: 30, hoverCost: 6000, critMult: 6.0,
         passiveZh: '扣盖金币基础倍率提升为 6.0×', passiveEn: 'Cap landing multiplier ×6.0',
     },
     {
-        tier: 2, key: 'silver', zh: '白银汽水瓶', en: 'Silver Soda Bottle', rarity: 'Epic', color: RARITY_COLOR.Epic,
+        tier: 2, key: 'silver', zh: '沧澜蓝瓶', en: 'Azure Bottle', rarity: 'Epic', color: RARITY_COLOR.Epic,
         art: 2, mass: 1.4, techCost: 4800, shopBase: 3000, shopGrowth: 1.20,
         timesIncome: 3.0, baseIncome: 20.0, cap: 30, hoverCost: 16000, critMult: 5.0,
         passiveZh: '基础收益跃升至 $20，扣盖产出大增', passiveEn: 'Base income jumps to $20',
     },
     {
-        tier: 3, key: 'gold', zh: '黄金尊享瓶', en: 'Gold Premium Bottle', rarity: 'Legendary', color: RARITY_COLOR.Legendary,
+        tier: 3, key: 'gold', zh: '琥珀棕瓶', en: 'Amber Bottle', rarity: 'Legendary', color: RARITY_COLOR.Legendary,
         art: 3, mass: 1.7, techCost: 10000, shopBase: 50, shopGrowth: 1.10,
         timesIncome: 4.0, baseIncome: 50.0, cap: 30, hoverCost: 10000, critMult: 5.0,
         passiveZh: '扣盖时必定额外掉落 1 枚瓶盖', passiveEn: 'Cap landing always drops +1 cap',
     },
     {
-        tier: 4, key: 'ruby', zh: '红宝石烈酒瓶', en: 'Ruby Spirit Bottle', rarity: 'Mythic', color: RARITY_COLOR.Mythic,
+        tier: 4, key: 'ruby', zh: '红宝石瓶', en: 'Ruby Bottle', rarity: 'Mythic', color: RARITY_COLOR.Mythic,
         art: 5, mass: 2.0, techCost: 20000, shopBase: 150, shopGrowth: 1.10,
         timesIncome: 5.0, baseIncome: 150.0, cap: 30, hoverCost: 25000, critMult: 5.0,
         passiveZh: '狂暴期间收益额外 +50%', passiveEn: 'Berserk income +50%',
     },
     {
-        tier: 5, key: 'emerald', zh: '翡翠神圣瓶', en: 'Emerald Divine Bottle', rarity: 'Divine', color: RARITY_COLOR.Divine,
+        tier: 5, key: 'emerald', zh: '黄金瓶', en: 'Gold Bottle', rarity: 'Divine', color: RARITY_COLOR.Divine,
         art: 4, mass: 2.2, techCost: 45000, shopBase: 500, shopGrowth: 1.10,
         timesIncome: 6.0, baseIncome: 500.0, cap: 30, hoverCost: 100000, critMult: 5.0,
         passiveZh: '决意值积攒速度 +25%', passiveEn: 'Resolve gain +25%',
@@ -386,7 +386,7 @@ export const SKILLS: SkillDef[] = [
     // ⚠️ 原版里「瓶盖机器」**不是**技能树节点，而是商店设施（$1,000 金币，见 MACHINE.buyPrice）。
     //    所以这里没有 p_machine；机器衍生的两个加成节点直接挂到 p_stability 下。
     { id: 'p_machineinc', tree: 'player', name: 'sk_machineinc', desc: 'sk_machineinc_d', icon: 'stat/capgain', max: 10, baseCost: 10000, growth: 1.46, base: 0, step: 0.10, unit: 'percent' },
-    { id: 'p_machinespeed', tree: 'player', name: 'sk_machinespeed', desc: 'sk_machinespeed_d', icon: 'env/belt', max: 30, baseCost: 1000, growth: 1.10, base: 0, step: 0.10, unit: 'percent' },
+    { id: 'p_machinespeed', tree: 'player', name: 'sk_machinespeed', desc: 'sk_machinespeed_d', icon: 'skin/main/belt_composite', max: 30, baseCost: 1000, growth: 1.10, base: 0, step: 0.10, unit: 'percent' },
     { id: 'p_gateunlock', tree: 'player', name: 'sk_gateunlock', desc: 'sk_gateunlock_d', icon: 'stat/unlock', max: 1, baseCost: 8000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'gate' },
     { id: 'p_gatechance', tree: 'player', name: 'sk_gatechance', desc: 'sk_gatechance_d', icon: 'stat/chance', max: 10, baseCost: 8200, growth: 1.10, base: 0, step: 0.10, unit: 'percent' },
 
@@ -456,7 +456,7 @@ export const PLAYER_GRAPH: SkillNodeDef[] = [
     { id: 'p_stability', icon: 'stat/resolve', col: 2, row: 3, parent: 'p_cursor' },
     // 机器本体在商店买（$1,000），树上只留它的两个加成节点，直接挂在稳定性下方
     { id: 'p_machineinc', icon: 'stat/capgain', col: 2, row: 2, parent: 'p_stability' },
-    { id: 'p_machinespeed', icon: 'env/belt', col: 1, row: 0, parent: 'p_machineinc' },
+    { id: 'p_machinespeed', icon: 'skin/main/belt_composite', col: 1, row: 0, parent: 'p_machineinc' },
     { id: 'p_gateunlock', icon: 'stat/unlock', col: 2, row: -1, parent: 'p_machinespeed' },
     { id: 'p_gatechance', icon: 'stat/chance', col: 2, row: -2, parent: 'p_gateunlock' },
 ];

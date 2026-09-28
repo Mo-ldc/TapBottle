@@ -1,21 +1,32 @@
-import { _decorator, input, Input, Label, Node, Tween, tween, Vec3 } from 'cc';
+import { _decorator, Label, Node, Tween, tween, Vec3, sys } from 'cc';
 import { G } from '../../Core/State';
 import { Res } from '../../Core/Res';
+import { SAVE_KEY } from '../../Core/GameConfig';
+import { clearSave, defaultSave } from '../../Core/Save';
 import { UIBase } from '../Base/UIBase';
+import { pressable } from '../Base/UIKit';
+import { UIMgr, UIName } from '../../Core/UIMgr';
 import { LoadScene } from '../../Load/LoadScene';
 
 const { ccclass, property } = _decorator;
 
 /**
- * 标题页（logo + 游戏名 + 「点击开始」）—— Load 场景里**按需加载**的预制体。
+ * 标题页（美术底图 + 两个按钮）—— Load 场景里**按需加载**的预制体。
  *
- * 流程：LoadScene 走完加载进度 → `UIMgr.showPage(UIName.StartPage)` 拉起本页；
- *      玩家点击 → 触发 `__tbOnStart`（BGM 必须借这次用户手势重播）→
- *      `LoadScene.enterGame()`：淡出并 director.loadScene('Game')。
+ * 口径（用户拍板）：
+ *   - 「开始游戏按钮」：无存档 → 新游戏；有存档 → 继续游戏（G.data 模块加载时已 loadSave）。
+ *   - 「从新开始按钮」：删掉存档、回到全新状态再进游戏；**无存档时隐藏**。
+ *   - 不再做「点屏幕任意处开始」——否则有存档的玩家永远点不到「从新开始」。
  *
- * ⚠️ 全屏点击用全局 input 监听（不用遮罩点击）：
- *    Modal 计数只对游戏内的 BottleField 生效，全局 input 不受 BlockInputEvents 约束
- *    （见 Memory.md 的「全局 input 监听」坑），所以这里我们也不依赖 Modal。
+ * 按钮 = 预制体里手摆的 Sprite 节点（开始游戏按钮 / 从新开始按钮），
+ * 运行时按节点名接手（bindScene 同款约定，编辑器里随便改名要同步这里）。
+ *
+ * 流程：按钮 → startGame() →（从新开始则 clearSave + G.data=defaultSave）→
+ *       `__tbOnStart`（BGM 借用户手势重播）→ LoadScene.enterGame() 切 Game 场景。
+ *
+ * ⚠️ 历史坑（Memory.md）：场景切换时 repeatForever 的 tween 不会自动停，
+ *    StartPage 的 logo 浮动/呼吸动画都已在它自己的 onDisable 里停掉；
+ *    本组件不持有任何循环 tween。
  */
 @ccclass('StartPage')
 export class StartPage extends UIBase {
@@ -39,17 +50,66 @@ export class StartPage extends UIBase {
         if (this.tapTxt && this.tapTxt.isValid) {
             this.tapTxt.string = zh ? '—— 点击屏幕开始 ——' : '—— Tap to Start ——';
         }
+        this.bindButtons();
+    }
+
+    /** 按节点名接手预制体里的按钮（无存档 → 隐藏「从新开始」）。
+     *  show 每次都会调它：显隐要按最新存档状态刷新；监听只挂一次（UIMgr 缓存实例，会叠加）。 */
+    private bindButtons(): void {
+        const startBtn = this.findDeep(this.node, '开始游戏按钮');
+        const restartBtn = this.findDeep(this.node, '从新开始按钮');
+        // ★ 用户口径（第三十三轮）：**设置入口在开始界面**（游戏里的左上按钮改成返回）。
+        //   Load 场景的 UIMgr.bindRoots 把三个 root 都指到 pageRoot，所以弹窗直接开在这层。
+        const setBtn = this.findDeep(this.node, '设置按钮');
+        const hasSave = !!sys.localStorage.getItem(SAVE_KEY);
+        if (restartBtn) { restartBtn.active = hasSave; }
+        if (startBtn && !(startBtn as any).__tbBound) {
+            (startBtn as any).__tbBound = true;
+            pressable(startBtn, () => this.startGame(false));
+        }
+        if (restartBtn && !(restartBtn as any).__tbBound) {
+            (restartBtn as any).__tbBound = true;
+            pressable(restartBtn, () => this.startGame(true));
+        }
+        if (setBtn && !(setBtn as any).__tbBound) {
+            (setBtn as any).__tbBound = true;
+            pressable(setBtn, () => {
+                if (!this._shownOpen) { return; }
+                UIMgr.I?.showDialog(UIName.SettingDialog);
+            });
+        }
+    }
+
+    private findDeep(root: Node, name: string): Node | null {
+        if (root.name === name) { return root; }
+        for (const c of root.children) {
+            const r = this.findDeep(c, name);
+            if (r) { return r; }
+        }
+        return null;
+    }
+
+    /** @param restart true = 删档重开；false = 有档继续 / 无档新游戏 */
+    private startGame(restart: boolean): void {
+        if (this.entered || !this._shownOpen) { return; }
+        this.entered = true;
+        Res.I?.play('button');
+        if (restart) {
+            clearSave();
+            G.data = defaultSave();
+        }
+        // BGM 必须借这次点击的手势重播，否则浏览器自动播放策略会挂起 AudioContext
+        const hook = (globalThis as any).__tbOnStart;
+        if (hook) { try { hook(); } catch (e) { /* ignore */ } }
+        // 整页淡出后切到 Game 场景
+        LoadScene.I?.enterGame();
     }
 
     protected onEnable(): void {
         this.playIdleAni();
-        input.on(Input.EventType.TOUCH_START, this.onTap, this);
-        input.on(Input.EventType.MOUSE_DOWN, this.onTap, this);
     }
 
     protected onDisable(): void {
-        input.off(Input.EventType.TOUCH_START, this.onTap, this);
-        input.off(Input.EventType.MOUSE_DOWN, this.onTap, this);
         this.stopIdleAni();
     }
 
@@ -85,17 +145,6 @@ export class StartPage extends UIBase {
         } catch (e) { /* ignore */ }
     }
 
-    private onTap(): void {
-        if (this.entered || !this._shownOpen) { return; }
-        this.entered = true;
-        Res.I?.play('button');
-        // BGM 必须借这次点击的手势重播，否则浏览器自动播放策略会挂起 AudioContext
-        const hook = (globalThis as any).__tbOnStart;
-        if (hook) { try { hook(); } catch (e) { /* ignore */ } }
-        // 不切「隐藏本页再揭加载层」了 —— Load 场景整页淡出后直接切到 Game 场景
-        LoadScene.I?.enterGame();
-    }
-
     /**
      * 是否已经真正显示出来（区别于 Component.enabled）。
      * 避免本项目常见的一个坑：prefab instantiate 后节点可能还没挂上父节点就被
@@ -106,6 +155,7 @@ export class StartPage extends UIBase {
     show(cb?: () => void, arg?: unknown): void {
         super.show(cb, arg);
         this._shownOpen = true;
+        this.bindButtons(); // show 时再绑一次：每次拉起都要按最新存档状态显隐
     }
 
     hide(cb?: () => void): void {
