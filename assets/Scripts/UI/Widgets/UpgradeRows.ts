@@ -124,8 +124,9 @@ const NEW_X = -CELL_W / 2 + 25 - BTN_X, NEW_Y = CELL_H / 2 - 14;
  */
 export type Tone = 'on' | 'off' | 'max' | 'lock';
 const TONE: Record<Tone, { fg: string }> = {
-    on:   { fg: '#B9721A' },   // 可买：琥珀金（奶油底上醒目且读得清）
-    off:  { fg: '#92795C' },   // 买不起：灰棕（弱化，但仍看得见金额）
+    // ★ 第五十六轮（用户口径）：「货币足够消耗则显示绿色，不足显示红色，不管瓶盖还是金币」
+    on:   { fg: '#3F7A2E' },   // 可买：绿（与满级绿同款，奶油底上读得清）
+    off:  { fg: '#C0392B' },   // 买不起：红（金币/瓶盖不足统一红）
     max:  { fg: '#3F7A2E' },   // 满级：绿
     lock: { fg: '#96866F' },   // 前置未解锁：灰
 };

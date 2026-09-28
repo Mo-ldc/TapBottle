@@ -1,10 +1,11 @@
-import { _decorator, Label, Node, Tween, tween, Vec3, sys } from 'cc';
+import { _decorator, Label, Node, Sprite, Tween, tween, UITransform, Vec3, sys } from 'cc';
 import { G } from '../../Core/State';
 import { Res } from '../../Core/Res';
 import { SAVE_KEY } from '../../Core/GameConfig';
 import { clearSave, defaultSave } from '../../Core/Save';
+import { t } from '../../Core/Locale';
 import { UIBase } from '../Base/UIBase';
-import { pressable } from '../Base/UIKit';
+import { pressable, setFrame } from '../Base/UIKit';
 import { UIMgr, UIName } from '../../Core/UIMgr';
 import { LoadScene } from '../../Load/LoadScene';
 
@@ -63,6 +64,7 @@ export class StartPage extends UIBase {
         const setBtn = this.findDeep(this.node, '设置按钮');
         const hasSave = !!sys.localStorage.getItem(SAVE_KEY);
         if (restartBtn) { restartBtn.active = hasSave; }
+        if (startBtn) { this.applyStartLabel(startBtn, hasSave); }
         if (startBtn && !(startBtn as any).__tbBound) {
             (startBtn as any).__tbBound = true;
             pressable(startBtn, () => this.startGame(false));
@@ -89,15 +91,52 @@ export class StartPage extends UIBase {
         return null;
     }
 
+    /**
+     * 第六十五轮：开始游戏按钮上的文字贴图（wzi01/02，按存档状态切换）。
+     * - 无存档（第一次玩）→ wzi01「开始游戏」
+     * - 有存档           → wzi02「继续游戏」
+     * 按钮底板是预制体里烘好的 startUI/bd01；文字作为运行时子节点叠在板上，
+     * 无监听子节点不参与事件分发，不影响 pressable 的点击。
+     */
+    private applyStartLabel(startBtn: Node, hasSave: boolean): void {
+        let wzi = startBtn.getChildByName('wzi');
+        if (!wzi) {
+            wzi = new Node('wzi');
+            wzi.addComponent(UITransform);
+            startBtn.addChild(wzi);
+            wzi.addComponent(Sprite);
+        }
+        const sp = wzi.getComponent(Sprite)!;
+        // 先 CUSTOM 再赋 frame，防 sizeMode=TRIM 把节点尺寸改回原图（UIKit.setFrame 已内置）
+        setFrame(sp, hasSave ? 'startUI/wzi02' : 'startUI/wzi01', hasSave ? 270 : 283, hasSave ? 81 : 99);
+        wzi.setPosition(0, 0, 0);
+    }
+
     /** @param restart true = 删档重开；false = 有档继续 / 无档新游戏 */
     private startGame(restart: boolean): void {
         if (this.entered || !this._shownOpen) { return; }
+        // ★ 第五十七轮：有存档的「从新开始」先弹二级确认，防误触（复用 ConfirmDialog，
+        //   文案与设置弹窗的删档确认同款 delete_confirm）。取消则什么都不发生。
+        if (restart) {
+            UIMgr.I?.showDialog(UIName.ConfirmDialog, undefined, {
+                text: t('delete_confirm', G.lang),
+                danger: true,
+                onOk: () => {
+                    clearSave();
+                    G.data = defaultSave();
+                    this.enterGame();
+                },
+            });
+            return;
+        }
+        this.enterGame();
+    }
+
+    /** 确认后真正的进入流程（BGM 借手势重播 + 切场景） */
+    private enterGame(): void {
+        if (this.entered || !this._shownOpen) { return; }
         this.entered = true;
         Res.I?.play('button');
-        if (restart) {
-            clearSave();
-            G.data = defaultSave();
-        }
         // BGM 必须借这次点击的手势重播，否则浏览器自动播放策略会挂起 AudioContext
         const hook = (globalThis as any).__tbOnStart;
         if (hook) { try { hook(); } catch (e) { /* ignore */ } }

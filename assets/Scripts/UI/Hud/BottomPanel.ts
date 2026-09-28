@@ -1,6 +1,6 @@
-import { _decorator, Component, Graphics, Label, Node, ScrollView, Sprite, UITransform } from 'cc';
+import { _decorator, Component, Graphics, Label, Node, ScrollView, Sprite, tween, Tween, UIOpacity, UITransform, Vec3 } from 'cc';
 import {
-    ABILITY_GRAPH, BOTTLE_STATS, BOTTLE_TREE_ORDER, BottleStatDef, CURSOR, HELPER_GRAPH,
+    ABILITY_GRAPH, BOTTLE_STATS, BOTTLE_TREE_ORDER, BottleStatDef, HELPER_GRAPH,
     LAYOUT, PLAYER_GRAPH, SkillNodeDef, TIERS,
 } from '../../Core/GameConfig';
 import { G, SKILL_BY_ID, UNLOCK_SKILL } from '../../Core/State';
@@ -9,7 +9,7 @@ import { fmt, hex } from '../../Core/Util';
 import { applyFontDeep, label, nd, newBadgePlate, pressable, setFrame, setSize, sliced, destroyChildren, roundedPanel, scrollView, UIScrollBar, sizeOf } from '../Base/UIKit';
 import { WOOD, wobble, woodButton, woodPlate } from '../Base/Theme';
 import { applyRow, makeCell, COLS, CELL_W, CELL_H, GAP_X, GAP_Y, RowSpec, RowUI, skillSub, statSub, successText } from '../Widgets/UpgradeRows';
-import { capsShortAd, MACHINE_PRICE, moneyShortAd, nextGoalText } from './Guidance';
+import { capsShortAd, MACHINE_PRICE, moneyShortAd } from './Guidance';
 import { Toast } from '../Base/Toast';
 import { BottleField } from '../../Game/BottleField';
 
@@ -37,7 +37,7 @@ const { ccclass, property } = _decorator;
  *       玩家点过那一行的按钮即视为已读（跨存档记忆，见 State.itemSeen）。
  *
  *   列表是**两列网格**（一行 2 个选项卡），格子见 UpgradeRows.makeCell。
- *   顶部一条提示带常显「下一步该做什么」+ 里程碑进度。
+ *   顶部提示带已退役（★ 第六十轮）：列表视口平铺整个面板背景。
  */
 type Tab = 'shop' | 'up' | 'tree';
 
@@ -63,31 +63,31 @@ interface CatDef {
  * 技能树页签的**科技线**类目 —— 下拉框只在这一页出现（用户口径）。
  *
  * ★ 四条科技线各有**模块解锁条件**（`req`）：没解锁就不出现在下拉框里。
- *   解锁入口挂在「瓶子模块」的瓶子树末端（原版就是这么挂的，见 Locale.unlock_*）。
  *     · 履带升级 ← 解锁传送带模块（p_stability）
- *     · 挂机模式 ← 解锁光圈（p_cursor）
- *     · 手部操作 ← 解锁光圈（p_cursor）★ 用户口径：光圈开启手部技能模块
+ *     · 挂机模式 ← 开局直接开放
+ *     · 手部操作 ← 开局直接开放
  *     · 特殊技能 ← 挂机模式（p_idle）
+ *   ★ 第四十八轮：`p_cursor`（解锁光圈）已整体移除（光圈开局常显），
+ *     原本挂在它上面的「挂机模式 / 手部操作」两个模块改为**开局直接开放**（用户口径）。
  */
 const TREE_TECHS: CatDef[] = [
     { id: 'belt', key: 'tree_cat_belt', icon: 'skin/main/belt_composite', req: 'p_stability' },
-    { id: 'idle', key: 'tree_cat_idle', icon: 'stat/time', req: 'p_cursor' },
-    { id: 'hand', key: 'tree_cat_hand', icon: 'env/hand', req: 'p_cursor' },
+    { id: 'idle', key: 'tree_cat_idle', icon: 'stat/time' },
+    { id: 'hand', key: 'tree_cat_hand', icon: 'env/hand' },
     { id: 'abil', key: 'tree_cat_ability', icon: 'ability/flyingcoke', req: 'p_idle' },
 ];
 
 /**
  * 科技线的节点归属（对齐原版 PnH/MachineGate、PnH/IdleMode、PnH/Helper 三组）。
  * ⚠️ 两个**数值型**节点不进树，改放「升级」页（原版 PlayerUpgradeMenuUI 就是这么摆的）：
- *    · p_cursorsize 光标圈大小 —— 得先解锁光标天赋(p_cursor)才出现在升级页；
+ *    · p_cursorsize 光圈大小 —— 得先解锁任一阶「悬停翻转」才出现在升级页；
  *    · p_machineinc 瓶盖机收入 —— 得先买下瓶盖机器才出现在升级页。
  *    助手的六阶翻瓶许可（h_bronze..h_diamond）同理：原版在升级页 · 助手区。
  */
 const TREE_BELT_NODES = ['p_stability', 'p_machinespeed', 'p_gateunlock', 'p_gatechance'];
 /**
- * ★ 用户口径（第十九轮）：`p_cursor`（解锁光圈）**不进技能树**了 ——
- *   它改到「商店」里花金币直接买（见 shopRows → cursorRow）。
- *   这里留着会导致「挂机模式」栏里渲染一个永远点不了的死节点。
+ * ★ 用户口径（第四十八轮）：`p_cursor`（解锁光圈）已**整体移除**（节点定义 / 商店行全没了），
+ *   所以这里也不再有它的位置 —— 光子树的三个根（光圈大小 / 挂机 / 稳定性）各自独立成栏。
  */
 const TREE_IDLE_NODES = ['p_sizelimit', 'p_idle', 'p_idlemove', 'p_idletime', 'p_idlerecov'];
 const HELPER_CAP_NODES = ['h_bronze', 'h_silver', 'h_gold', 'h_ruby', 'h_emerald', 'h_diamond'];
@@ -95,9 +95,16 @@ const HELPER_CAP_NODES = ['h_bronze', 'h_silver', 'h_gold', 'h_ruby', 'h_emerald
 const PANEL_W = 708;
 const SCROLL_W = 664;
 /**
- * 滚动视口高度（★ 第十九轮：格子尺寸不变，只是把提示带压薄 1px，两行仍完整可见）。
+ * 滚动视口高度（★ 第六十轮：提示带移除后 170 → 204，视口平铺面板背景）。
  */
-const SCROLL_H = 170;
+const SCROLL_H = 204;
+/** 滚动视口中心 y（面板坐标）：±102 与 inner 内板边缘完全对齐（内板 = panelH-12） */
+const SCROLL_CY = 0;
+/**
+ * 列表内容上下呼吸位（★ 第六十三轮：算进 content 高度内部，行整体下移 TOP_PAD——
+ * 不再写进 content 的位置，否则 ScrollView(elastic) 贴边夹取时会把它吃掉，首行格子顶死面板边框）
+ */
+const TOP_PAD = 8;
 /**
  * 底栏五件等距宽度：商店 / 升级 / 技能树 / 种类下拉框 / 列表展开按钮。
  * ★ 第三十四轮：为塞下第 5 件（展开/收起把手），四件各缩窄，总宽仍 706（左右各留 7）。
@@ -186,6 +193,8 @@ export class BottomPanel extends Component {
         this.reskinTabs();
         this.normalizeDropdown();
         this.wire();
+        // 场景烘焙的滚动视口/滚动条还是旧尺寸（170 高 / 中心 -15）→ 代码统一矫正一遍
+        this.applyExpand();
         G.addListener(() => this.onLang());
         this.lastLang = G.lang;
         this.rebuild();
@@ -209,6 +218,10 @@ export class BottomPanel extends Component {
         if (this.panel) {
             if (!this.hintLb || !this.hintLb.isValid) { this.hintLb = this.panel.getChildByName('hintLb')?.getComponent(Label) || null!; }
             if (!this.msLb || !this.msLb.isValid) { this.msLb = this.panel.getChildByName('msLb')?.getComponent(Label) || null!; }
+            // ★ 第六十轮：提示带/里程碑文本整体退役 —— 场景烘焙的节点运行时隐藏
+            for (const lb of [this.hintLb, this.msLb]) {
+                if (lb && lb.node && lb.node.isValid) { lb.node.active = false; }
+            }
             if (!this.scrollRoot || !this.scrollRoot.isValid) { this.scrollRoot = this.panel.getChildByName('scroll') || null!; }
             if (!this.scrollSV || !this.scrollSV.isValid) { this.scrollSV = this.scrollRoot?.getComponent(ScrollView) || null!; }
             if ((!this.content || !this.content.isValid) && this.scrollRoot) {
@@ -339,7 +352,6 @@ export class BottomPanel extends Component {
         const add = (r: RowSpec | null) => { if (r && r.id) { ids.push(r.id); } };
         for (const r of this.shopBottleRows()) { add(r); }
         add(this.machineRow());
-        add(this.cursorRow());
         add(this.helperRow());
         for (const r of this.upgradeRows()) { add(r); }
         G.markBaseline(ids);
@@ -352,17 +364,11 @@ export class BottomPanel extends Component {
         // 内圈浅色描边（木纹皮肤的「厚边」口径）：填色必须是不透明的 6 位 hex
         roundedPanel(p, PANEL_W - 12, LAYOUT.panelH - 12, 0, 0, '#F4E4C6', 16, '#D8BF94', 2, 'inner');
 
-        const topEdge = LAYOUT.panelH / 2;
-        // ★ 第十九轮：提示带字号 16 → 18（文案同步压短，见 Locale.goal_*），整体上提 1px 让位给列表
-        this.hintLb = label(p, '', -PANEL_W / 2 + 18, topEdge - 21, 440, 26,
-            { size: 18, color: '#7A4210', hAlign: 'left', anchorX: 0, overflow: 'shrink' });
-        this.hintLb.node.name = 'hintLb';
-        this.msLb = label(p, '', PANEL_W / 2 - 18, topEdge - 21, 200, 26,
-            { size: 17, color: '#8A6134', hAlign: 'right', anchorX: 1, overflow: 'shrink' });
-        this.msLb.node.name = 'msLb';
+        // ★ 第六十轮（用户口径）：面板顶部不再显示「下一步」提示带与里程碑进度，
+        //   列表视口直接上移加高、平铺整个面板背景（提示带只留场景烘焙节点，运行时隐藏）。
 
-        // 滚动区：上沿贴提示带下方，下沿离面板底 8px
-        const sv = scrollView(p, SCROLL_W, SCROLL_H, 0, -15);
+        // 滚动区：上沿贴面板顶边（留 4px 边距），下沿离面板底 8px
+        const sv = scrollView(p, SCROLL_W, SCROLL_H, 0, SCROLL_CY);
         this.scrollRoot = sv.root;
         this.content = sv.content;
         this.scrollSV = sv.sv;
@@ -405,15 +411,35 @@ export class BottomPanel extends Component {
      *   展开后盖住履带/能力条/底栏页签 —— 把手按钮 z 最高（bottomPanel 末位）+ y 跟面板顶边走，始终可点。
      */
     private toggleExpand() {
+        const from = this.expanded ? 1 : 0;
         this.expanded = !this.expanded;
-        this.applyExpand();
-        this.rebuild();   // 按新视口高度重夹滚动位置 + 刷新把手显隐
+        const to = this.expanded ? 1 : 0;
+        // ★ 用户口径（第六十一轮）：展开/收起不再瞬变 —— 面板向上生长 / 向下收回走 0.26s 补间
+        this.expObj.k = from;
+        this.applyExpandK(from);
+        this.rebuild();   // 按新视口高度重夹滚动位置 + 刷新把手显隐（夹取用终值，视觉由补间接管）
+        Tween.stopAllByTarget(this.expObj);
+        tween(this.expObj)
+            .to(0.26, { k: to }, {
+                easing: 'sineOut',
+                onUpdate: () => { if (this.panel && this.panel.isValid) { this.applyExpandK(this.expObj.k); } },
+            })
+            .start();
     }
 
-    /** 把面板/底板/提示带/滚动视口/滚动条/把手切到当前展开态（SLICED 底板改尺寸即拉伸） */
+    /** 把面板/底板/滚动视口/滚动条/把手切到当前展开态（SLICED 底板改尺寸即拉伸） */
     private applyExpand() {
+        this.applyExpandK(this.expanded ? 1 : 0);
+    }
+
+    /** 展开补间进度（0=收起 1=展开；toggleExpand 里做 k 补间驱动 applyExpandK） */
+    private expObj = { k: 0 };
+
+    /** k∈[0,1]：0=完全收起，1=完全展开；动画期间传中间值，整块面板随 k 向上生长 */
+    private applyExpandK(k: number) {
         if (!this.panel || !this.panel.isValid) { return; }
-        const h = LAYOUT.panelH + (this.expanded ? EXPAND_DH : 0);
+        const dh = EXPAND_DH * k;
+        const h = LAYOUT.panelH + dh;
         const cy = (LAYOUT.panelY - LAYOUT.panelH / 2) + h / 2;
         this.panel.setPosition(0, cy, 0);
         setSize(this.panel, PANEL_W, h);
@@ -425,23 +451,22 @@ export class BottomPanel extends Component {
             const st = n.getChildByName('stroke');
             if (st) { setSize(st, PANEL_W - inset, h - inset); }
         }
-        // 提示带贴新顶边
-        const top = h / 2 - 21;
-        if (this.hintLb && this.hintLb.isValid) { this.hintLb.node.setPosition(this.hintLb.node.position.x, top, 0); }
-        if (this.msLb && this.msLb.isValid) { this.msLb.node.setPosition(this.msLb.node.position.x, top, 0); }
-        // 滚动视口（Mask=GRAPHICS_RECT 监听 SIZE_CHANGED 自动重绘）；视口中心 y 恒 -15（底边固定推导）
+        // 滚动视口（Mask=GRAPHICS_RECT 监听 SIZE_CHANGED 自动重绘）；视口中心 y 恒 SCROLL_CY（底边固定推导）
+        // ⚠️ 动画期间视口尺寸必须随 k 插值（不能直接用终值 VH），否则遮罩先于面板变大、内容露出面板外
+        const vh = SCROLL_H + dh;
         if (this.scrollRoot && this.scrollRoot.isValid) {
-            setSize(this.scrollRoot, SCROLL_W, this.VH);
+            setSize(this.scrollRoot, SCROLL_W, vh);
             const view = this.scrollRoot.getChildByName('view');
-            if (view) { setSize(view, SCROLL_W, this.VH); }
+            if (view) { setSize(view, SCROLL_W, vh); }
+            this.scrollRoot.setPosition(0, SCROLL_CY, 0);
             const sb = this.scrollRoot.getComponent(UIScrollBar);
-            if (sb) { sb.trackH = this.VH - 24; sb.viewH = this.VH; }
+            if (sb) { sb.trackH = vh - 24; sb.viewH = vh; }
         }
         const sbar = this.panel.getChildByName('sbar');
-        if (sbar) { setSize(sbar, 6, this.VH - 24); sbar.setPosition(SCROLL_W / 2 + 12, -15, 0); }
+        if (sbar) { setSize(sbar, 6, vh - 24); sbar.setPosition(SCROLL_W / 2 + 12, SCROLL_CY, 0); }
         // ★ 用户口径（第三十四轮）：列表向上伸出时，底栏 3 个页签（+下拉框）**跟着一起上移**，
         //   始终贴在列表上方，不会被变高的面板盖住 —— 整条底栏随面板顶边抬高 EXPAND_DH。
-        const dy = this.expanded ? EXPAND_DH : 0;
+        const dy = dh;
         for (const id of ['shop', 'up', 'tree'] as Tab[]) {
             const ui = this.tabUis[id];
             if (ui && ui.node && ui.node.isValid) {
@@ -587,10 +612,13 @@ export class BottomPanel extends Component {
             const c = list[i];
             const y = mh / 2 - PAD - IH / 2 - i * (IH + 4);
             const on = c.id === cur;
-            // ★ 第三十五轮：选项背景换品阶底框 dik —— 瓶子项用本阶色 dik_{tier+1}，
-            //   非瓶子功能项默认第一块 dik_1；整图 SIMPLE（dik 无九宫格边）。
+            // ★ 第三十五轮：选项背景换品阶底框 dik —— 瓶子项用**本阶瓶身美术编号**对应的
+            //   dik_{art+1}（dik_1..7 = 白/绿/蓝/橙/金/红/紫，与 body_0..6 一一对应），
+            //   这样底框颜色和本行的瓶身图标一致；非瓶子功能项默认第一块 dik_1；整图 SIMPLE。
             //   选中态 = 淡金 tint 提亮（彩色底框不能再用深棕 tint 压暗）。
-            const bgPath = c.tier !== undefined ? 'skin/tier/dik_' + (c.tier + 1) : 'skin/tier/dik_1';
+            //   ⚠️ 第四十七轮：原来用 dik_{tier+1} —— 而 art 在 4/5 两阶与阶序互换
+            //     （红宝石瓶是 art 5、黄金瓶是 art 4）→ 红瓶行配了金底框（用户反馈「资源匹配不对」）。
+            const bgPath = c.tier !== undefined ? 'skin/tier/dik_' + (TIERS[c.tier].art + 1) : 'skin/tier/dik_1';
             const sp = sliced(this.ddMenu, 'ui/panel/card_white', MW - 10, IH, 0, y, [24, 24, 24, 24],
                 on ? '#FFE9B8' : '#FFFFFF', 'it' + i);
             sp.type = Sprite.Type.SIMPLE;
@@ -701,6 +729,7 @@ export class BottomPanel extends Component {
         // ★ 用户口径（第十七轮）：列表滚动位置由玩家掌控 —— 同页签同模块的重建（买瓶后指纹变化、
         //    定时 refresh 重建等）要保留当前滚动位置；只有换页签/换模块才回到顶部。
         const sameCat = this.lastCatKey !== '' && this.lastCatKey === this.tab + ':' + cat.id;
+        // ★ 第六十三轮：顶部落位改为「视口半高」—— 呼吸位不再写进 content 的位置（见 rebuild 下方 rows 注释）
         const savedY = sameCat ? this.content.position.y : (this.VH / 2);
 
         // 惯性还在滚的话先停掉，避免 ScrollView 用旧速度把 content 拽走
@@ -716,29 +745,59 @@ export class BottomPanel extends Component {
 
         const specs = this.specs(cat);
         // ★ 两列网格（用户要求「一行 2 个」）：
-        //    content 锚点在顶部 → 第一行**顶边**对齐内容顶：行中心 = -CELL_H/2 - r*(CELL_H+GAP_Y)
-        //    （写成 0 会让整行上飘出遮罩，顶部被裁掉一半）
+        //    content 锚点在顶部 → 第一行**顶边**对齐内容顶。
+        //    ★ 第六十三轮（用户追报「选项还是超出列表」）：TOP_PAD 从「content 的位置」搬进
+        //    「content 的内部」—— ScrollView(elastic) 会把不满屏/越界的 content 自动夹回视口
+        //    边缘（py 94→102 实测），写在位置上的 8px 呼吸位迟早被吃掉，首行格子重新顶死
+        //    面板上边框；把呼吸位算进 content 高度、行整体下移后，怎么夹都保留。
+        //    行中心 = -TOP_PAD - CELL_H/2 - r*(CELL_H+GAP_Y)
         const nrows = Math.ceil(specs.length / COLS);
         for (let i = 0; i < specs.length; i++) {
             const col = i % COLS;
             const r = (i / COLS) | 0;
             const x = col === 0 ? -(CELL_W + GAP_X) / 2 : (CELL_W + GAP_X) / 2;
-            const y = -CELL_H / 2 - r * (CELL_H + GAP_Y);
+            const y = -TOP_PAD - CELL_H / 2 - r * (CELL_H + GAP_Y);
             this.rows.push(makeCell(this.content, x, y, specs[i], () => this.refresh()));
         }
-        const h = nrows * (CELL_H + GAP_Y) - GAP_Y + 8;
+        // ★ 用户口径（第六十一轮）：换页签/换模块时行**依次弹入**（同模块的结构刷新——如买瓶——
+        //   不播，避免购买时闪动）；单行 0.18s backOut + 淡入，间隔 0.04s。
+        if (!sameCat) {
+            for (let i = 0; i < this.rows.length; i++) {
+                const n = this.rows[i].root;
+                const op = n.getComponent(UIOpacity) || n.addComponent(UIOpacity);
+                Tween.stopAllByTarget(n);
+                Tween.stopAllByTarget(op);
+                n.setScale(0.8, 0.8, 1);
+                op.opacity = 0;
+                const d = Math.min(i * 0.04, 0.4);
+                tween(n).delay(d).to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
+                tween(op).delay(d).to(0.12, { opacity: 255 }).start();
+            }
+        }
+        // 内容高度 = 行高 + 上下呼吸位各 TOP_PAD（★ 呼吸位在 content 内部，见上）
+        const rowsH = nrows * (CELL_H + GAP_Y) - GAP_Y;
+        const h = rowsH + TOP_PAD * 2;
         (this.content.getComponent(UITransform) as any).setContentSize(COLS * CELL_W + GAP_X, h);
         // 展开把手：内容超过一屏（4 格）或已展开时显示 —— ★ 展开态必须保持可见，否则收不回去
         if (this.expandBtn && this.expandBtn.isValid) {
-            const need = this.expanded || h > SCROLL_H + 2;
+            const need = this.expanded || rowsH > SCROLL_H + 2;
             if (this.expandBtn.active !== need) { this.expandBtn.active = need; }
         }
-        // content 锚点在顶部 → 位置写「视口半高」（见 UIKit.scrollView 注释）。
-        // 同模块重建时夹回新内容高度的合法范围（列表变短了就停在末尾），否则恢复顶部。
-        const maxY = this.VH / 2;
-        const minY = maxY - Math.max(0, h - this.VH);
-        const y = Math.min(maxY, Math.max(minY, savedY));
+        // content 锚点在顶部 → 顶部落位 = 视口半高（呼吸位已在 content 内部，贴边夹取不再吞掉它）。
+        // 合法落位区间 = [min(topY,bottomY), max(...)]：不足一屏两端重合取其一；超一屏时
+        // topY=顶部落位、bottomY=滚到底（content 底边贴视口底），同模块重建的滚动位置据此夹回。
+        const topY = this.VH / 2;
+        const bottomY = h - this.VH / 2;
+        const lo = Math.min(topY, bottomY);
+        const hi = Math.max(topY, bottomY);
+        const y = Math.min(hi, Math.max(lo, savedY));
+        Tween.stopAllByTarget(this.content);
         this.content.setPosition(0, y, 0);
+        // ★ 换模块且列表超一屏：整列从下方 26px 滑入落位（配合行的依次弹入）
+        if (!sameCat && h > this.VH + 2) {
+            this.content.setPosition(0, y - 26, 0);
+            tween(this.content).to(0.22, { position: new Vec3(0, y, 0) }, { easing: 'quadOut' }).start();
+        }
         this.sig = this.fingerprint(cat, specs.length);
         this.lastCatKey = this.tab + ':' + cat.id;
         this.refresh();
@@ -813,7 +872,7 @@ export class BottomPanel extends Component {
         const incomeDef = BOTTLE_STATS.find((s) => s.id === 'income')!;
 
         // ① 收入 —— 树的根（该阶唯一一开始就开放的节点）
-        if (!G.statMax(tier, 'income')) { out.push(this.statRow(tier, incomeDef, 'tr:b' + tier + ':income')); }
+        if (!G.statMax(tier, 'income')) { out.push(this.statRow(tier, incomeDef, 'tr:b' + tier + ':income', true)); }
 
         // ②★ 解锁下一阶瓶 —— 只在最高已研发阶出现。
         //   ★ 用户反馈「只能解锁两种瓶子」：原来它排在收入门控之后 —— 该阶收入没点过 1 级就提前
@@ -838,11 +897,12 @@ export class BottomPanel extends Component {
             if (id === 'income') { continue; }                     // 根已在上面画过
             const d = BOTTLE_STATS.find((s) => s.id === id);
             if (!d || !G.statUnlocked(d.id) || G.statMax(tier, d.id)) { continue; }
-            out.push(this.statRow(tier, d, 'tr:b' + tier + ':' + d.id));
+            out.push(this.statRow(tier, d, 'tr:b' + tier + ':' + d.id, true));
         }
 
         // ④ 模块解锁：传送带 → 履带科技线（原版挂在这棵树上）
-        //   ★ 用户口径（第十九轮）：「解锁光圈」已从技能模块移除，改到商店购买（见 cursorRow）。
+        //   ★ 第四十八轮：「解锁光圈」模块已整体移除 —— 「挂机 / 手部」两栏开局直接开放，
+        //     这里只剩「传送带模块 → 履带科技线」这一条解锁入口。
         if (G.skLv('p_stability') <= 0) { out.push(this.moduleRow('p_stability', 'unlock_beltmod', 'unlock_beltmod_d', 'tr:m:p_stability')); }
 
         return out;
@@ -855,7 +915,9 @@ export class BottomPanel extends Component {
         const afford = G.data.caps >= cost;
         return {
             id: seenId,
-            icon: def.icon,
+            // ★ 第五十二轮（用户口径）：技能树行中间不再放瓶子图 ——
+            //   研发解锁行改用「开锁」图标（bd 系列同风格），要解锁哪阶瓶子由名称说明。
+            icon: 'stat/unlock',
             // ★ 第三十八轮：解锁阶行也有 ztk 底框 + 等级进度（解锁节点 max=1 → 买下即满金）
             lv: G.skLv(id),
             lvMax: def ? def.max : 0,
@@ -929,7 +991,6 @@ export class BottomPanel extends Component {
         const out: RowSpec[] = this.shopBottleRows();
         const m = this.machineRow();
         if (m) { out.push(m); }
-        out.push(this.cursorRow());
         const h = this.helperRow();
         if (h) { out.push(h); }
         return out;
@@ -1031,37 +1092,8 @@ export class BottomPanel extends Component {
         };
     }
 
-    /* ---- 商城 · 抓取光圈（★ 用户口径第十九轮：从技能树挪到商店购买） ----
-     * 买下后手指带光圈跟随；点击/触发的判定逻辑完全不变（BottleField 里那套），
-     * 唯一变化只是「解锁入口」从技能树变成了商店设施 —— 和瓶盖机器同款流程。 */
-    private cursorRow(): RowSpec {
-        const on = G.hasCursor;
-        return {
-            id: 'sh:cursor',
-            icon: 'env/cursor',
-            buySfx: true,   // ★ 商店物品：买成补一声 buy
-            name: t('shop_cursor', G.lang),
-            sub: on ? t('shop_cursor_on', G.lang) : t('shop_cursor_d', G.lang),
-            label: on ? t('max', G.lang) : fmt(CURSOR.buyPrice),
-            cur: on ? undefined : 'coin',
-            tone: on ? 'max' : (G.data.money >= CURSOR.buyPrice ? 'on' : 'off'),
-            ad: !on && G.data.money < CURSOR.buyPrice,
-            onBuy: (after) => {
-                if (G.hasCursor) { Toast.I?.show(t('cursor_bought', G.lang), '#FFD98A'); return; }
-                if (!G.buyCursor()) {
-                    moneyShortAd(CURSOR.buyPrice, () => {
-                        if (G.buyCursor()) {
-                            Toast.I?.show(t('cursor_bought', G.lang), '#8CE7A2');
-                            after();
-                        }
-                    });
-                    return;
-                }
-                Toast.I?.show(t('cursor_bought', G.lang), '#8CE7A2');
-                after();
-            },
-        };
-    }
+    /* ★ 第四十八轮：「商城 · 抓取光圈」这一行**已删除** —— 光圈开局常显，
+     *   不再有任何「解锁光圈」的商店入口（用户口径）。 */
 
     /* ---- 商城 · 助手之手 ----
      * ★ 未研发（h_unlock 0 级）→ **返回 null，整行不画**（用户口径：未开放研发的选项不出现）；
@@ -1114,8 +1146,9 @@ export class BottomPanel extends Component {
             }
         }
 
-        // ② 玩家数值升级：光标圈大小（解锁光圈后）/ 瓶盖机收入（买机器后）
-        if (G.skLv('p_cursor') > 0 && !G.skMax('p_cursorsize')) { out.push(this.skillNodeRow('p_cursorsize', 'up:k:p_cursorsize')); }
+        // ② 玩家数值升级：光圈大小（★ 第四十八轮：解锁任一阶「悬停翻转」后才出现 ——
+        //    没解锁触发前光圈只是个点，半径升级没有意义）/ 瓶盖机收入（买机器后）
+        if (G.haloTriggerOn && !G.skMax('p_cursorsize')) { out.push(this.skillNodeRow('p_cursorsize', 'up:k:p_cursorsize')); }
         if (G.hasMachine && !G.skMax('p_machineinc')) { out.push(this.skillNodeRow('p_machineinc', 'up:k:p_machineinc')); }
 
         // ③ 助手各阶翻瓶许可（原版 HelperUpgradeMenuUI：Bronze..Diamond Hand）
@@ -1134,16 +1167,23 @@ export class BottomPanel extends Component {
      * ★ 第二十一轮用户口径：左侧大图标 = **稀有度色底板 + 对应瓶身**，
      *   原来的词条图标（收益 $ / 悬停手势 …）缩成角标跨在底板右下角（对照用户参考图）；
      *   名字只留词条名（「收益」），阶信息由瓶身颜色直接表达。
+     *
+     * ★ 第五十二轮（用户口径）：**技能树页签**的词条行不再用瓶子 ——
+     *   中间大图标直接用词条图标（美术优化后的 bd 系列 stat 贴图），
+     *   「右下角的角标提上来放中间」，也不再画稀有度底板；
+     *   升级页 / 商店页保持「瓶子中间 + 词条角标右下角」不变（`tree` 缺省 false）。
      */
-    private statRow(tier: number, d: BottleStatDef, seenId: string): RowSpec {
+    private statRow(tier: number, d: BottleStatDef, seenId: string, tree = false): RowSpec {
         const cost = G.statCost(tier, d.id);
-        const caps = G.statCurrency(d.id) === 'caps';
+        // ★ 第六十二轮（用户口径）：技能树页签里所有板块（含瓶子模块词条）一律消耗瓶盖；
+        //   升级页 / 商店页维持词条定义货币（capincome/capgain 瓶盖，其余金币）
+        const caps = tree || G.statCurrency(d.id) === 'caps';
         const afford = caps ? G.data.caps >= cost : G.data.money >= cost;
         return {
             id: seenId,
-            icon: 'bottle/body_' + TIERS[tier].art,
-            badge: d.icon,
-            badgeBg: TIERS[tier].color,
+            icon: tree ? d.icon : 'bottle/body_' + TIERS[tier].art,
+            badge: tree ? undefined : d.icon,
+            badgeBg: tree ? undefined : TIERS[tier].color,
             // ★ 第三十五轮：底框进度按词条等级填充（ztk_2 FILLED），点满显示完全
             lv: G.statLv(tier, d.id),
             lvMax: G.statMaxLevel(tier, d.id),
@@ -1155,10 +1195,10 @@ export class BottomPanel extends Component {
             ad: !afford,   // 金币/瓶盖不足都走右上角广告图标（直接拉广告给货）
             onBuy: (after) => {
                 if (G.statMax(tier, d.id)) { Toast.I?.show(t('maxed', G.lang), '#FFD98A'); return; }
-                if (!G.upgradeStat(tier, d.id)) {
+                if (!G.upgradeStat(tier, d.id, tree ? 'caps' : undefined)) {
                     if (caps) {
                         // 瓶盖不足 → 直接拉广告给货（无二级弹窗）
-                        capsShortAd(G.statCost(tier, d.id), () => { if (G.upgradeStat(tier, d.id)) { after(); } });
+                        capsShortAd(G.statCost(tier, d.id), () => { if (G.upgradeStat(tier, d.id, tree ? 'caps' : undefined)) { after(); } });
                     }
                     else {
                         // 金币不足 → 广告出路（不显示差额，看完自动补足并重试）
@@ -1171,11 +1211,15 @@ export class BottomPanel extends Component {
         };
     }
 
-    /** 单个科技节点行（升级页里的光标圈大小 / 瓶盖机收入 / 助手许可共用） */
+    /**
+     * 单个科技节点行（升级页里的光标圈大小 / 瓶盖机收入 / 助手许可共用）。
+     * ★ 第六十四轮（用户口径）：升级页=金币、技能树=瓶盖 —— 这三条虽是科技节点，
+     *   但只出现在升级页，按原版 PlayerUpgrade 口径走金币（广告兜底也改金币）。
+     */
     private skillNodeRow(id: string, seenId: string): RowSpec {
         const def = SKILL_BY_ID[id];
         const cost = G.skCost(id);
-        const afford = G.data.caps >= cost;
+        const afford = G.data.money >= cost;
         return {
             id: seenId,
             icon: def.icon,
@@ -1185,14 +1229,14 @@ export class BottomPanel extends Component {
             name: t(def.name, G.lang).replace(/\n/g, ' '),
             sub: skillSub(def),
             label: fmt(cost),
-            cur: 'cap',
+            cur: 'coin',
             tone: afford ? 'on' : 'off',
-            ad: !afford,   // 瓶盖不足 → 右上角广告图标（直接拉广告给货）
+            ad: !afford,   // 金币不足 → 右上角广告图标（直接拉广告给货）
             onBuy: (after) => {
                 if (G.skMax(id)) { Toast.I?.show(t('maxed', G.lang), '#FFD98A'); return; }
-                if (!G.upgradeSkill(id)) {
-                    // 瓶盖不足 → 直接拉广告给货（无二级弹窗）
-                    capsShortAd(G.skCost(id), () => { if (G.upgradeSkill(id)) { after(); } });
+                if (!G.upgradeSkill(id, 'money')) {
+                    // 金币不足 → 直接拉广告给货（无二级弹窗）
+                    moneyShortAd(G.skCost(id), () => { if (G.upgradeSkill(id, 'money')) { after(); } });
                     return;
                 }
                 after();
@@ -1259,28 +1303,26 @@ export class BottomPanel extends Component {
         if (!this.built || !this.content || !this.content.isValid) { return; }
         const cat = this.catDef();
         const specs = this.specs(cat);
+        const fp = this.fingerprint(cat, specs.length);
         // 结构变了（解锁了新阶 / 新词条 / 换了语言）→ 整块重建
-        if (specs.length !== this.rows.length || this.fingerprint(cat, specs.length) !== this.sig) {
-            this.rebuild();
-            return;
+        if (specs.length !== this.rows.length || fp !== this.sig) {
+            // ★ 第五十八轮：行**身份**没变（逐行 id 相同，只是数值/等级变了）→ 只 applyRow、不重建。
+            //   以前任何一次购买都会改指纹 → destroyChildren 把玩家指头底下的格子整个销毁，
+            //   TOUCH_START→TOUCH_END 之间触摸目标被拆 → 这次点击静默失效，
+            //   表现就是「点一下没反应，再点一下才触发」（连点时几乎必现）。
+            const sameRows = specs.length === this.rows.length && specs.every((s, i) => {
+                const cur = this.rows[i] && this.rows[i].spec;
+                return !!s.id && !!cur && cur.id === s.id;
+            });
+            if (!sameRows) { this.rebuild(); return; }
+            this.sig = fp;   // 身份相同 → 新指纹照收，后面不用每次都比
         }
         for (let i = 0; i < specs.length; i++) { applyRow(this.rows[i], specs[i]); }
         this.refreshHead();
     }
 
     private refreshHead() {
-        // ★ 第四十三轮：提示带/里程碑条的文本先比对再写（面板每 0.25s 刷一次，
-        //   无条件写 string 会白触发系统字体重绘 + 纹理上传）
-        if (this.hintLb && this.hintLb.isValid) {
-            const hint = t('next_goal', G.lang) + '：' + nextGoalText();
-            if (this.hintLb.string !== hint) { this.hintLb.string = hint; }
-        }
-        if (this.msLb && this.msLb.isValid) {
-            const next = G.msNext;
-            const ms = t('ms_chip', G.lang).replace('{n}', String(G.milestone))
-                + ' · ' + (next ? (fmt(G.msProgress) + '/' + fmt(next.need)) : t('ms_max', G.lang));
-            if (this.msLb.string !== ms) { this.msLb.string = ms; }
-        }
+        // ★ 第六十轮：「下一步」提示带与里程碑进度条已按用户口径移除（视口平铺面板背景）
         this.refreshNewTag();
         this.refreshTabTags();
     }
@@ -1296,7 +1338,6 @@ export class BottomPanel extends Component {
         if (tb === 'shop') {
             for (const r of this.shopBottleRows()) { add(r); }
             add(this.machineRow());
-            add(this.cursorRow());
             add(this.helperRow());
         } else if (tb === 'up') {
             for (const r of this.upgradeRows()) { add(r); }

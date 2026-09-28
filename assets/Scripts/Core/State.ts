@@ -1,6 +1,6 @@
 import {
-    ABILITY, ACHIEVEMENTS, AD_BUFF_SEC, BOTTLE_STATS, CAP_GAIN_BASE, CURSOR, FLIP, HAND, MACHINE, MILESTONES, MilestoneDef,
-    SKILLS, SkillDef, TIERS, TreeId,
+    ABILITY, ACHIEVEMENTS, AD_BUFF_SEC, BOTTLE_STATS, CAP_GAIN_BASE, FLIP, HALO_DOT_R, HALO_DOT_SCALE, HAND, MACHINE,
+    MILESTONES, MilestoneDef, SKILLS, SkillDef, TIERS, TreeId,
 } from './GameConfig';
 import { SaveData, defaultSave, loadSave, writeSave, clearSave } from './Save';
 import { clamp, clamp01 } from './Util';
@@ -78,7 +78,13 @@ export class State {
         if (this.notifyBusy) { this.notifyAgain = true; return; }
         this.notifyBusy = true;
         try {
-            for (const f of this.listeners) { f(); }
+            // ★ 每个监听独立 try/catch（2026-09-28 第五十三轮）：监听器可能来自
+            //   已被销毁的场景组件（例：游戏内返回标题页后，Abilities 等的监听仍挂在
+            //   本单例上；标题页删档 → reset→notify 命中死组件 → 整条 notify 链
+            //   连同调用方 onOk 一起中断）。坏监听只跳过自己，不再拖垮其余监听。
+            for (const f of this.listeners) {
+                try { f(); } catch (e) { console.warn('[State] listener error (skipped)', e); }
+            }
         } finally {
             const unlock = () => {
                 this.notifyBusy = false;
@@ -123,11 +129,17 @@ export class State {
     }
     skDef(id: string): SkillDef | undefined { return SKILL_BY_ID[id]; }
     treeOf(id: string): TreeId | null { return SKILL_BY_ID[id] ? SKILL_BY_ID[id].tree : null; }
-    /** 升级科技节点（消耗瓶盖） */
-    upgradeSkill(id: string): boolean {
+    /**
+     * 升级科技节点。
+     * ★ 第六十四轮（用户口径）：货币跟**所在页签**走 —— 技能树页签（缺省）消耗瓶盖；
+     *   升级页入口（光圈大小 / 瓶盖机收入 / 助手许可）传 'money' 走金币（原版这些
+     *   PlayerUpgrade 全是金币价：MachineIncome 10000×1.46 / CursorArea 500 / 助手 4000+）。
+     */
+    upgradeSkill(id: string, cur?: 'money' | 'caps'): boolean {
         const def = SKILL_BY_ID[id];
         if (!def || this.skMax(id)) { return false; }
-        if (!this.spendCaps(this.skCost(id))) { return false; }
+        const cost = this.skCost(id);
+        if (cur === 'money' ? !this.spendMoney(cost) : !this.spendCaps(cost)) { return false; }
         this.data.skills[id] = this.skLv(id) + 1;
         this.checkAch();
         this.notify();
@@ -170,12 +182,15 @@ export class State {
         const lv = this.statLv(tier, id);
         return def && def.mode === 'mul' ? p.base * (1 + lv * p.step) : p.base + lv * p.step;
     }
-    upgradeStat(tier: number, id: string): boolean {
+    upgradeStat(tier: number, id: string, cur?: 'money' | 'caps'): boolean {
         if (this.statMax(tier, id)) { return false; }
         if (!this.statUnlocked(id)) { return false; }         // 里程碑没到 → 面板里根本没有这条
         if (!this.tierResearched(tier)) { return false; }     // 未研发的阶数不能升级词条
         const cost = this.statCost(tier, id);
-        const ok = this.statCurrency(id) === 'caps' ? this.spendCaps(cost) : this.spendMoney(cost);
+        // ★ 第六十二轮（用户口径）：技能树页签里的词条升级一律消耗瓶盖（cur='caps' 覆盖）；
+        //   升级页 / 商店页入口不传 → 按词条定义（capincome/capgain 瓶盖，其余金币）
+        const c = cur || this.statCurrency(id);
+        const ok = c === 'caps' ? this.spendCaps(cost) : this.spendMoney(cost);
         if (!ok) { return false; }
         const i = this.statIdx(id);
         this.data.tierStats[tier][i] = this.statLv(tier, id) + 1;
@@ -187,9 +202,13 @@ export class State {
     /* ---- 悬停翻转：每阶瓶子各自一次性解锁（§4.2 / §4.4-3） ---- */
     hoverUnlocked(tier: number): boolean { return this.statLv(tier, 'hover') > 0; }
     hoverCost(tier: number): number { return TIERS[tier].hoverCost; }
-    /** 是否至少有一阶在手的瓶子解锁了悬停（决定光标圈要不要出现） */
-    get anyHover(): boolean {
-        for (let t = 0; t < 7; t++) { if (this.hoverable(t)) { return true; } }
+    /**
+     * 是否解锁过**任意一阶**「悬停翻转」（不看该阶还有没有瓶子）。
+     * ★ 第四十八轮：它就是光圈的「触发形态」开关 ——
+     *   未解锁 = 光圈只是一个小点（不触发）；解锁 = 恢复正常的吸附半径（拖过即翻）。
+     */
+    get haloTriggerOn(): boolean {
+        for (let t = 0; t < 7; t++) { if (this.hoverUnlocked(t)) { return true; } }
         return false;
     }
     /** 该阶瓶子能否被「光标悬停」触发 */
@@ -336,7 +355,6 @@ export class State {
     }
 
     /* ================= 玩家科技 ================= */
-    get hasCursor() { return this.skLv('p_cursor') > 0; }
     get hasIdle() { return this.skLv('p_idle') > 0; }
     get hasGate() { return this.skLv('p_gateunlock') > 0; }
     /**
@@ -356,27 +374,21 @@ export class State {
         this.notify();
         return true;
     }
-    /** 光标吸附半径（px）：0.55m × (1 + 0.05L)；广告增益「光圈变大」期间 ×2 */
-    get cursorRadius() { return this.sk('p_cursorsize') * (this.haloBuffOn ? 2 : 1); }
-
-    /**
-     * 抓取光圈（商店设施，$500 金币）。
-     *
-     * ★ 用户口径（第十九轮）：光圈解锁从「技能树 · 瓶子模块」挪到**商店**直接买。
-     *   状态仍然落在同一个科技节点 `p_cursor` 上 —— 于是
-     *   `BottleField`（光圈跟手）、`UpgradeRows`（光圈半径升级项）、
-     *   `BottomPanel.TREE_TECHS`（手部/挂机模块的解锁条件）全部无需改动。
+    /* ---- 光圈（光标指示器） ----
+     * ★ 用户口径（第四十八轮）：「解锁光圈」模块已整体移除 —— 光圈**开局就显示**。
+     *   · 未解锁任何一阶「悬停翻转」→ 只是一个小点（跟手，但不触发）；
+     *   · 解锁任一阶「悬停翻转」→ 恢复正常的吸附半径（拖过即翻）；
+     *   · 广告「2 倍光圈」→ 视觉 + 半径一起 ×2，3 分钟后还原。
      */
-    buyCursor(): boolean {
-        if (this.hasCursor) { return false; }
-        const price = CURSOR.buyPrice;
-        if (this.data.money < price) { return false; }
-        this.data.money -= price;
-        this.data.skills['p_cursor'] = 1;
-        this.checkAch();
-        this.save();
-        this.notify();
-        return true;
+    /** 光圈触发半径（px）：小点 / 吸附半径（p_cursorsize）× 广告增益 2 倍 */
+    get haloRadius(): number {
+        const r = this.haloTriggerOn ? this.sk('p_cursorsize') : HALO_DOT_R;
+        return r * (this.haloBuffOn ? 2 : 1);
+    }
+    /** 光圈贴图缩放：小点 0.3 / 正常 1，广告增益期间 ×2 */
+    get haloScale(): number {
+        const s = this.haloTriggerOn ? 1 : HALO_DOT_SCALE;
+        return s * (this.haloBuffOn ? 2 : 1);
     }
 
     /* ================= 广告增益（UI/Ads.ts 统一入口激活） ================= */

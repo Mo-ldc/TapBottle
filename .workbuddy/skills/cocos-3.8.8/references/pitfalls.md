@@ -866,3 +866,44 @@ GameRoot Widget 边距归 0（平铺可见区）；生成器 `gen_scene.py` 的 
 **组件格式**：每个 Component 除了紧跟一个 `cc.CompPrefabInfo` 条目，自身还要有
 `__prefab: {__id__: 指向该条目}` 字段，缺了 check_prefab.py 报 P3。
 **工具**：`build_row_prefab.py`（递归 emit_node：node 占位 → children 子树 → 组件+CompPrefabInfo → PrefabInfo）。
+
+## persist 节点二次 loadScene 回同场景：@property 指向被引擎销毁的新副本（2026-09-28）
+**症状**：点「返回标题」按钮报 `TypeError: Cannot read properties of null (reading 'length')`，
+堆栈 `Node._findComponent → getComponent → 场景脚本 onLoad`。首次进场景正常，**只有 loadScene 回到
+同一个场景时发生**；构建包可能不炸（SceneAsset 缓存复用同一 Scene 实例、AttachPersist 走 else
+重新挂载分支），预览页必炸（场景按需重新反序列化出新副本）。
+**根因**：场景文件里序列化了节点 X（如常驻 Res 节点），运行时 `director.addPersistRootNode(X)`。
+二次 `loadScene` 同一场景时，引擎 `runSceneImmediate` 的 **AttachPersist** 发现新场景里存在
+**uuid 相同的 X 副本** → `existNode._destroyImmediate()` 销毁新副本、换插常驻老节点。
+而场景脚本 `@property` 反序列化出的引用指向**已销毁的新副本** → 对它 getComponent 读 `null._components`。
+**修复**：onLoad 里守卫——引用失效时按 uuid 找回常驻老节点（两份 uuid 相同）：
+```ts
+if (this.resNode && !this.resNode.isValid) {
+    const persist = (this.node.scene || director.getScene()).getChildByUuid(this.resNode.uuid);
+    if (persist) { this.resNode = persist; }
+}
+if (this.resNode && this.resNode.isValid && !director.isPersistRootNode(this.resNode)) {
+    director.addPersistRootNode(this.resNode);
+}
+```
+**教训**：① persist 节点不要只依赖 @property 引用，关键路径用单例兜底（如 `Res.I`，且确认单例赋值
+时序在场景脚本 onLoad 之前/或作 fallback）；② 复现这种「第二次才发生」的错，必须跑完整链路
+（进 Game → 点返回），不能用直接调组件方法替代——`getComponent('脚本类名')` 在 editor 目标下
+取用户脚本组件可能拿 null，要用真实 jsclick 触发；③ CDP `Runtime.exceptionThrown` 能拿到完整
+JS 堆栈，配合 chunk 行号回源码（preview chunk 在 `temp/programming/packer-driver/targets/preview/chunks/`）。
+
+## 模块级单例上的场景监听器：场景销毁后 notify 打到死组件（2026-09-28 第五十三轮）
+- **症状**：`TypeError: Cannot read properties of null (reading 'xxx')`，栈顶是某 UI 组件的方法（如
+  `Abilities.layoutBar` 里 `this.btns[k]`），触发点是任意一次 `G.reset()/notify()` —— 且**只有
+  「A 场景 → 回 B 场景 → 再做某操作」的跨场景链路才炸**，首次进入从不炸。
+- **根因**：单例（如 `State`）的 `addListener` 闭包持有场景组件引用；场景切换（loadScene）销毁旧场景
+  组件后闭包变死引用。如果清监听只写在 `onLoad`（下次进场景才清），那么「离开场景后、再进场景前」
+  的窗口期内任何一次单例广播（删档 reset、切语言、离线结算）都会命中死组件。
+- **修复套路（四层，缺一不可的建议组合）**：
+  1. 场景主控 `onDestroy` 里 `clearListeners()`（离场即清，不要只靠进场的 onLoad）；
+  2. 单例 `notify()` 逐监听 try/catch —— 一个坏监听只跳过自己，否则异常会沿调用链炸穿
+     （实测把 `onOk` 后半段的 save/close 全打断，确认弹窗卡死）；
+  3. 监听回调开头加 `if (!this.isValid || !this.node || !this.node.isValid) return;`；
+  4. 单例里注册的回调尽量持有「数据」而非「节点」。
+- **无头复现技巧**：emit 直发事件（`node.emit('touch-end')`）绕开坐标换算，先验逻辑链路；
+  跨场景链路要单独写模板跑（进场景→返回→再操作），只测首启永远复现不了。

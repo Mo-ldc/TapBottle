@@ -18,15 +18,31 @@ const ART_W = 150, ART_H = 375, ART_AY = 0.34;
 
 export const BOTTLE_SCALE = LAYOUT.bottleH / ART_H;
 
+/* ---------------- 瓶身几何（贴图矩形 150×375，锚点在瓶底上方 0.34H，整图铺满无留白） ---------------- */
+
+/** 正立（0°）时贴图矩形最低点相对锚点的下移（design px） */
+const ART_DOWN = ART_H * ART_AY * BOTTLE_SCALE;               // 32.64
+/** 倒立（180°）时最低点相对锚点的下移 = 原矩形上半段 */
+const ART_UP = ART_H * (1 - ART_AY) * BOTTLE_SCALE;           // 63.36
+/** 平放（±93°）时最低点相对锚点的下移 = 矩形四角旋转后取最小 y */
+const ART_LIE = (ART_W / 2 * Math.sin(93 * Math.PI / 180)
+    + ART_H * (1 - ART_AY) * Math.abs(Math.cos(93 * Math.PI / 180))) * BOTTLE_SCALE;  // ≈22.49
+
+/** 桌面线 = homeY - GROUND_CLEAR（沿用正立瓶底现状：贴在格子基准线上方 1.92px） */
+const GROUND_CLEAR = 1.92;
+
 /**
- * 影子相对「瓶身静止基准点」的下移量：贴在瓶底、再往上一点（值越小越贴近瓶子）。
- * ★ 用户口径（第十六轮）：影子再往**上** 7 像素 —— 正立时瓶身整体上抬（restDy），
- *   影子还停在原地就会离瓶底太远，看着像「飘在桌面上」。
+ * ★ 用户口径（第五十轮）：**影子固定在桌面线，瓶子三态的剪影最低点统一落到桌面线**。
+ *  旧行为：crit dy=0 / fail dy=-0.106H —— 倒立、平放瓶的剪影整体沉到桌面线以下 61/31px，
+ *  而影子（只跟 homeY）还在桌面线上，看起来「影子在瓶子中间」。
+ *  现在三种姿态的静止 y 补偿 = 本姿态最低点延伸 - GROUND_CLEAR，瓶底全部贴回同一条线。
  */
-/** 影子中心相对地面线的下沉量。
- *  ★ 第四十一轮：-7 → -27（影子上移 20px）—— 正立瓶底就落在地面线（homeY−1.9），
- *  原 29 的下沉量让影子顶沿距瓶底悬空约 20px，看起来瓶子浮在影子上面。 */
-const SHADOW_DY = LAYOUT.bottleH * 0.375 - 27;
+function restDyOf(angle: number): number {
+    return (angle === 0 ? ART_DOWN : angle === 180 ? ART_UP : ART_LIE) - GROUND_CLEAR;
+}
+
+/** 影子中心相对桌面上移量：椭圆一半藏进瓶后、一半露出贴在瓶底正下（原 -7 显得「太靠下」） */
+const SHADOW_LIFT = 2;
 
 /**
  * 瓶身视觉中心相对节点原点的上移量。
@@ -92,14 +108,16 @@ export class Bottle extends Component {
         this.homeX = x; this.homeY = y;
         this.node.setScale(BOTTLE_SCALE, BOTTLE_SCALE, 1);
 
-        // 影子：统一挂在「影子层」（位于所有瓶子之下），位置贴在瓶底再往上一点
+        // 影子：统一挂在「影子层」（位于所有瓶子之下），中心贴在桌面线（瓶底）上
         let sh: Node | null = Pool.acquire(PF_SHADOW, shadowParent);
-        if (!sh) { sh = nd(shadowParent, 'shadow', 64, 24, x, y - SHADOW_DY); }
+        if (!sh) { sh = nd(shadowParent, 'shadow', 64, 24, x, y - GROUND_CLEAR + SHADOW_LIFT); }
         this.shadow = sh;
-        sh.setPosition(x, y - SHADOW_DY, 0);
+        sh.setPosition(x, y - GROUND_CLEAR + SHADOW_LIFT, 0);
         sh.setScale(1, 1, 1);
         this.shadowSp = sh.getComponent(Sprite) || sh.addComponent(Sprite);
-        setFrame(this.shadowSp, 'env/disc', 64, 24, new Color(0, 0, 0, 118));
+        // 第五十五轮：disc 重生成为硬边椭圆（AA 带 1~2px），浓度由着色 alpha 承担 ——
+        // 旧有效 alpha≈(118/255)²≈21%，故 255 内芯 × 55 ≈ 原视觉浓度
+        setFrame(this.shadowSp, 'env/disc', 64, 24, new Color(0, 0, 0, 55));
 
         // 瓶身（锚点在瓶底偏上，便于绕“瓶底”翻转）—— 预制体里已建好，只换贴图
         let bn = this.art;
@@ -110,7 +128,7 @@ export class Bottle extends Component {
         // ★ 用户口径（第三十三轮）：贴图已转正（bottle/body_*.png 瓶口朝上），
         //   静置默认 0° 就是正立；倒立/平放姿态全部由这张正立图旋转复用，无第二套资源。
         this.node.angle = 0;
-        this.restDy = LAYOUT.bottleH * 0.32;
+        this.restDy = restDyOf(0);
         this.applyRest(false);
     }
 
@@ -177,30 +195,29 @@ export class Bottle extends Component {
     private static poseOf(outcome: 'crit' | 'ok' | 'fail'): Pose {
         // ★ 用户口径（第三十三轮）：贴图已转正（瓶口朝上），所以 0° = 正立，180° = 瓶口朝下。
         //   倒立没有单独资源 —— 全部是正立贴图的旋转复用。
+        //   ★ 第五十轮：dy 改由 restDyOf(angle) 统一推导 —— 三态剪影最低点都贴回桌面线。
         if (outcome === 'ok') {
             // 瓶口朝上：贴图原姿态即可
-            return { angle: 0, dx: 0, dy: LAYOUT.bottleH * 0.32 };
+            return { angle: 0, dx: 0, dy: restDyOf(0) };
         }
         if (outcome === 'crit') {
             // 瓶口朝下（扣盖）：正立图旋转 180°
-            return { angle: 180, dx: 0, dy: 0 };
+            return { angle: 180, dx: 0, dy: restDyOf(180) };
         }
-        // 平放：绕瓶底偏上 0.34 处转 ±93°，瓶身最低点是节点原点下方 0.234*bottleH，
-        // 贴图锚点在瓶底上方 0.34*bottleH —— 两者之差即让「躺瓶」正好落在桌面线上。
-        // （矩形旋转 180° 后仍是同一矩形，±93° 的贴地推导对新图依然成立。）
+        // 平放：绕瓶底偏上 0.34 处转 ±93°，瓶身最低点正好压在桌面线上（restDyOf 统一推导）。
         // ⚠️ 方向语义（换正立图后反了）：+93° = 视觉向**左**倒，-93° = 向**右**倒 ——
         //    滑倒方向 dir 在 land()/flip() 里按这个新语义取 sign。
-        return { angle: Math.random() < 0.5 ? -93 : 93, dx: 0, dy: -LAYOUT.bottleH * 0.106 };
+        return { angle: Math.random() < 0.5 ? -93 : 93, dx: 0, dy: restDyOf(93) };
     }
 
     /** 把节点摆到当前静止姿态（可选动画） */
     private applyRest(animate: boolean) {
         const tx = this.homeX + this.restDx;
         const ty = this.homeY + this.restDy;
-        // 影子的 y 只跟 homeY（地面线）走，不能带 restDy：
-        // 贴图锚点在瓶底上方 0.34 处，restDy 正是为「180° 翻转后瓶底重新落到地面线」而设的补偿量，
-        // 若影子跟着 restDy 一起抬，正立(ok)时影子会浮到瓶身中段、被瓶子完全盖住。
-        const shPos = new Vec3(tx, this.homeY - SHADOW_DY, 0);
+        // 影子的 y 只跟 homeY（桌面线）走，不随姿态变（★ 第五十轮：三态瓶底都贴回这条线）：
+        // 贴图锚点在瓶底上方 0.34 处，restDy 已把每种姿态的剪影最低点补偿到桌面线，
+        // 影子中心再相对桌面上抬 SHADOW_LIFT —— 椭圆一半藏在瓶后、一半露出贴住瓶底。
+        const shPos = new Vec3(tx, this.homeY - GROUND_CLEAR + SHADOW_LIFT, 0);
         if (animate) {
             tween(this.node).to(0.16, { position: new Vec3(tx, ty, 0) }, { easing: 'quadOut' }).start();
             tween(this.shadow).to(0.16, {
@@ -304,11 +321,12 @@ export class Bottle extends Component {
             .start();
 
         // ★ 用户口径（第十六轮）：**只有倒立扣盖**给一颗星光，且画在**瓶身正中间**。
+        //   倒立时瓶身视觉中心在锚点**下方** BODY_CENTER_DY（矩形绕锚点转了 180°）。
         //   正立（ok）不再有任何星光 —— 原来 ok 的星画在瓶子上方 96px（bottleH 全高），
         //   看起来就是「一颗飘在半空的光」，和瓶子没关系。
         //   瓶盖实体粒子只有一个出口：`CapMachine.spawnChips`。
         if (!silent && crit && FxLayer.I) {
-            FxLayer.I.sparkle(this.homeX, this.homeY + BODY_CENTER_DY, 110, '#FFD75E');
+            FxLayer.I.sparkle(this.homeX, this.node.position.y - BODY_CENTER_DY, 110, '#FFD75E');
         }
 
         if (this.onLanded) { this.onLanded(this, outcome); }
@@ -333,15 +351,16 @@ export class Bottle extends Component {
         const start = this.node.angle;
         const end = start + 360 + Bottle.angDelta(start, 180);
         const sy = this.homeY + this.restDy;
+        const dyCrit = restDyOf(180);
 
         tween(this.node).to(dur * 2, { angle: end }, { easing: 'sineInOut' }).start();
         tween(this.node)
             .to(dur, { position: new Vec3(this.homeX, sy + jump, 0) }, { easing: 'quadOut' })
-            .to(dur, { position: new Vec3(this.homeX, this.homeY, 0) }, { easing: 'quadIn' })
+            .to(dur, { position: new Vec3(this.homeX, this.homeY + dyCrit, 0) }, { easing: 'quadIn' })
             .call(() => {
                 this.node.angle = 180;
                 this.restDx = 0;
-                this.restDy = 0;
+                this.restDy = dyCrit;
                 tween(this.node).to(0.05, { scale: new Vec3(s * 1.16, s * 0.82, 1) })
                     .to(0.09, { scale: new Vec3(s, s, 1) })
                     .call(() => { this.busy = false; onDone(); }).start();

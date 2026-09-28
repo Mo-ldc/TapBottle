@@ -163,6 +163,15 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/ui/button/wood_tab_dark/spriteFrame',
     'Textures/ui/deco/wood_rail/spriteFrame',
     'Textures/ui/icon/x_mail/spriteFrame',
+    // 标题页「开始游戏/继续游戏」文字贴图（第六十五轮）
+    'Textures/startUI/wzi01/spriteFrame',
+    'Textures/startUI/wzi02/spriteFrame',
+    // 通用弹窗换皮（第六十六轮）：面板/关闭叉/取消蓝键/确认橙键 + 温馨提示标题字
+    'Textures/popup/buco01/spriteFrame',
+    'Textures/popup/buco02/spriteFrame',
+    'Textures/popup/buco04/spriteFrame',
+    'Textures/popup/buco05/spriteFrame',
+    'Textures/startUI/buco02/spriteFrame',
 ];
 
 export const AUDIO_PATHS: string[] = [

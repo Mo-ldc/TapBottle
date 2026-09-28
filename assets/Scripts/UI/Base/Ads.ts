@@ -24,10 +24,10 @@ export interface AdProvider {
     show(placement: AdPlacement, onReward: () => void, onFail: (reason: string) => void): void;
 }
 
-/** Mock 实现：网页 / 开发环境，延时一拍直接发奖 */
+/** Mock 实现：网页 / 开发环境。★ 测试口径（第五十八轮）：**无条件直接发奖、零延时** —— 点了就到账 */
 class MockProvider implements AdProvider {
     show(_p: AdPlacement, onReward: () => void, _onFail: (r: string) => void) {
-        setTimeout(onReward, 60);
+        setTimeout(onReward, 0);
     }
 }
 
@@ -117,11 +117,16 @@ export class Ads {
             onClick: () => {
                 this.closeCard(root, card);
                 this.show('money_gap', () => {
-                    G.data.money += gap;
-                    G.data.stats.earned += gap;
-                    G.save();
-                    G.notify();
-                    if (retry) { retry(); }
+                    const have0 = G.data.money;
+                    if (gap > 0) { G.data.money += gap; }
+                    try {
+                        G.data.stats.earned += gap;   // 统计口径：广告解锁计入累计收入
+                        if (retry) { retry(); }
+                    } finally {
+                        G.data.money = have0;         // ★ 广告免单（与 Guidance 同口径）
+                        G.save();
+                        G.notify();
+                    }
                 });
             },
         });

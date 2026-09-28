@@ -104,6 +104,9 @@ export class Abilities extends Component {
     }
 
     private layoutBar() {
+        // ★ 防御（第五十三轮）：监听可能来自已销毁的场景实例（返回标题页后 G.reset
+        //   仍会广播到这里）—— 组件/节点已死直接跳过，别碰 btns。
+        if (!this.isValid || !this.node || !this.node.isValid) { return; }
         const list = ['coke', 'berserk', 'samurai'].filter(k => this.btns[k] && this.btns[k].isValid);
         const vis = list.filter(k => (k === 'coke' ? G.cokeUnlocked : k === 'berserk' ? G.berserkUnlocked : G.samuraiUnlocked));
         for (const k of list) { this.btns[k].active = vis.indexOf(k) >= 0; }

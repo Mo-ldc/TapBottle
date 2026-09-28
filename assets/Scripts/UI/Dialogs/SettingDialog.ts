@@ -1,4 +1,4 @@
-import { _decorator, Color, Node, Sprite } from 'cc';
+import { _decorator, Color, director, Node, Sprite } from 'cc';
 import { G } from '../../Core/State';
 import { t } from '../../Core/Locale';
 import { Res } from '../../Core/Res';
@@ -108,8 +108,15 @@ export class SettingDialog extends UIBase {
                 G.reset();
                 G.save();
                 this.close();
-                const reload = (globalThis as any).__tb_reload;
-                if (reload) { reload(); }
+                // ★ 只在游戏内才整场景重载（第五十三轮）：
+                //   设置入口在开始界面（Load 场景）—— 标题页删档后留在标题页即可，
+                //   直接 `__tb_reload`（loadScene('Game')）会跳过 StartPage 把玩家
+                //   硬拽进对局；数据已重置，StartPage 下次 show 会按新存档刷新。
+                const scene = director.getScene();
+                if (scene && scene.name === 'Game') {
+                    const reload = (globalThis as any).__tb_reload;
+                    if (reload) { reload(); }
+                }
             },
         });
     }

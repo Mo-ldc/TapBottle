@@ -42,7 +42,13 @@ export class AdButtons extends Component {
         if (!this.bindScene()) { this.construct(); }
         else { this.ensureBerserk(); }   // 场景只摆了旧的三块 → 狂暴牌补建
         for (const it of this.items) {
+            // ★ 第五十八轮：补 TOUCH_START/CANCEL 成对注册 + 按压缩放反馈 ——
+            //   以前只有 TOUCH_END，触摸目标链不完整且点了没有视觉反馈，
+            //   表现就是「点一下像没反应」；现在按下即缩小，抬手恢复并触发。
+            it.plate.on(Node.EventType.TOUCH_START, () => { it.plate.setScale(0.94, 0.94, 1); });
+            it.plate.on(Node.EventType.TOUCH_CANCEL, () => { it.plate.setScale(1, 1, 1); });
             it.plate.on(Node.EventType.TOUCH_END, () => {
+                it.plate.setScale(1, 1, 1);
                 if (it.kind === 'berserk') { this.watchBerserk(); return; }
                 Ads.I.watchBuff(it.kind);
             });
@@ -151,11 +157,8 @@ export class AdButtons extends Component {
 
     update() {
         for (const it of this.items) {
-            // 光圈变大按钮：解锁光圈（玩家科技 p_cursor）后才出现
-            if (it.kind === 'halo') {
-                const vis = G.hasCursor;
-                if (it.plate.active !== vis) { it.plate.active = vis; }
-            }
+            // 光圈变大按钮：★ 第四十八轮起光圈开局常显（「解锁光圈」已移除）→ 按钮也常显
+            if (it.kind === 'halo' && !it.plate.active) { it.plate.active = true; }
             let on = false;
             let txt = '';
             if (it.kind === 'berserk') {

@@ -1,5 +1,5 @@
 import { _decorator, Component, Node, Sprite, Color, Label, Graphics } from 'cc';
-import { CAP_COLOR, CAP_FX, CAP_RAINBOW, MACHINE, POOL, WORLD_XFORM } from '../Core/GameConfig';
+import { CAP_COLOR, CAP_FX, CAP_RAINBOW, MACHINE, POOL, TIERS, WORLD_XFORM } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { fmt, hex } from '../Core/Util';
 import { Res } from '../Core/Res';
@@ -59,11 +59,19 @@ const RAINBOW_COLOR: Color[] = CAP_RAINBOW.map((c) => new Color(
 /** 闸门翻倍后的高亮色（原 #FFE894） */
 const GATE_GOLD = new Color(255, 232, 148, 255);
 
-/** 取某阶瓶盖的颜色常量引用（T7 彩虹瓶逐颗随机取色） */
+/** 该阶瓶子用的瓶身美术编号（TIERS[tier].art）—— 红宝石瓶(art 5)/黄金瓶(art 4) 与阶序是错位的 */
+function capArt(tier: number): number {
+    return TIERS[Math.max(0, Math.min(6, tier | 0))].art;
+}
+
+/** 取某阶瓶盖的颜色常量引用（按**瓶身美术编号**取色，保证「哪种瓶子掉哪种颜色的盖子」；
+ *  T7 钻石瓶(art 6) 逐颗随机取彩虹色）。
+ *  ⚠️ 第四十七轮：原来按 tier 直接当数组下标 —— 而 CAP_COLOR 是按美术序（body_0..6）排的，
+ *     art 序在 4/5 两阶与阶序互换 → 红宝石瓶掉金盖、黄金瓶掉红盖（用户实测反馈）。 */
 function capColor(tier: number): Color {
-    const t = Math.max(0, Math.min(6, tier | 0));
-    if (t === 6) { return RAINBOW_COLOR[(Math.random() * RAINBOW_COLOR.length) | 0]; }
-    return TIER_COLOR[t];
+    const a = capArt(tier);
+    if (a === 6) { return RAINBOW_COLOR[(Math.random() * RAINBOW_COLOR.length) | 0]; }
+    return TIER_COLOR[a];
 }
 
 /**

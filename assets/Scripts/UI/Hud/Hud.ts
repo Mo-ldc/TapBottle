@@ -54,6 +54,24 @@ export class Hud extends Component {
      * 限到 ~16 次/秒：滚动观感完全一样（人眼在 60fps 滚动里看不出 60ms 的粒度）。
      */
     private moneyTxtAcc = 0;
+    /**
+     * 伸缩动画的触发基准（★ 第四十七轮）：记上一帧的**真实数值**，涨了就弹。
+     * ⚠️ 原来挂在「格式化文本变化」上 —— `fmt` 对 ≥1000 的数只保留 1~2 位有效数字，
+     *    中后期金币/瓶盖涨个几十一百根本不会改文本 → 伸缩动画整个不触发
+     *    （用户实测「获得金币/瓶盖时的缩放动画都无了」的根因）。
+     *    首帧（基准还是 -1）不弹，避免进游戏时从 0 跳到存档值炸一下。
+     */
+    private pulseMoneyRef = -1;
+    private pulseCapsRef = -1;
+
+    /**
+     * 货币**消耗**的飘字累积（★ 第五十一轮，用户口径）。
+     * 顶栏数字是 K/M/B 缩写 → 小额消耗根本改不动文本（1.23M 扣 5000 还是 1.23M），
+     * 玩家看起来就是「花了钱金币没变」。这里把每帧的净减少累起来，每 0.16s 飘一次「-1.2K」，
+     * 连点购买时也不会把屏幕刷满（同一窗口内的差额合并成一个）。
+     */
+    private spendM = { acc: 0, t: Hud.SPEND_GAP };
+    private spendC = { acc: 0, t: Hud.SPEND_GAP };
 
     build(cb: {
         onBack: () => void, onAch: () => void, onStats: () => void,
@@ -223,6 +241,10 @@ export class Hud extends Component {
 
     /** 数字伸缩动画时长（放大 + 回落，与下面的锁定时间严格一致） */
     private static readonly PULSE = 0.20;
+    /** 消耗飘字的最小间隔（连点购买时把这段窗口内的差额合并成一个飘字） */
+    private static readonly SPEND_GAP = 0.16;
+    /** 消耗飘字的起始上移量（相对货币数字节点，往上飘到筹码外） */
+    private static readonly FLOAT_DY = 34;
 
     /**
      * 金币/瓶盖数字变动时的「伸缩一次」动画。
@@ -251,11 +273,64 @@ export class Hud extends Component {
             .start();
     }
 
+    /**
+     * ★ 第五十一轮（用户口径）：货币**减少**时在数字上方飘出差额。
+     *
+     * 起因：顶栏数字是 K/M/B 缩写 —— 1.23M 花掉 5000，显示还是「1.23M」，
+     * 玩家反馈「消耗金币发现金币不会更新」（实测数值确实一直在刷，是缩写把变化吃掉了）。
+     * 现在把差额直接摆在眼前：`-1.2K` / `-500`。
+     *
+     * 累积窗口 `SPEND_GAP`：连点购买时把窗口内的差额合并成一个飘字，不会把屏幕刷满；
+     * 同一窗口里的收益（翻转赚钱）会先抵消掉，只飘净消耗。
+     */
+    private flushSpend(src: Label, dm: number, which: 'money' | 'caps') {
+        const s = which === 'money' ? this.spendM : this.spendC;
+        if (dm < 0) {
+            if (s.acc === 0) { s.t = Hud.SPEND_GAP; }        // 新的一笔消耗 → 本次立即飘
+            s.acc += dm;
+        } else if (dm > 0 && s.acc < 0) {
+            s.acc = Math.min(0, s.acc + dm);                 // 同窗口的收益抵消掉一部分消耗
+        }
+        if (s.acc < -0.5 && s.t >= Hud.SPEND_GAP) {
+            this.floatDelta(src, s.acc);
+            s.acc = 0;
+            s.t = 0;
+        }
+    }
+
+    /** 飘出一枚「-N」小字（从货币数字上方浮起、渐隐后销毁） */
+    private floatDelta(src: Label, delta: number) {
+        if (!src || !src.isValid || Math.abs(delta) < 0.5) { return; }
+        const host = src.node.parent;
+        if (!host || !host.isValid) { return; }
+        const p = src.node.position;
+        const lb = label(host, fmt(delta), p.x, p.y + Hud.FLOAT_DY, 260, 46, {
+            size: 30, color: '#FFA08C', outline: WOOD.line, outlineWidth: 3,
+        });
+        const n = lb.node;
+        n.name = 'deltaFly';
+        n.setSiblingIndex(host.children.length - 1);
+        const op = n.addComponent(UIOpacity);
+        op.opacity = 255;
+        tween(n).to(0.62, { position: new Vec3(p.x, p.y + Hud.FLOAT_DY + 46, 0) }, { easing: 'quadOut' }).start();
+        tween(op).delay(0.24).to(0.38, { opacity: 0 })
+            .call(() => { if (n.isValid) { n.destroy(); } })
+            .start();
+    }
+
     update(dt: number) {
         if (this.moneyBumpT > 0) { this.moneyBumpT -= dt; }
         if (this.capsBumpT > 0) { this.capsBumpT -= dt; }
+        // 飘字计时（钳到 1s 上限，避免长跑时无意义增长；判断只用「>= SPEND_GAP」）
+        if (this.spendM.t < 1) { this.spendM.t += dt; }
+        if (this.spendC.t < 1) { this.spendC.t += dt; }
 
         const target = G.data.money;
+        // ★ 第四十七轮：数值涨了就弹（不再看格式化文本变没变，见 pulseMoneyRef 注释）
+        if (this.pulseMoneyRef >= 0 && target > this.pulseMoneyRef) { this.pulse(this.moneyLb.node, 'money'); }
+        // ★ 第五十一轮：数值**掉了**就飘出差额（缩写数字看不出小额消耗，见 spendAccM 注释）
+        if (this.pulseMoneyRef >= 0) { this.flushSpend(this.moneyLb, target - this.pulseMoneyRef, 'money'); }
+        this.pulseMoneyRef = target;
         const k = 1 - Math.exp(-9 * dt);
         this.shownMoney += (target - this.shownMoney) * k;
         if (Math.abs(target - this.shownMoney) < Math.max(0.5, target * 0.0005)) { this.shownMoney = target; }
@@ -266,14 +341,16 @@ export class Hud extends Component {
             this.moneyTxtAcc = 0;
             this.cMoney = ms;
             this.moneyLb.string = ms;
-            this.pulse(this.moneyLb.node, 'money');
         }
 
-        const cs = fmt(G.data.caps);
+        const caps = G.data.caps;
+        if (this.pulseCapsRef >= 0 && caps > this.pulseCapsRef) { this.pulse(this.capsLb.node, 'caps'); }
+        if (this.pulseCapsRef >= 0) { this.flushSpend(this.capsLb, caps - this.pulseCapsRef, 'caps'); }
+        this.pulseCapsRef = caps;
+        const cs = fmt(caps);
         if (cs !== this.cCaps) {
             this.cCaps = cs;
             this.capsLb.string = cs;
-            this.pulse(this.capsLb.node, 'caps');
         }
 
         // 狂暴 / 决意

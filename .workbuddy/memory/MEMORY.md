@@ -56,6 +56,8 @@
    - ⚠️ **模板路径必须绝对**（内部 os.chdir，相对路径静默跳过）；HTTP 端口传 8901+，**绝不能传 9333**（调试口）。
    - ⚠️ 连跑换独立 profile（第 8 参）+ 调试端口（第 9 参）；先 `unset http_proxy ...` + `NO_PROXY=127.0.0.1`；
      **Bash 沙箱内 Chrome 网络偶发丢请求 → 用 dangerouslyDisableSandbox 跑**。
+     ★ **profile 目录一律放 `点瓶子_竖屏\_workbench\_prof\<名字>`**（2026-09-28 用户硬性要求），
+     不要丢进 `E:\LDC_Fby\`（残留已清理）。临时排查中间文件同理，用完即删。
    - ⚠️ headless 首次 `Input.dispatchMouseEvent` 会被丢弃 → 先 jsdrag 预热再点。
    - ⚠️ headless **游戏时间快进**：短 dur 动画截图前就播完（疑「不渲染」实为已回池）→
      验证动画截图必须 dur 拉到 10s+；`jsdrag:` 的 JS 要返回**两组**坐标 `[[x,y],[x+30,y]]`；

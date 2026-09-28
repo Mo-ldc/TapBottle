@@ -1,5 +1,5 @@
 import { _decorator, Component, Node, Sprite, Vec2, Vec3, UIOpacity, UITransform, input, Input, EventTouch, EventMouse, tween, view } from 'cc';
-import { LAYOUT, PLAY_AREA, TIERS, VISIBLE_PER_TIER } from '../Core/GameConfig';
+import { LAYOUT, PLAY_AREA, TIERS } from '../Core/GameConfig';
 import { G } from '../Core/State';
 import { chance, fmt } from '../Core/Util';
 import { FlipResult } from '../Core/State';
@@ -12,13 +12,11 @@ import { Modal } from '../UI/Base/Modal';
 
 const { ccclass } = _decorator;
 
-const VISIBLE_MAX = VISIBLE_PER_TIER;
-
 /** 玩家点击音效（用户口径：pop3 才是瓶子被触发的声音） */
 const TAP_SFX = ['pop3'];
 const DW = 720, DH = 1280;
 
-/* ---------------- 光标（解锁「玩家科技·光标」后出现） ----------------
+/* ---------------- 光圈（★ 第四十八轮起**开局常显**，不再需要解锁） ----------------
  * 拆成两个**独立**节点，因为它们的层级需求正好相反：
  *   cursorRing = 范围圈，是地面落点指示 → setSiblingIndex(0)，压在影子/瓶子之下
  *   cursorPin  = 指针（gqiun 光圈贴图），必须在**所有东西之上** → 追加到子节点末尾
@@ -193,13 +191,12 @@ export class BottleField extends Component {
                 this.doSort();
             }
         }
-        // 光标圈 = 「玩家科技·光标」解锁后才有（初始没有圈）。
-        // 圈只是**触发范围指示**，圈内的瓶子会不会自动翻，取决于那阶有没有买「悬停翻转」——
-        // 所以这里不再要求「至少有一阶买过悬停」。
-        // ★ 用户反馈：只买某阶「悬停翻转」（没点光标天赋 p_cursor）时，扫过该阶瓶子也要能翻 ——
-        //   悬停触发判定不能被「光标圈视觉」的门控挡住（原来 !cursorOn 直接 return，触发循环永不跑）。
-        //   触发半径用 G.cursorRadius（p_cursorsize 有 base=55 的默认值，没天赋也有合理半径）。
-        const cursorOn = G.hasCursor && !Modal.open;
+        // 光圈**开局常显**（★ 第四十八轮：「解锁光圈」模块已移除，不再有 hasCursor 门控）。
+        // 圈只是**触发范围指示**，圈内的瓶子会不会自动翻，取决于那阶有没有买「悬停翻转」：
+        //   · 一阶都没买 → G.haloTriggerOn=false → 半径只是一个小点，视觉上「跟手但不触发」；
+        //   · 买了任一阶 → 半径恢复 G.haloRadius（p_cursorsize，base 55），该阶瓶子拖过即翻。
+        // 所以触发循环本身不需要任何额外门控 —— `G.hoverable(tier)` 天然只放行已解锁的阶。
+        const cursorOn = !Modal.open;
         if (!cursorOn) {
             if (this.cursorRing && this.cursorRing.isValid) { this.cursorRing.active = false; }
             if (this.cursorPin && this.cursorPin.isValid) { this.cursorPin.active = false; }
@@ -236,12 +233,17 @@ export class BottleField extends Component {
             hand.addComponent(UIOpacity).opacity = 235;
             this.cursorPin.setSiblingIndex(this.node.children.length - 1);
         }
-        // 吸附半径 = 0.55m × (1 + 0.05L)（§5.1 分支 2），单位 px
-        const r = G.cursorRadius;
+        // 吸附半径 = 0.55m × (1 + 0.05L)（§5.1 分支 2），单位 px；
+        // 未解锁触发时只有一个小点，广告「2 倍光圈」期间整体 ×2（State.haloRadius / haloScale）
+        const r = G.haloRadius;
         if (cursorOn) {
             setSize(this.cursorRing, r * 2, r * 2);
             this.cursorRing.setPosition(this.pointer.x, this.pointer.y, 0);
             this.cursorRing.active = true;
+            // 光圈贴图本身也跟着缩放（小点 ↔ 正常 ↔ 广告 2 倍）：
+            // ⚠️ 必须 setScale 整体赋值，子节点（shadow/hand）自动继承父缩放。
+            const hs = G.haloScale;
+            if (Math.abs(this.cursorPin.scale.x - hs) > 1e-3) { this.cursorPin.setScale(hs, hs, 1); }
             this.cursorPin.setPosition(this.pointer.x + PIN_DX, this.pointer.y + PIN_DY, 0);
             this.cursorPin.active = true;
         }
@@ -285,9 +287,9 @@ export class BottleField extends Component {
     /**
      * 光标定位（field 本地坐标，供光标圈/悬停触发用）。
      *
-     * ⚠️ 这里**不**检查 `G.hasCursor`：pointer 同时承担「点击命中判定」，
-     *    而开局是没解锁光标的 —— 之前加了这道门槛，导致没光标时 pointer 永远不更新，
-     *    点击瓶子直接失效（实测 flips 恒为 0）。光标**显示**与否由 update() 单独控制。
+     * ⚠️ 这里**不**做任何解锁门控：pointer 同时承担「点击命中判定」，
+     *    之前挂过「有没有解锁光标」的门槛，导致门槛未过时 pointer 永远不更新、
+     *    点击瓶子直接失效（实测 flips 恒为 0）。光圈是否显示、是大是小，全部由 update() 决定。
      */
     private aim(uiX: number, uiY: number) {
         if (Modal.open) { return; }
@@ -332,17 +334,16 @@ export class BottleField extends Component {
         const want = G.data.bottles.slice();
         const total = want.reduce((a, b) => a + b, 0);
 
-        // ★ 用户口径（第十九轮）：**各阶配额互相独立**（见 GameConfig.VISIBLE_PER_TIER 注释）。
-        //   原来是「全局总上限 24、高阶优先」，于是买 T2 会当场删掉一只 T1（看起来像被替换），
-        //   而且桌面名额满后再买 T1 一只都建不出来（看起来像点了没反应）。
-        //   现在每阶只跟自己的配额对账：买哪一阶都不会动到别的阶。
-        const wantVis = [0, 0, 0, 0, 0, 0, 0];
+        // ★ 用户口径（第五十一轮）：**同屏显示上限彻底取消** —— 桌面上只认玩家「能买到的上限」
+        //   （`State.tierCap`：默认 30，可由「上限提升」词条 +5/级、`p_sizelimit` 科技 +5/级 抬高）。
+        //   买到多少就摆多少。原来的逐阶显示配额 [24,12,8,6,4,3,3] 会在买到第 5 只红瓶时
+        //   静默截断 —— 购买成功、箱子计数 ++、但桌上既不出现新瓶子也没有飞入动画
+        //   （用户实测「高级瓶子买到一定数量后再买没反应」的根因）。
+        //   现在「买不了」只会发生在真正的购买上限：`buyBottle` 拒绝 + 弹出「已到上限」提示，
+        //   商店行同时显示「已满」。
+        const wantVis = want;
         let visTotal = 0;
-        for (let t = 0; t < 7; t++) {
-            const cap = VISIBLE_MAX[t] ?? VISIBLE_MAX[VISIBLE_MAX.length - 1];
-            wantVis[t] = Math.min(want[t], cap);
-            visTotal += wantVis[t];
-        }
+        for (let t = 0; t < 7; t++) { visTotal += wantVis[t]; }
         const have = [0, 0, 0, 0, 0, 0, 0];
         for (const b of this.bottles) { have[b.tier]++; }
 
@@ -360,12 +361,10 @@ export class BottleField extends Component {
         // ② 缺的按阶补建（从高阶到低阶，与 seq 口径一致）
         for (let t = 6; t >= 0; t--) {
             while (have[t] < wantVis[t]) {
-                // ★ 用户口径：买瓶飞到**场地中间**（带 ±40px 抖动防完全重叠）；非购买路径仍随机散布
+                // ★ 用户口径（第五十一轮）：买瓶落点**与其它瓶子一样随机**（原来固定飞向场地正中）。
+                //   `pickSpot` 的 best-of-N 会挑「离现有瓶子最远」的候选点 → 既随机又不会完全重叠。
                 const fly = !!this.flyReq && this.flyReq.tier === t;
-                const spot = fly
-                    ? { x: (PLAY_AREA.x0 + PLAY_AREA.x1) / 2 + (Math.random() - 0.5) * 80,
-                        y: (PLAY_AREA.y0 + PLAY_AREA.y1) / 2 + (Math.random() - 0.5) * 80 }
-                    : this.pickSpot();
+                const spot = this.pickSpot();
                 const b = Bottle.create(this.bottleHolder, this.shadowHolder, t, spot.x, spot.y);
                 // 不再挂 b.enableTouch：点击命中统一由 tapWorld() 自己判定（见那里的注释）
                 b.onLanded = (bb, oc) => this.onLanded(bb, oc);
@@ -401,7 +400,10 @@ export class BottleField extends Component {
         let bx = PLAY_AREA.x0, by = PLAY_AREA.y0, best = -1;
         const w = PLAY_AREA.x1 - PLAY_AREA.x0;
         const h = PLAY_AREA.y1 - PLAY_AREA.y0;
-        for (let k = 0; k < 6; k++) {
+        // ★ 第五十一轮：取消同屏显示上限后桌面可以很挤（每阶上限 30）→ 候选点数随瓶子数自适应，
+        //   瓶子越多越要多采几个点才找得到「相对最空」的位置（上限 20 次，避免建瓶时明显卡顿）。
+        const tries = Math.min(20, 6 + (this.bottles.length >> 2));
+        for (let k = 0; k < tries; k++) {
             const x = PLAY_AREA.x0 + Math.random() * w;
             const y = PLAY_AREA.y0 + Math.random() * h;
             let d = Infinity;

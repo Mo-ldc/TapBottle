@@ -66,36 +66,43 @@ export function capsShortToast(need: number) {
 }
 
 /**
- * 金币不够 → **直接拉广告**（Ads 统一入口，★ 无二级确认窗）：
- * 点了带广告图标的选项就立刻播激励视频，看完补足到刚好够买
- * 并自动执行 `retry` —— 即「看完广告给货，不扣材料（金币）」。
+ * 金币不够 → **直接拉广告**（Ads 统一入口，★ 无二级确认窗）。
+ * ★ 测试口径（第五十八轮）：**广告免单** —— 看完广告直接把货给了，
+ *   玩家自己的金币**一分不扣**（实现：先垫上差额让 retry 买成，再把余额原样还回去）。
  */
 export function moneyShortAd(need: number, retry?: () => void) {
     Ads.I.show('money_gap', () => {
-        const gap = Math.max(0, Math.ceil(need - G.data.money));
-        if (gap > 0) {
-            G.data.money += gap;
-            G.data.stats.earned += gap;
+        const have0 = G.data.money;
+        const gap = Math.max(0, Math.ceil(need - have0));
+        if (gap > 0) { G.data.money += gap; }   // 垫差额，保证 retry 能买成
+        try {
+            if (retry) { retry(); }
+        } finally {
+            G.data.money = have0;               // ★ 免单：余额原样奉还，不消耗货币
             G.save();
             G.notify();
         }
-        if (retry) { retry(); }
+        Toast.I?.show(t('ad_free', G.lang), '#8CE7A2');
     });
 }
 
 /**
- * 瓶盖不够 → 同款**直接拉广告**（无二级确认窗）：看完补足瓶盖并自动执行 `retry` 给货。
+ * 瓶盖不够 → 同款**直接拉广告**（无二级确认窗）：★ 测试口径**广告免单**，瓶盖不消耗。
  * 用于研发 / 科技节点 / 瓶盖词条等瓶盖消耗项。
  */
 export function capsShortAd(need: number, retry?: () => void) {
     Ads.I.show('caps_gap', () => {
-        const gap = Math.max(0, Math.ceil(need - G.data.caps));
-        if (gap > 0) {
-            G.data.caps += gap;
+        const have0 = G.data.caps;
+        const gap = Math.max(0, Math.ceil(need - have0));
+        if (gap > 0) { G.data.caps += gap; }
+        try {
+            if (retry) { retry(); }
+        } finally {
+            G.data.caps = have0;                // ★ 免单：余额原样奉还，不消耗货币
             G.save();
             G.notify();
         }
-        if (retry) { retry(); }
+        Toast.I?.show(t('ad_free', G.lang), '#8CE7A2');
     });
 }
 

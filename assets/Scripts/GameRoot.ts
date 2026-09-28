@@ -525,5 +525,12 @@ export class GameRoot extends Component {
         void button; void img; void rect; void tween; void UIOpacity; void Vec3; void input; void Input; void t; void label;
     }
 
-    onDestroy() { G.save(); }
+    onDestroy() {
+        // ★ 离开 Game 场景（返回标题 / 重载）必须把本场景注册的监听全部摘掉：
+        //   G 是模块级单例，监听闭包持有场景组件 —— 场景销毁后它们就是死引用，
+        //   之后任何 notify()（如标题页删档 reset、切语言）都会命中已销毁组件。
+        //   （以前只在 onLoad 清，只在「再进游戏」时生效，标题页期间是裸奔的。）
+        G.clearListeners();
+        G.save();
+    }
 }

@@ -1,6 +1,6 @@
 import { _decorator, Component, Node, Tween, UIOpacity, Vec3, tween } from 'cc';
 import { Modal } from './Modal';
-import { maskIn, maskOut, popIn, popOut } from './UIKit';
+import { maskIn, maskOut, popIn, popOut, pressable } from './UIKit';
 
 const { ccclass, property } = _decorator;
 
@@ -49,6 +49,8 @@ export class UIBase extends Component {
     private _shown = false;
     /** 是否已登记模态（防止重复 push / pop 让计数失衡） */
     private _modaled = false;
+    /** 关闭按钮是否已绑定（prefab 里的节点事件不序列化，运行时只接一次手） */
+    private _closeBound = false;
     /** 界面名字 —— 用预制体根节点名，UIMgr 靠它隐藏/查重 */
     get uiName(): string { return this.node.name; }
 
@@ -68,6 +70,7 @@ export class UIBase extends Component {
     show(cb?: () => void, arg?: unknown): void {
         this.init(arg);
         this._shown = true;
+        this.bindCloseBtn();
         if (this.modal) { this.takeModal(); }
         this.bindMaskClick(true);
         this.node.active = true;
@@ -96,6 +99,30 @@ export class UIBase extends Component {
     private get target(): Node {
         const n = this.animRoot || this.node;
         return n;
+    }
+
+    /**
+     * 自动接手预制体里所有名叫 `close` / `closeBtn` / `btn_close` 的后代节点：
+     * 节点/事件不会序列化（prefab 里只有 Sprite），事件必须运行时补挂 ——
+     * 没有这根的话点关闭按钮就是纯静默空操作（第五十四轮）。
+     */
+    private bindCloseBtn(): void {
+        if (this._closeBound) { return; }
+        this._closeBound = true;
+        const hit: Node[] = [];
+        const walk = (n: Node) => {
+            const name = n.name.toLowerCase();
+            if (name === 'close' || name === 'closebtn' || name === 'btn_close') {
+                hit.push(n);
+                return;
+            }
+            for (const c of n.children) { walk(c); }
+        };
+        walk(this.node);
+        for (const n of hit) {
+            n.off(Node.EventType.TOUCH_END);
+            pressable(n, () => this.close());
+        }
     }
 
     private takeModal(): void {

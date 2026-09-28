@@ -69,8 +69,22 @@ export class LoadScene extends Component {
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
         this.alignCanvas();
 
+        // ★ 二次回切坑（2026-09-28 修复「点返回按钮报错 Cannot read properties of null (reading 'length')」）：
+        //   Res 节点既是场景文件里的实体，又被 addPersistRootNode 设为常驻。返回按钮 loadScene('Load')
+        //   时，引擎 runSceneImmediate 的 AttachPersist 分支发现新场景反序列化出 uuid 相同的 Res 副本，
+        //   会把**新副本 _destroyImmediate()** 掉、换插首次启动时的常驻老节点 —— 而 @property resNode
+        //   仍指向已销毁副本，getComponent(Res) 读到 null._components 就炸（只有第二次进 Load 才发生；
+        //   构建包里 SceneAsset 复用同一 Scene 实例、走的是 else 重新挂载分支，所以不炸）。
+        //   修复：属性引用失效时按 uuid 找回场景里真正的常驻节点；老节点已 persist 则不重复登记。
+        if (this.resNode && !this.resNode.isValid) {
+            const scene = this.node.scene || director.getScene();
+            const persist = scene ? scene.getChildByUuid(this.resNode.uuid) : null;
+            if (persist) { this.resNode = persist; }
+        }
         // 资源/音频节点切场景常驻（BGM 不断、已加载的贴图不丢）
-        if (this.resNode) { director.addPersistRootNode(this.resNode); }
+        if (this.resNode && this.resNode.isValid && !director.isPersistRootNode(this.resNode)) {
+            director.addPersistRootNode(this.resNode);
+        }
 
         // BGM 必须借「点击开始」那次用户手势重播，否则浏览器自动播放策略会挂起 AudioContext
         (globalThis as any).__tbOnStart = () => {
@@ -94,7 +108,11 @@ export class LoadScene extends Component {
         this.fitToVisible();
 
         // 资源加载（85%）→ UI 预制体预载（15%）→ 就绪
-        const res = this.resNode ? (this.resNode.getComponent(Res) || this.resNode.addComponent(Res)) : Res.I;
+        // （★ resNode 若在上面的 uuid 换回中变成了常驻老节点，getComponent 命中的就是
+        //   首次启动那个已 loadAll 完成的 Res 实例 —— loadAll 幂等，ready 直接回调）
+        const res = this.resNode && this.resNode.isValid
+            ? (this.resNode.getComponent(Res) || this.resNode.addComponent(Res))
+            : Res.I;
         res.loadAll(() => {
             UIMgr.boot().preload([
                 UIName.StartPage, UIName.SettingDialog, UIName.StatsDialog,
@@ -190,6 +208,9 @@ export class LoadScene extends Component {
     }
 
     onDestroy() {
+        // ★ 同 GameRoot.onDestroy：本场景若注册过监听（当前没有，防御性兜底），
+        //   离场时一并摘掉，绝不让死闭包跨场景存活。
+        G.clearListeners();
         // 防御：本组件不持有循环 tween，但保险起见停掉作用在自身节点上的所有 tween
         try { Tween.stopAllByTarget(this.node); } catch (e) { /* ignore */ }
     }

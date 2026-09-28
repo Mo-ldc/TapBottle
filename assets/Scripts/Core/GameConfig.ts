@@ -375,7 +375,8 @@ export const SKILLS: SkillDef[] = [
     { id: 'ul_t7', tree: 'bottle', name: 'sk_ul_t7', desc: 'sk_ul_t7_d', icon: 'bottle/body_6', max: 1, baseCost: 90000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 't7', tier: 6 },
 
     /* ---- 分支 2：玩家科技 ---- */
-    { id: 'p_cursor', tree: 'player', name: 'sk_cursor', desc: 'sk_cursor_d', icon: 'env/cursor', max: 1, baseCost: 500, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'cursor' },
+    // ★ 用户口径（第四十八轮）：`p_cursor`（解锁光圈）**已整体移除** —— 光圈开局就显示，
+    //   不再需要任何解锁入口。p_cursorsize 保留为「光圈大小」升级项（解锁触发后才出现在升级页）。
     { id: 'p_cursorsize', tree: 'player', name: 'sk_cursorsize', desc: 'sk_cursorsize_d', icon: 'stat/size', max: 10, baseCost: 3000, growth: 1.15, base: 55, step: 2.75, unit: 'px' },
     { id: 'p_sizelimit', tree: 'player', name: 'sk_sizelimit', desc: 'sk_sizelimit_d', icon: 'stat/buyable', max: 6, baseCost: 2000, growth: 1.30, base: 5, step: 5, unit: 'count' },
     { id: 'p_idle', tree: 'player', name: 'sk_idle', desc: 'sk_idle_d', icon: 'stat/time', max: 1, baseCost: 1000, growth: 1, base: 0, step: 0, unit: 'unlock', unlockId: 'idle' },
@@ -441,19 +442,19 @@ export const SKILL_GRAPH: SkillNodeDef[] = [
     { id: 'ul_t7', icon: 'bottle/body_6', col: 1, row: 0, parent: 'ul_t6' },
 ];
 
-/** 分支 2：玩家科技 —— 光标 / 挂机 / 稳定性 / 瓶盖机 + 闸门 四条线 */
+/** 分支 2：玩家科技 —— 光圈大小 / 挂机 / 稳定性 / 瓶盖机 + 闸门
+ *  ★ 第四十八轮：原根节点 `p_cursor`（解锁光圈）已移除 —— 三条子树提升为独立根，
+ *    col/row 保持原样（列表按 col/row 排序，视觉顺序不变）。 */
 export const PLAYER_GRAPH: SkillNodeDef[] = [
-    { id: 'p_cursor', icon: 'env/cursor', col: 0, row: 4, parent: null },
-
-    { id: 'p_cursorsize', icon: 'stat/size', col: -2, row: 3, parent: 'p_cursor' },
+    { id: 'p_cursorsize', icon: 'stat/size', col: -2, row: 3, parent: null },
     { id: 'p_sizelimit', icon: 'stat/buyable', col: -2, row: 2, parent: 'p_cursorsize' },
 
-    { id: 'p_idle', icon: 'stat/time', col: 0, row: 3, parent: 'p_cursor' },
+    { id: 'p_idle', icon: 'stat/time', col: 0, row: 3, parent: null },
     { id: 'p_idlemove', icon: 'stat/movespeed', col: 0, row: 2, parent: 'p_idle' },
     { id: 'p_idletime', icon: 'stat/duration', col: -1, row: 1, parent: 'p_idlemove' },
     { id: 'p_idlerecov', icon: 'stat/recovery', col: -1, row: 0, parent: 'p_idletime' },
 
-    { id: 'p_stability', icon: 'stat/resolve', col: 2, row: 3, parent: 'p_cursor' },
+    { id: 'p_stability', icon: 'stat/resolve', col: 2, row: 3, parent: null },
     // 机器本体在商店买（$1,000），树上只留它的两个加成节点，直接挂在稳定性下方
     { id: 'p_machineinc', icon: 'stat/capgain', col: 2, row: 2, parent: 'p_stability' },
     { id: 'p_machinespeed', icon: 'skin/main/belt_composite', col: 1, row: 0, parent: 'p_machineinc' },
@@ -743,20 +744,17 @@ export const PLAY_AREA = {
 };
 
 /**
- * 同屏瓶子配额 —— **逐阶独立**（超出的折算成桌面右上角的「+N」角标）。
+ * ★ 已废弃（第五十一轮）：同屏显示配额 `VISIBLE_PER_TIER` 已删除。
  *
- * ★ 用户口径（第十九轮）：「各种瓶子之间应该是互不干扰」。
- *   原来是一个**全局总上限 24**、按「高阶优先」分配名额：
- *     · 桌上已经有 24 只 T1 时买一只 T2 → 总名额不够，**当场删掉一只 T1** 换上 T2
- *       （玩家看到的是「买了高级瓶，普通瓶消失了」= 被替换）；
- *     · 紧接着再买 T1 → 名额还是满的，`wantVis` 和现有数量完全一致 → **一只新瓶子都不建**，
- *       飞入动画也永远等不到落点（玩家看到的是「点了没反应」）。
- *   现在每阶各有一份自己的配额，买任何一阶都动不到别的阶，也永远不会「买了不出现」。
+ * 用户口径：「谁规定的同屏上限？我记得应该是玩家**能买到的**上限才对」——
+ *   现在桌面上买到多少摆多少，唯一的数量上限 = `State.tierCap`
+ *   （每阶默认 30，可由「上限提升」词条 +5/级、`p_sizelimit` 科技 +5/级 抬高）。
+ *   到顶后商店行显示「已满」、点击弹「已到上限」，不再有「买到了但桌上不出现」的静默截断。
  *
- * 配额随阶递减：低阶便宜、是早期主力（会买很多），高阶贵、数量天然少。
- * 全阶买满时桌面最多 24+12+8+6+4+3+3 = 60 只 —— 这是桌面能承受的视觉上限。
+ * 历史（第十九轮）曾用 [24,12,8,6,4,3,3] 做逐阶显示配额、超出折算成右上角「+N」角标；
+ * 但它在红瓶（4 只）这类高阶上太早触发 —— 购买成功却没有新瓶子也没有飞入动画，
+ * 玩家看起来就是「点了没反应」。要恢复显示配额的话，改 `BottleField.sync()` 的 `wantVis`。
  */
-export const VISIBLE_PER_TIER: number[] = [24, 12, 8, 6, 4, 3, 3];
 
 /**
  * 列表行里的**瓶子短名**（底栏面板一行 2 格，名称栏只有 ~178px 宽；
@@ -765,13 +763,18 @@ export const VISIBLE_PER_TIER: number[] = [24, 12, 8, 6, 4, 3, 3];
 export const TIER_SHORT_ZH: string[] = ['普通', '铜瓶', '银瓶', '金瓶', '红瓶', '翡瓶', '钻瓶'];
 export const TIER_SHORT_EN: string[] = ['Basic', 'Bronze', 'Silver', 'Gold', 'Ruby', 'Emerald', 'Diamond'];
 
-/**
- * 抓取光圈（商店设施）。
- * ★ 用户口径（第十九轮）：光圈解锁**从技能树挪到商店**直接购买 ——
- *   买下后手指就带光圈跟随（`State.hasCursor` 仍然读 p_cursor 这个科技节点，
- *   所以「手部模块/挂机模块的解锁条件」等既有门控全部照旧生效）。
+/* ---------------- 光圈（光标指示器，开局常显） ----------------
+ * ★ 用户口径（第四十八轮）：光圈**开局就显示**，替代手指跟随指针 ——
+ *   「解锁光圈」这个模块已整体移除（技能树节点 / 商店购买项 / 广告按钮门控全部拆掉）。
+ *   · 未解锁任何一阶「悬停翻转」→ 光圈只是**一个小点**：跟手，但碰到瓶子不触发
+ *     （点瓶子照样能翻 —— 那是 `pointerDown` 的点击命中，与光圈无关）；
+ *   · 解锁任一阶「悬停翻转」→ 光圈恢复到正常吸附半径，可以「拖过即翻」（和之前一样）；
+ *   · 广告「2 倍光圈」→ 当前光圈（贴图 + 触发半径）直接 ×2，3 分钟后自动还原。
  */
-export const CURSOR = { buyPrice: 500 };
+/** 「小点」状态的光圈触发半径（设计像素） */
+export const HALO_DOT_R = 14;
+/** 「小点」状态的光圈贴图缩放（相对正常 1.0） */
+export const HALO_DOT_SCALE = 0.3;
 
 /**
  * 世界层的自适应变换（由 GameRoot.applySafeLayout 写入）。
@@ -847,15 +850,20 @@ export const CAP_GAIN_BASE: number[] = [4, 6, 8, 11, 14, 18, 22];
 /**
  * 每阶瓶盖的颜色 = 该阶瓶身的**主色调**（用 PIL 从 `bottle/body_N.png` 采样得出），
  * 保证「哪种瓶子掉哪种颜色的盖子」。
+ *
+ * ⚠️ **下标是瓶身美术编号 `TIERS[tier].art`，不是阶数**（第四十七轮修正）：
+ *     body_0..6 = 白/绿/蓝/橙/金/红/紫，而 TIERS 里 art 在 4、5 两阶是互换的
+ *     （tier4 红宝石瓶 → art 5 红，tier5 黄金瓶 → art 4 金）——
+ *     消费方必须走 `CapMachine.capColor()`（按 art 取），别拿 tier 直接当下标。
  */
 export const CAP_COLOR: string[] = [
-    '#EDF2F7',  // T1 普通塑料瓶：透明
-    '#7BC24E',  // T2 铜质能量瓶：绿
-    '#48A8D8',  // T3 白银汽水瓶：蓝
-    '#E8A838',  // T4 黄金尊享瓶：琥珀
-    '#F2D43C',  // T5 红宝石烈酒瓶：金
-    '#E8654F',  // T6 翡翠神圣瓶：红
-    '#C89BF0',  // T7 钻石天界瓶：彩虹（每颗再从 CAP_RAINBOW 里随机取色）
+    '#EDF2F7',  // art 0 普通塑料瓶：透明白
+    '#7BC24E',  // art 1 翠影青瓶：绿
+    '#48A8D8',  // art 2 沧澜蓝瓶：蓝
+    '#E8A838',  // art 3 琥珀棕瓶：琥珀
+    '#F2D43C',  // art 4 黄金瓶：金
+    '#E8654F',  // art 5 红宝石瓶：红
+    '#C89BF0',  // art 6 钻石天界瓶：彩虹（每颗再从 CAP_RAINBOW 里随机取色）
 ];
 
 /** T7 彩虹瓶的瓶盖配色池（逐颗随机，做出「彩盖」的感觉） */
