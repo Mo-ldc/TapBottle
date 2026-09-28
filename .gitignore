@@ -32,3 +32,17 @@ node_modules/
 .workbuddy/**/*.log
 .workbuddy/audio_src/
 .workbuddy/texture_src/
+
+# 无头验收残留（每个 Chrome profile 60MB+，绝不能入库）
+.workbuddy/_prof_*/
+.workbuddy/cdp_prof_*/
+.workbuddy/tmp/
+
+# 验收截图 / 一次性脚本产物（下划线开头的都是）
+.workbuddy/_*.png
+.workbuddy/_*.tpl
+.workbuddy/_*.json
+
+# 各类备份目录（仅本地保留，需要时从 git 历史找回）
+.workbuddy/*_bak/
+.workbuddy/unused_park/
