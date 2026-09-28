@@ -10,6 +10,11 @@
 - 本地两个副本：`TapBottle`（开发用）/ `TapBottle_old`（clone 的纯净副本，跑 legacy-runtime-ui 分支）。
 - 推送一律走系统代理：`unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy` +
   `-c http.proxy=http://127.0.0.1:10808`（沙箱注入的 58048 时通时不通，别依赖）。
+- **★ 提交前必做**：先补 `.gitignore` **再** `git add -A`。`.workbuddy` 里绝不能入库的是
+  无头验收 profile（`_prof_*`/`cdp_prof_*`，每个 20~80MB，实测攒到 3.6GB）、`tmp/`、
+  验收截图 `_*.png`、一次性 `_*.tpl`/`_*.json`、所有 `*_bak/`、`unused_park/`
+  （规则已固化在 .gitignore，2026-09-28 清理过 20572 个误提交文件）。
+- 提交信息一律**标题 + 详细 Description**（用户硬性要求）；大改动拆成「chore 清理 / feat 功能」两个 commit。
 
 ## 架构（2026-09-24 起大改：代码生成 → 预制体化）
 - **旧状态已废**：此前 UI 全由 `Scripts/UI/*` 运行时 Graphics 生成、无 Prefab。

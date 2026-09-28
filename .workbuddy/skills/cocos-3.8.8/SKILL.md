@@ -35,7 +35,7 @@ agent_created: true
 
 | # | 铁律 | 原因 / 正确做法 |
 |---|---|---|
-| 1 | **UI 全部由代码构建，本项目没有 Prefab** | `assets/Scenes/Main.scene` 只挂一个 `GameRoot`。加界面 = 写 `openXxx(panelLayer)` 函数，不是拖预制体 |
+| 1 | **UI 已从「运行时生成」迁移为「预制体化」**（2026-09-24 起，见 `references/project-map.md`） | 现状：`resources/Prefabs/UI/<Name>.prefab` + `Core/Prefabs.ts` 清单预加载，`Game.scene` 已实体化；组件 `bindScene` 按节点名接手，`construct()` 只作兜底。历史实现保留在 `legacy-runtime-ui` 分支。**动手前先 `git branch --show-current` 确认在哪个分支**，两套写法不通用 |
 | 2 | **不要用 `@property` 拖引用** | 资源一律 `Res.I.sf('bottle/body_0')`（内部键是 `Textures/<path>/spriteFrame`） |
 | 3 | **改数值只改 `Core/GameConfig.ts`** | 档位 / 技能 / 成就 / 版面 / 存档 key 全在那里。逻辑里不要出现魔法数字 |
 | 4 | **Sprite 必须先 `sizeMode=CUSTOM` + `trim=false` 再赋 frame** | 默认 `SizeMode.TRIMMED` 会用原图尺寸覆盖节点尺寸 → 图被拉成原图大小。统一走 `setFrame()` |
@@ -46,7 +46,7 @@ agent_created: true
 | 9 | **资源路径不带扩展名，也不带 `resources/`** | `resources.load('Textures/ui/px_white2/spriteFrame', SpriteFrame, ...)`；`Res.sf()` 收的是 `'ui/px_white2'` |
 | 10 | **`tsconfig.json` 是 `strict: false`，但引擎声明是 `strict: true`** | 成员声明用 `null!` 断言（`private hud: Hud = null!;`） |
 | 11 | **设计分辨率 720×1280，`ResolutionPolicy.FIXED_WIDTH`** | 竖屏。所有坐标以中心为原点，Y 向上。版面常量看 `GameConfig.LAYOUT` |
-| 12 | **竖屏 UI 不要用 `Widget` 做自适应** | 本项目用绝对坐标 + `nd(parent, name, w, h, x, y)` 排布，改版直接调 `LAYOUT` |
+| 12 | **自适应统一走 `Core/AutoNodeScale.ts`，不要自己算缩放** | 结构：`Canvas → GameRoot[Widget 45 平铺] → gameRoot[UT 720×1280 + AutoNodeScale]`；UI 预制体同构（`<Name>[Widget] → fit[UT 720×1280 + AutoNodeScale]`）。⚠️ `cc.Canvas` **不会**改节点 UITransform 尺寸，平铺的父节点必须自己 `setContentSize(view.getVisibleSize())`，否则缩放算大（实测 2 vs 正确 1.8936）。旧 `UI/_legacy/UIFit.ts` 已退役 |
 
 ---
 
@@ -79,7 +79,8 @@ agent_created: true
 | `references/editor-mcp.md` | `cocos-creator-mcp` 扩展的工具清单（含 README 原始条目）、接入方式、限制 |
 | `references/cookbook.md` | 任务配方：加面板 / 加技能 / 加档位 / 加成就 / 调数值 / 加音效贴图 / 排查不显示不响应 |
 | `references/pitfalls.md` | 踩坑清单 A–I 节（含运行时改色 `tint`、竖直自适应几何、工具链与无头验收坑）+ D 节历史缺陷清单（均已修复） |
-| `references/asset-hygiene.md` | 无用资源盘点与清理：三线索判定口径（路径/uuid/子资源）、`__uuid__@f9941` 复合格式与路径前缀两个扫描器坑、安全删除顺序、工具 `scan_unused.py`/`clean_unused.py` |
+| `references/asset-hygiene.md` | 无用资源盘点与清理：三线索判定口径（路径/uuid/子资源）、`__uuid__@f9941` 复合格式与路径前缀两个扫描器坑、安全删除顺序、工具 `scan_unused.py`/`verify_unused.py`/`park_unused.py`/`clean_unused.py`/`check_texpaths.py`/`check_scene_refs.py` |
+| `references/repo-hygiene.md` | ★ **提交前审计与垃圾隔离（推 GitHub 前必读）**：绝不能入库清单（`_prof_*` 无头验收 Chrome profile 20~80MB/个、`tmp/`、`_*.png/.tpl/.json`、`*_bak/`、`unused_park/`）、`.gitignore` 固化规则、2 万条 status 的 porcelain+python 统计法、`core.quotepath=false` 中文路径坑、清理与功能分两个 commit、推送代理 |
 
 工具（都在 `.workbuddy/tools/`）：
 
