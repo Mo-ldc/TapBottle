@@ -11,12 +11,26 @@ import { label, nd, setFrame, setSize } from '../UI/Base/UIKit';
 import { Modal } from '../UI/Base/Modal';
 import { Tutorial } from './Tutorial';
 import { UIHitBlocks } from '../Core/UIHit';
+import { SpatialGrid } from '../Core/SpatialGrid';
 
 const { ccclass } = _decorator;
 
 /** 玩家点击音效（用户口径：pop3 才是瓶子被触发的声音） */
 const TAP_SFX = ['pop3'];
 const DW = 720, DH = 1280;
+
+/* ---------------- 空间索引参数（第九十六轮） ----------------
+ * 悬停/点击都不再用「遍历所有瓶子」，改成先问 SpatialGrid 要候选。
+ */
+/** 悬停判定点相对 node 位置的 y 偏移（原逻辑 LAYOUT.bottleH * 0.30，语义=瓶身视觉中心） */
+const HOVER_DY = LAYOUT.bottleH * 0.30;
+/**
+ * 点击命中的外接方半径（本地单位）。
+ * 瓶子命中框 = 贴图矩形 150×375 × BOTTLE_SCALE，相对 node 位置 y∈[-32.64, +63.36]；
+ * 平放（±93°）时宽高互换 → 取 max(38.4, 96)/2 = 48，再留一点余量 → 64。
+ * 覆盖 0°/180°/±93° 三态且对锚点偏移保守，保证候选不会漏。
+ */
+const HIT_R = 64;
 
 /* ---------------- 光圈（★ 第四十八轮起**开局常显**，不再需要解锁） ----------------
  * 拆成两个**独立**节点，因为它们的层级需求正好相反：
@@ -47,6 +61,18 @@ export class BottleField extends Component {
     /** 指针（gqiun 光圈贴图；顶层，盖过瓶子） */
     private cursorPin: Node = null!;
     private pointer = new Vec2(0, 0);
+
+    /* ---- 空间索引（第九十六轮）：悬停/点击的邻域剪枝，见 Core/SpatialGrid ---- */
+    private grid = new SpatialGrid<Bottle>();
+    /** 查询结果缓冲（复用，避免每次查询 new 数组 → GC） */
+    private gridOut: Bottle[] = [];
+    /** 点击命中的独立缓冲（与悬停查询分开，避免将来有人把两者嵌套调用时互相踩） */
+    private tapOut: Bottle[] = [];
+    /**
+     * 索引脏标记。**只在瓶子增删 / 翻转落位时置位**，由 update 每帧最多重建一次。
+     * ⚠️ 不能每帧重建：重建要遍历全部瓶子，跟原来的全量遍历同价，那就白做了。
+     */
+    private gridDirty = true;
     /**
      * 首次可用时把指针摆到桌面活动区中心。
      * 否则它停在节点原点（= 桌面下沿/边缘），会给人「光标出现了但不在该在的地方」的错觉；
@@ -173,7 +199,9 @@ export class BottleField extends Component {
         input.on(Input.EventType.MOUSE_DOWN, onDownMouse, this);
         input.on(Input.EventType.MOUSE_MOVE, onMoveMouse, this);
 
-        const lb = label(this.node, '', 0, PLAY_AREA.y1 - 14, 320, 44, {
+        // ★ 第九十四轮：+N 角标夹到 300 —— y1 上探到 375 后 `y1 - 14 = 361` 会压顶栏
+        //   （顶栏底边本地 ≈358）。它只在「同屏超出上限」时显示（现在上限已取消，基本不出现）。
+        const lb = label(this.node, '', 0, Math.min(PLAY_AREA.y1 - 14, 300), 320, 44, {
             size: 26, color: '#FFE9A8', outline: '#20160A', outlineWidth: 3,
         });
         this.overflowLb = lb.node;
@@ -251,14 +279,23 @@ export class BottleField extends Component {
             this.cursorPin.active = true;
         }
 
-        for (const b of this.bottles) {
+        // ★ 第九十六轮：悬停触发从「遍历所有瓶子」改成「问空间索引要候选」。
+        //   原来每帧无条件遍历全部瓶子（跟手指动不动无关），300 只就是 300 次迭代；
+        //   现在只重建一次邻域（脏时才重建），每帧扫查询圆外接方覆盖的几格。
+        //   ⚠️ 精确判定（距离 < r）与门控顺序保持原样，候选外扩用 r + HOVER_DY
+        //   （因为"判定点"相对 node.position 上移了 HOVER_DY，外扩这么多才不会漏）。
+        if (this.gridDirty) { this.rebuildGrid(); }
+        const cand = this.gridOut;
+        const cn = this.grid.queryCircle(this.pointer.x, this.pointer.y, r + HOVER_DY, cand);
+        for (let ci = 0; ci < cn; ci++) {
+            const b = cand[ci];
             if (!b.idle) { continue; }
             // 买瓶飞入期间真瓶子是藏起来的（node.active=false），别让它被光标扫到
             if (!b.node.activeInHierarchy) { continue; }
             // ★ 圈内只触发「该阶已解锁悬停翻转」的瓶子；没解锁的该阶瓶子只能点击（原版操作流）
             if (!G.hoverable(b.tier)) { continue; }
             const dx = b.node.position.x - this.pointer.x;
-            const dy = b.node.position.y + LAYOUT.bottleH * 0.30 - this.pointer.y;
+            const dy = b.node.position.y + HOVER_DY - this.pointer.y;
             if (dx * dx + dy * dy < r * r) {
                 const key = b.node.uuid;
                 const now = performance.now();
@@ -270,6 +307,28 @@ export class BottleField extends Component {
         }
         void dt;
     }
+
+    /**
+     * 重建空间索引（第九十六轮）。
+     *
+     * 把所有瓶子按 **node.position** 落格（悬停/点击的判定点都在这个基准上加固定偏移，
+     * 偏移量在查询侧并进外扩范围，见 update 与 hitBottles）。
+     * 连 busy / 隐藏的瓶子一起插入 —— 查询时再按状态过滤，省掉重建期的状态判断。
+     */
+    private rebuildGrid() {
+        this.gridDirty = false;
+        const arr = this.bottles;
+        this.grid.reset(PLAY_AREA.x0 - HIT_R, PLAY_AREA.y0 - HIT_R,
+            PLAY_AREA.x1 + HIT_R, PLAY_AREA.y1 + HIT_R);
+        for (let i = 0; i < arr.length; i++) {
+            const b = arr[i];
+            if (!b.node || !b.node.isValid) { continue; }
+            this.grid.insert(b, b.node.position.x, b.node.position.y);
+        }
+    }
+
+    /** 标记索引需要重建（瓶子增删 / 位置变化时调用） */
+    markGridDirty() { this.gridDirty = true; }
 
     /* ---------------- 布局 ---------------- */
 
@@ -329,15 +388,51 @@ export class BottleField extends Component {
      * 世界坐标直接喂给它，中间不再经过任何手写坐标换算。
      */
     private tapWorld(wx: number, wy: number) {
+        const out = this.tapOut;
+        const n = this.hitBottles(wx, wy, out);
         let hit = false;
-        for (const b of this.bottles) {
-            if (!b.idle) { continue; }
-            if (!b.node.activeInHierarchy) { continue; }   // 飞入途中（真瓶子藏起来）不参与命中
-            if (b.hitTest(wx, wy)) { this.flip(b); hit = true; }
+        for (let i = 0; i < n; i++) {
+            this.flip(out[i]);
+            hit = true;
         }
         // ★ 新手引导：只统计「玩家亲手点到瓶子」的次数（悬停触发/助手/冲击波都不算）
         if (hit) { Tutorial.notifyTap(); }
     }
+
+    /**
+     * 命中查询（只判命中、不翻转）—— tapWorld 与无头验收共用同一份逻辑，
+     * 保证「验收测到的命中集合」就是「玩家点击真的会翻的集合」。
+     *
+     * ★ 第九十六轮：候选从空间索引取（AABB 外接方半径 HIT_R 覆盖正立/倒立/平放三态
+     *   以及锚点偏移），不再遍历所有瓶子。界内中心点闭包在 grid 的边界里，
+     *   所以「点在某只瓶子身上」它一定在候选里，不会漏。
+     */
+    hitBottles(wx: number, wy: number, out: Bottle[]): number {
+        if (this.gridDirty) { this.rebuildGrid(); }
+        const ut = this.node.getComponent(UITransform);
+        if (!ut) { return 0; }
+        // ⚠️ 坐标空间：网格是按**本地坐标**（b.node.position）建的，而入参是世界坐标
+        //   （tapWorld 的口径 = uiToWorld 的结果）→ 必须先换算。
+        //   漏掉这一次换算的后果是「所有瓶子都查不到」（命中恒为 0），
+        //   且不会报错 —— 已由 _q96 的等价性校验实测抓到过一次。
+        const v = this._hitTmp;
+        v.set(wx, wy, 0);
+        ut.convertToNodeSpaceAR(v, v);
+        const cn = this.grid.queryRect(v.x - HIT_R, v.y - HIT_R, v.x + HIT_R, v.y + HIT_R, out);
+        let m = 0;
+        for (let i = 0; i < cn; i++) {
+            const b = out[i];
+            if (!b.node || !b.node.isValid) { continue; }
+            if (!b.idle) { continue; }
+            if (!b.node.activeInHierarchy) { continue; }   // 飞入途中（真瓶子藏起来）不参与命中
+            if (!b.hitTest(wx, wy)) { continue; }
+            out[m++] = b;                                   // m ≤ i，原地压紧安全
+        }
+        out.length = m;
+        return m;
+    }
+    /** hitBottles 的临时向量（避免每次查询 new Vec3） */
+    private _hitTmp = new Vec3();
     /** 最近一次按下判定的世界坐标（调试/无头验收用） */
     lastWorld = new Vec2(0, 0);
 
@@ -405,6 +500,9 @@ export class BottleField extends Component {
         } else {
             this.overflowLb.active = false;
         }
+
+        // ★ 第九十六轮：瓶子增删过 → 空间索引必须重建（否则新瓶子点不到、卖掉的还留着）
+        this.gridDirty = true;
     }
 
     rebuild() { this.sync(); }
@@ -446,7 +544,7 @@ export class BottleField extends Component {
     private scratch: number[] = [];
     private depthDirty = false;
     private depthAcc = 0;
-    sortDepth() { this.depthDirty = true; }
+    sortDepth() { this.depthDirty = true; this.gridDirty = true; }
 
     /** 真正重排：y 越大（越靠后）层级越低；顺序没变就不动，省掉 setSiblingIndex */
     private doSort() {
@@ -509,6 +607,9 @@ export class BottleField extends Component {
     }
 
     private onLanded(b: Bottle, outcome: Outcome) {
+        // ★ 第九十六轮：落位 = 位置变了 → 空间索引要重建。
+        //   放在最前面：fail 分支会提前 return（下面 sortDepth 走不到），漏标会让索引留着旧位置。
+        this.gridDirty = true;
         if (outcome === 'fail') {
             // ★ 用户口径（第十六轮）：翻倒**不再**弹 MISS 评价飘字 ——
             //   负反馈文案在放置类里只会添堵；瓶子躺下本身就是最清楚的反馈。
