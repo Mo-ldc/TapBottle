@@ -99,6 +99,11 @@
   → 表现是「画面完全正常，但所有点击全废」。
 - 验证闭环：`prefab_validate` → `prefab_edit{action:open}`（等价于双击）→ 看 `mode:"prefab-edit"`；
   再 `close{save:true}` 后 diff，**只应差 fileId 随机值**（实测已验证字节级等价）。
+- ⚠️ **编辑器「保存」会把 prefab 的 JSON 重排成缩进多行**（仓库里老 prefab 多是单行紧凑 JSON）
+  → diff 可能长得像「1 行 → 2013 行」，**别按 diff 行数判断改动大小**。判真实改动的办法：
+  两端 `json.loads` 后**按下标逐对象配对比对**（对象数一致 ⇒ 无增删节点），再看
+  `_lpos / _contentSize / _fontSize / _lineHeight / _overflow` 等数值差异。
+  第九十七轮实测 ConfirmDialog：87 个对象一一对应，只有 13 处真改（其余全是缩进格式化）。
 
 ## 空间索引（第九十六轮，2026-09-29）
 - `Core/SpatialGrid.ts` = 均匀网格（多叉分桶，cell 48，桶+槽位数组全程复用 → 零分配）。
