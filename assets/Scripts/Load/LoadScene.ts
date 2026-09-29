@@ -4,6 +4,7 @@ import { G } from '../Core/State';
 import { Res, bootFlags } from '../Core/Res';
 import { UIMgr, UIName } from '../Core/UIMgr';
 import { installPreviewInputBridge } from '../Core/PreviewInputBridge';
+import { installErrorGuard } from '../Core/ErrorGuard';
 
 const { ccclass, property } = _decorator;
 
@@ -83,6 +84,8 @@ export class LoadScene extends Component {
         LoadScene.I = this;
         // 预览页输入修复（必须最先做：构建产物零影响，详见 PreviewInputBridge.ts 顶部注释）
         installPreviewInputBridge();
+        // 测试机现场回收三件套（异常浮层/看门狗/GL丢失自救），幂等 —— 见 Core/ErrorGuard.ts
+        installErrorGuard();
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
         this.alignCanvas();
 
@@ -165,6 +168,8 @@ export class LoadScene extends Component {
     }
 
     update(dt: number) {
+        // ErrorGuard 看门狗心跳（标题页也要报活，见 Core/ErrorGuard.ts）
+        (globalThis as any).__tbHeart = Date.now();
         // 窗口尺寸变了（旋屏/拖拽）：背景与 uiRoot 跟着可见区重排（幂等，开销极小）
         const vs = view.getVisibleSize();
         if (Math.abs(vs.width - this.lastVw) > 0.5 || Math.abs(vs.height - this.lastVh) > 0.5) {

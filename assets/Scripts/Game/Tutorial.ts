@@ -190,6 +190,14 @@ export class Tutorial extends Component {
         if (Tutorial.I === this) { Tutorial.I = null as any; }
     }
 
+    /**
+     * ★ 循环 tween 跨场景泄漏修复（2026-09-29）：引导手指是 repeatForever，
+     *   引擎不会随节点销毁自动停 —— 离场必须显式停（同 StartPage/Abilities）。
+     */
+    protected onDisable(): void {
+        if (this.handImg && this.handImg.isValid) { Tween.stopAllByTarget(this.handImg); }
+    }
+
     /* ---------------- 每帧：洞跟随目标 + 步进检测 ---------------- */
     protected update(dt: number) {
         if (!this.step) { return; }

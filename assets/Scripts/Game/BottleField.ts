@@ -80,6 +80,8 @@ export class BottleField extends Component {
      */
     private pointerSeeded = false;
     private hitLock: Record<string, number> = {};
+    /** 面包屑去重：上次上报过的瓶子总数 */
+    private lastBreadTotal = -1;
 
     /** 瓶子层（可排序遮挡）/ 影子层（永远在所有瓶子之下） */
     private bottleHolder: Node = null!;
@@ -440,6 +442,11 @@ export class BottleField extends Component {
         if (!this.node || !this.node.isValid) { return; }
         const want = G.data.bottles.slice();
         const total = want.reduce((a, b) => a + b, 0);
+        // ErrorGuard 面包屑：瓶子总数变化才上报（排查「瓶子多时返回卡死」的现场）
+        if (total !== this.lastBreadTotal) {
+            this.lastBreadTotal = total;
+            try { (globalThis as any).__tb_breadPush?.('bottles=' + total); } catch (e) { /* ignore */ }
+        }
 
         // ★ 用户口径（第五十一轮）：**同屏显示上限彻底取消** —— 桌面上只认玩家「能买到的上限」
         //   （`State.tierCap`：默认 30，可由「上限提升」词条 +5/级、`p_sizelimit` 科技 +5/级 抬高）。

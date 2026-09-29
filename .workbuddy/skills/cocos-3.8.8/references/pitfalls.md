@@ -1009,3 +1009,24 @@ JS 堆栈，配合 chunk 行号回源码（preview chunk 在 `temp/programming/p
      `drift_check.py` 逐节点比对（本工程三件套齐备，见 tools/_oneshot/README.md）。
   ④ 附带坑：`UI_ENTRIES` 里放没有 prefab 的界面名（如 GamePage）只会让 preload 每次报
      resources.load 失败——实体化进 Game.scene 的 UI 不要进预制体预加载清单。
+
+## 多平台构建任务不会自动带上新场景（vivo 返回 1209 卡死，2026-09-29 实锤）
+- 症状：某平台包里 `director.loadScene('X')` 报 **Error 1209**（"not in the build settings"），
+  开机能玩、切场景必失败，与内存/设备性能/JS 版本无关。
+- 根因：**构建任务的场景勾选列表按任务独立保存**，在
+  `profiles/v2/packages/builder.json` 的 `taskMap.<id>.options.scenes`。新建场景后，
+  老构建任务不会自动勾选 → 该平台包里没有这个场景。
+- 排查：diff 各平台 `build/<platform>/src/assets/main/config.json` 的 `scenes` 表（小游戏平台
+  路径在 `src/assets/` 下；web-mobile 在 `assets/main/config.json`）。
+- 修法：改 builder.json 的 scenes 数组（`[{"url":"db://assets/Scenes/X.scene","uuid":"…"}]`），
+  或编辑器构建面板重新勾选。注意 scenes 里的 url 可能是改名前的旧路径，以 uuid 为准但建议一并改正。
+- **引擎事实**：`director.loadScene` 查不到场景时走 `errorID(1209)` + `return false`，
+  **同步返回、不调用 onLaunched 回调**——失败兜底必须同时判断布尔返回值，只写回调会静默失效。
+
+## 设备端调试（无 adb）：DevTools over LAN
+- vivo/安卓 webview 或小游戏容器调试：Chrome 打开
+  `http://127.0.0.1:8000/front_end/inspector.html?ws=<设备IP>:<端口>/inspector&remoteFrontend=true`
+  即可看设备 console；本机装 python requests+websocket 也可直连 `ws://<设备IP>:<端口>/inspector`
+  执行 Runtime.evaluate 抓现场。
+- 两个坑：**socket 只允许一个客户端**（Chrome 页签占着就连不上）；页面卡死后 socket 直接断，
+  要抓日志趁页面还活着。用完的临时诊断脚本按惯例放 `_workbench/`、用完即删。

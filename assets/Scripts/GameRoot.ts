@@ -1,4 +1,4 @@
-import { _decorator, Canvas, Component, Node, UITransform, Sprite, Vec3, tween, UIOpacity, input, Input, view, ResolutionPolicy, director, profiler, sys, Widget } from 'cc';
+import { _decorator, Canvas, Component, Node, UITransform, Sprite, Tween, Vec3, tween, UIOpacity, input, Input, view, ResolutionPolicy, director, profiler, sys, Widget } from 'cc';
 import { BOTTLE_STATS, AUTHOR_H, AUTHOR_W, DESIGN_H, DESIGN_W, DS, fitPlayAreaToBand, LAYOUT, MILESTONES, SAFE_BLOCKS, WORLD_ENV, WORLD_XFORM } from './Core/GameConfig';
 import { AutoNodeScale } from './Core/AutoNodeScale';
 import { G } from './Core/State';
@@ -7,6 +7,7 @@ import { t } from './Core/Locale';
 import { button, img, label, MASK_SIZE, nd, rect, setFrame, setSize } from './UI/Base/UIKit';
 import { Toast } from './UI/Base/Toast';
 import { installPreviewInputBridge } from './Core/PreviewInputBridge';
+import { installErrorGuard } from './Core/ErrorGuard';
 import { Hud } from './UI/Hud/Hud';
 import { BottomPanel } from './UI/Hud/BottomPanel';
 import { debugGoal, registerNav } from './UI/Hud/Guidance';
@@ -110,6 +111,8 @@ export class GameRoot extends Component {
     onLoad() {
         // 预览页输入修复（构建产物零影响，详见 PreviewInputBridge.ts 顶部注释）
         installPreviewInputBridge();
+        // 测试机现场回收三件套（异常浮层/看门狗/GL丢失自救），幂等 —— 见 Core/ErrorGuard.ts
+        installErrorGuard();
         // ★ 模块级单例在「重载场景」后仍然存在：如果重载那会儿正好有模态面板开着，
         //   Modal.count 会残留 >0 → BottleField 的 aim()/pointerDown() 永远 return
         //   → 整局再也点不动瓶子。所以每次进场景都要清一次。
@@ -325,13 +328,54 @@ export class GameRoot extends Component {
         this.leaving = true;
         try { Res.I?.play('button'); } catch (e) { /* ignore */ }
         try { G.save(); } catch (e) { /* ignore */ }
+        // ★ 兜底（vivo 返回卡死排查）：淡出 tween 无论什么原因没走到 call
+        //   （异常打断 tween 系统/被外力 stop），0.5s 后强制切场景；
+        //   loadScene 本身再失败（webview 内存吃紧时）就直接整页 reload 救活。
+        this.scheduleOnce(() => this.doLeave(), 0.5);
         const op = this.node.getComponent(UIOpacity) || this.node.addComponent(UIOpacity);
-        tween(op).to(0.22, { opacity: 0 }).call(() => { director.loadScene('Load'); }).start();
+        tween(op).to(0.22, { opacity: 0 }).call(() => this.doLeave()).start();
+    }
+
+    /** 离场单发闸：fade call 与 scheduleOnce 兜底两条路只会真正执行一次 */
+    private left = false;
+    private doLeave() {
+        if (this.left) { return; }
+        this.left = true;
+        const reload = () => {
+            try { G.save(); } catch (e) { /* ignore */ }
+            location.reload();
+        };
+        const attempt = (retried: boolean) => {
+            let ok = false;
+            try {
+                ok = director.loadScene('Load', (err) => {
+                    if (!err) { return; }
+                    try { (globalThis as any).__tb_breadPush?.('loadScene(Load) fail: ' + err.message); } catch (e) { /* ignore */ }
+                    setTimeout(() => { if (retried) { reload(); } else { attempt(true); } }, retried ? 600 : 800);
+                });
+            } catch (e) {
+                try { (globalThis as any).__tb_report?.('loadScene(Load) failed: ' + e); } catch (e2) { /* ignore */ }
+            }
+            if (!ok) {
+                // ★ 1209 同步失败（bundle 场景表里查不到 'Load'）走 return false，不调回调！
+                //   必须 here 兜底，否则重试/reload 永远不触发。
+                try { (globalThis as any).__tb_breadPush?.('loadScene(Load) returned false (1209)'); } catch (e) { /* ignore */ }
+                setTimeout(() => { if (retried) { reload(); } else { attempt(true); } }, retried ? 600 : 800);
+            }
+        };
+        attempt(false);
     }
 
     /* ---------------- 启动（Boot 场景标题页点击后进入） ---------------- */
     private afterReady() {
         this.rebindSceneRenderers();
+        // ★ vivo 返回卡死根因：设备上 loadScene('Load') 资源加载失败（Error 1209 / src is null）。
+        //   进游戏就预载 Load 场景 → 返回时 loadScene 直接用已缓存的依赖，不再走当场 IO。
+        try {
+            director.preloadScene('Load', (err) => {
+                if (err) { try { (globalThis as any).__tb_breadPush?.('preload Load fail: ' + err.message); } catch (e) { /* ignore */ } }
+            });
+        } catch (e) { /* ignore */ }
         // 飘字节点预热：资源已就绪，这里一次性把 FloatText 预制体实例化进对象池，
         // 免得第一只瓶子落地时现场 instantiate 掉帧（Pool.warm 内部对未加载情况静默返回）
         FxLayer.I?.warmup(8);
@@ -547,6 +591,8 @@ export class GameRoot extends Component {
 
     /* ---------------- 帧循环 ---------------- */
     update(dt: number) {
+        // ErrorGuard 看门狗心跳：主循环活着就刷新（页面可见时 6s 无心跳 = 卡死）
+        (globalThis as any).__tbHeart = Date.now();
         const d = Math.min(dt, 0.05);
         G.tick(d);
         if (G.hasIdle) { G.idleOn = true; }
@@ -566,5 +612,7 @@ export class GameRoot extends Component {
         //   （以前只在 onLoad 清，只在「再进游戏」时生效，标题页期间是裸奔的。）
         G.clearListeners();
         G.save();
+        // 防御：作用在本节点上的 tween（如返回淡出）随场景销毁时一并停掉
+        try { Tween.stopAllByTarget(this.node); } catch (e) { /* ignore */ }
     }
 }

@@ -27,6 +27,20 @@ export class Abilities extends Component {
 
     onLoad() { }
 
+    /**
+     * ★ 循环 tween 跨场景泄漏修复（2026-09-29，vivo 返回卡死排查顺手修）：
+     *   狂暴火焰 / 处决光环是 repeatForever tween（refreshFx 里建），而引擎**不会**
+     *   在节点销毁时自动停 repeatForever —— 离开 Game 场景后它们会在已销毁节点上
+     *   永久空转（Memory.md 早有此坑记录，StartPage 已修过同类问题）。
+     */
+    protected onDisable(): void {
+        if (this.berserkFx && this.berserkFx.isValid) { Tween.stopAllByTarget(this.berserkFx); }
+        if (this.samuraiFx && this.samuraiFx.isValid) {
+            const op = this.samuraiFx.getComponent(UIOpacity);
+            if (op) { Tween.stopAllByTarget(op); }
+        }
+    }
+
     lateUpdate(dt: number) {
         // ★ 第八十三轮：能力条停用（bar 为空）时整段跳过 —— 可乐冷却 / 条刷新 / 特效跟随都不跑
         if (!this.bar || !this.bar.isValid) { return; }
