@@ -997,3 +997,15 @@ JS 堆栈，配合 chunk 行号回源码（preview chunk 在 `temp/programming/p
 - **进度条动画是「固定时长演出」，与实际加载无关**：本工程 LoadScene.update 用
   shown += dt * 0.55 平滑逼近 target，资源秒ready 时照样演 2.1s。凡「回访场景」，先想清楚
   这段动画该不该跳过（无头验收用 rAF 轮询打点测真实耗时：修复前 2421ms → 修复后 344ms）。
+- **「编辑器改了 prefab 跑起来不生效」三连根因（第七十九轮全齐）**：
+  ① 代码硬写：UIBase 子类里 `setPosition/contentSize` 写死预制体节点坐标 → 编辑器改了也被顶回
+     （铁律见项目 MEMORY.md：只填文字/切 active，位置一律归 prefab）；
+  ② 一次性 bake 脚本重跑：这类脚本按内部常量**整棵重建** prefab（不读现状），等于覆盖手改
+     —— 本工程已全部移入 `.workbuddy/tools/_oneshot/`，新增同类脚本必须放这里；
+  ③ 引擎接管（编辑器挪了也白挪，不算 bug）：`cc.ScrollView._calculateBoundary()` 每次启动
+     调 `_moveContentToTopLeft()` 把 content **贴到视口左上**（content 锚点 (0.5,1) 时 y 恒
+     = viewH/2）；挂 `cc.Widget` 的节点按可见区重新对齐；控件内部状态节点（开关钮/进度条）
+     位置来自 @property。排查手法：无头 dump 运行期节点树 vs `dump_prefab.py` 读文件，
+     `drift_check.py` 逐节点比对（本工程三件套齐备，见 tools/_oneshot/README.md）。
+  ④ 附带坑：`UI_ENTRIES` 里放没有 prefab 的界面名（如 GamePage）只会让 preload 每次报
+     resources.load 失败——实体化进 Game.scene 的 UI 不要进预制体预加载清单。

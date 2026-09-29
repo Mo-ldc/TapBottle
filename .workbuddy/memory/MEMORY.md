@@ -17,6 +17,19 @@
 - 提交信息一律**标题 + 详细 Description**（用户硬性要求）；大改动拆成「chore 清理 / feat 功能」两个 commit。
 
 ## 架构（2026-09-24 起大改：代码生成 → 预制体化）
+- **★★ 第七十九轮铁律（2026-09-29，用户硬性要求）「以预制体为主」**：编辑器里改 prefab
+  必须直接生效 → 代码**绝不允许**对 prefab 里的节点写 position/contentSize（只许填文字/切
+  active/挂事件）；UI 位置一律在编辑器里调。一次性 bake 脚本已移入
+  `.workbuddy/tools/_oneshot/`（重跑=整棵重建覆盖手改，**别再跑**）。改完 prefab 的验证闭环：
+  `CDP_LOG_MAX=40000` 跑 `_workbench/_tpl/_q79_prefab_drift.tpl` →
+  `python .workbuddy/tools/drift_check.py E:/LDC_Fby/_cdp_log.txt` → 各弹窗应为「漂移 0 处」。
+  引擎接管例外（不算漂移）：ScrollView 的 content（引擎贴视口左上）、Widget 平铺节点的尺寸、
+  ToggleRow.knob / StepperRow.fill（@property 运行期状态）。
+  **第八十轮补充**：列表行（商店/升级/技能树共用 `UpgradeRow.prefab`）也已纳入 ——
+  `UpgradeRows.ts` 用 `snap()` 快照（`RowUI.L`）替代 8 处硬写，applyRow 只做数据活；
+  调行内布局 = 直接拖 prefab（改完跑 `_q80_row_prefab.tpl` 与 `dump_prefab.py` diff）。
+  注意 `set_prefab_node.py` 可按节点路径改 prefab pos/size；constructCell 兜底常量要与 prefab 同步。
+  lvLb/nameImg/ztk 层是运行时懒建（prefab 无此节点）；btnLb.x 有「无图标居中/ad 让位」两态。
 - **旧状态已废**：此前 UI 全由 `Scripts/UI/*` 运行时 Graphics 生成、无 Prefab。
   现在全面迁移为「场景实体化 + Prefab + 编辑器可调」，参考工程
   `E:\LDC_Cocos_PJ\Cocos3X_2D\开个便利店_竖屏\项目\StartConvenienceStore4`：
