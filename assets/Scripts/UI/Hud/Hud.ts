@@ -113,21 +113,9 @@ export class Hud extends Component {
             sp.type = Sprite.Type.SIMPLE;
             setFrame(sp, 'skin/main/btn_back', undefined, undefined, '#FFFFFF');
         }
-        // ★ 第九十三轮：成就（cju）/ 统计（phb）按钮换皮 —— 自带木框的圆形按钮整图
-        //   （源 66×66，直贴 toolSize 52），和返回按钮同一手法：拆掉
-        //   「woodButton 底板 + icon」拼装件，整图直贴。语言按钮保持 woodButton 文字样式。
-        const tools: Array<[string, string]> = [
-            ['tool_ach', 'skin/main/btn_ach'],
-            ['tool_stats', 'skin/main/btn_phb'],
-        ];
-        for (const [name, tex] of tools) {
-            const n = this.node.getChildByName(name);
-            if (!n || !n.isValid) { continue; }
-            for (const c of [...n.children]) { c.destroy(); }
-            const sp = n.getComponent(Sprite) || n.addComponent(Sprite);
-            sp.type = Sprite.Type.SIMPLE;
-            setFrame(sp, tex, undefined, undefined, '#FFFFFF');
-        }
+        // ★ 第一〇六：成就（cju）/ 统计（phb）按钮的新图已直接烘进 Game.scene
+        //   （tool_ach/tool_stats → skin/main/btn_ach / btn_phb 整图 SIMPLE），
+        //   这里不再运行时覆盖 —— 编辑器里改这两个按钮的贴图/尺寸即生效。
     }
 
     /** 场景里已摆好顶栏（有 btn_back）→ 补齐没绑的 @property 引用，返回 true */
@@ -194,10 +182,12 @@ export class Hud extends Component {
         });
         this.capsLb.node.name = 'capsLb';
 
-        /* ---- 右端工具按钮（事件统一在 wire() 里接） ---- */
+        /* ---- 右端工具按钮（事件统一在 wire() 里接） ----
+         * ★ 第一〇六：与场景版同构 —— 成就/统计是自带木框的整图直贴（btn_ach/btn_phb），
+         *   不再走 woodButton+icon 拼装（运行时换皮已随场景真源删除）。语言按钮保持文字样式。 */
         const tools: Array<{ icon: string, name: string }> = [
-            { icon: 'ui/icon/icon_ach', name: 'tool_ach' },
-            { icon: 'ui/icon/icon_stat', name: 'tool_stats' },
+            { icon: 'skin/main/btn_ach', name: 'tool_ach' },
+            { icon: 'skin/main/btn_phb', name: 'tool_stats' },
             { icon: '', name: 'tool_lang' },
         ];
         for (let i = 0; i < tools.length; i++) {
@@ -213,7 +203,10 @@ export class Hud extends Component {
                 });
                 this.langLb.node.name = 'langLb';
             } else {
-                img(b, d.icon, 34, 34, 0, 0, '#7A4A1E');
+                for (const c of [...b.children]) { c.destroy(); }
+                const sp = b.getComponent(Sprite) || b.addComponent(Sprite);
+                sp.type = Sprite.Type.SIMPLE;
+                setFrame(sp, d.icon, undefined, undefined, '#FFFFFF');
             }
         }
 

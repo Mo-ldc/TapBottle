@@ -93,6 +93,13 @@ export const NEW_BADGE_SIZE = 33;
  */
 export function newBadgePlate(tag: Node | null): Sprite | null {
     if (!tag || !tag.isValid) { return null; }
+    // ★ 第一〇四轮：UpgradeRow.prefab 已烘成最终形态（33×33 new_badge）→ 直接复用，
+    //   不再清子节点（保住 prefab 里的 tagLb）；场景里旧 Graphics 底板仍走下面的重建兜底。
+    const existed = tag.getComponent(Sprite);
+    if (existed && existed.spriteFrame && existed.spriteFrame.name === 'new_badge') {
+        setSize(tag, NEW_BADGE_SIZE, NEW_BADGE_SIZE);
+        return existed;
+    }
     for (const ch of [...tag.children]) { ch.destroy(); }
     const sp = tag.getComponent(Sprite) || tag.addComponent(Sprite);
     setFrame(sp, 'skin/main/new_badge', NEW_BADGE_SIZE, NEW_BADGE_SIZE);

@@ -10,7 +10,7 @@
     badgeIc 18×18 @(-120,-24) stat/income                              [隐藏]
     nameIc  11×28 @(-106,17)  bottle/body_0                            [隐藏]
     name    Label 左对齐 @(-112,17) 盒 172×30 字 26
-    sub     Label 左对齐 @(-112,-18) 盒 172×24 字 19
+    sub     Label 左对齐 @(-112,-18) 盒 172×48 字 19   ← 第一〇九：两行盒（48=19×1.15×2）
     btn     card_white SLICED 92×52 @(111,0) #F2C34E
       btnLb   Label 居中 @(13,1) 盒 50×40 字 20
       curIc   22×22 @(-33,1)  coin                                    [隐藏]
@@ -31,10 +31,16 @@ BAK_DIR = ".workbuddy/prefab_bak"
 SS = 2
 SF = {
     'card_white': '62a176fe-219f-4cff-b9a9-ea10612f835f@f9941',
+    'row_bg': '4bfa7376-2399-47fe-b1b6-9b0343a16d52@f9941',
     'stat_income': '588aafd0-8646-4d7a-b0f5-594f595d2884@f9941',
     'body_0': '02bd5bdd-e1e8-4071-a310-730596cb90fd@f9941',
     'coin': 'c70ee16d-ca97-4483-b441-e3fe99fa2f4d@f9941',
     'ksp': 'bc6e554b-e65c-4f61-abba-be9a05217cd6@f9941',
+    # ★ 第一〇四轮同步：运行期惰性建的四类节点烘进 prefab（applyRow 按名复用，不再现建）
+    'ztk_1': 'cc651130-78e1-4005-b280-c6a50f638515@f9941',
+    'ztk_2': '4e81400c-7fe1-44c6-bb76-9b942e90aec3@f9941',
+    'name_0': 'baed53f4-f7f7-46a7-acc0-042f5c7fa71f@f9941',
+    'new_badge': '5b0c194c-42e8-48bc-a17c-b41bc9899542@f9941',
 }
 
 def col(h):
@@ -148,34 +154,47 @@ def build():
         'optimizationPolicy': 0, 'persistent': False,
     })
 
-    def stroke(p): return emit_node('stroke', p, 0, 0, [U(328, 84), SP('card_white', '#3A1C08', 1)])
-    def bg(p):     return emit_node('bg', p, 0, 0, [U(322, 78), SP('card_white', '#5C2E12', 1)])
-    def tierBg(p): return emit_node('tierBg', p, -136, -6, [U(46, 46), GR()], active=False)
-    def ic(p):     return emit_node('ic', p, -136, -6, [U(46, 46), SP('stat_income', '#FFFFFF', 0)])
-    def badge(p):  return emit_node('badgeIc', p, -120, -24, [U(18, 18), SP('stat_income', '#FFFFFF', 0)], active=False)
-    def nameIc(p): return emit_node('nameIc', p, -106, 17, [U(11, 28), SP('body_0', '#FFFFFF', 0)], active=False)
-    def name(p):   return emit_node('name', p, -112, 17,
-                                    [U(172 * SS, 30 * SS, ax=0), LB('', 172, 30, 26, '#FFF3D0', align='left')],
+    # ★ 第一〇四轮同步（与运行期实况逐节点对齐，无头 dump 校验）：
+    #   · stroke 已废弃（bd12 换皮后行底自带描边）→ 不再生成；
+    #   · tierBg 下烘 ztk1/ztk2 双层底框（applyRow 惰性建 → 改为按名复用）；
+    #   · newTag 烘 33×33 new_badge 整图 + tagLb 13 号白字（删旧 card_white 底板 bg）；
+    #   · 根级补 lvLb（等级数字）与 nameImg（名字美术字，默认隐藏，applyRow 接管）。
+    #   ★ 第一〇七：行底 = bd12 奶油圆角（skin/main/row_bg，白 tint）——与 makeCell 414 行同口径；
+    #     上一轮误烘成旧口径 card_white #5C2E12（深棕），用户发现升级选项背景变色。
+    def bg(p):     return emit_node('bg', p, 0, 0, [U(322, 78), SP('row_bg', '#FFFFFF', 1)])
+    def tierBg(p): return emit_node('tierBg', p, -128, -6, [U(46, 46), GR()],
+                                    [lambda q: emit_node('ztk1', q, 0, 0, [U(52, 52), SP('ztk_1', '#FFFFFF', 0)]),
+                                     lambda q: emit_node('ztk2', q, 0, 0, [U(52, 52), SP('ztk_2', '#FFFFFF', 3)])])
+    def ic(p):     return emit_node('ic', p, -128, -6, [U(40, 40), SP('body_0', '#FFFFFF', 0)])
+    def badge(p):  return emit_node('badgeIc', p, -112, -24, [U(18, 18), SP('body_0', '#FFFFFF', 0)], active=False)
+    def nameIc(p): return emit_node('nameIc', p, -98, 17, [U(11, 28), SP('body_0', '#FFFFFF', 0)], active=False)
+    def name(p):   return emit_node('name', p, -98, 17,
+                                    [U(316 * SS, 60 * SS, ax=0), LB('', 158, 30, 26, '#7A4210', align='left')],
                                     scale=(0.5, 0.5, 1), ax=0)
-    def sub(p):    return emit_node('sub', p, -112, -18,
-                                    [U(172 * SS, 24 * SS, ax=0), LB('', 172, 24, 19, '#D9C4A6', align='left')],
+    def sub(p):    return emit_node('sub', p, -98, -18,
+                                    [U(316 * SS, 96 * SS, ax=0), LB('', 158, 48, 19, '#8A5A28', align='left')],
                                     scale=(0.5, 0.5, 1), ax=0)
 
     def btnLb(p):  return emit_node('btnLb', p, 13, 1,
                                     [U(50 * SS, 40 * SS), LB('', 50, 40, 20, '#7A4210')],
                                     scale=(0.5, 0.5, 1))
     def curIc(p):  return emit_node('curIc', p, -33, 1, [U(22, 22), SP('coin', '#FFFFFF', 0)], active=False)
-    def adIcon(p): return emit_node('adIcon', p, 33, 22, [U(30, 30), SP('ksp', '#FFFFFF', 0)], active=False)
-    def tagBg(p):  return emit_node('bg', p, 0, 0, [U(46, 24), SP('card_white', '#E8556D', 1)])
+    def adIcon(p): return emit_node('adIcon', p, 33, 22, [U(46, 36), SP('ksp', '#FFFFFF', 0)], active=False)
     def tagLb(p):  return emit_node('tagLb', p, 0, 1,
-                                    [U(42 * SS, 20 * SS), LB('新', 42, 20, 16, '#FFF3D0')],
+                                    [U(24 * SS, 20 * SS), LB('新', 24, 20, 13, '#FFFFFF')],
                                     scale=(0.5, 0.5, 1))
-    def newTag(p): return emit_node('newTag', p, -247, 25, [U(46, 24)], [tagBg, tagLb])
+    def newTag(p): return emit_node('newTag', p, -247, 25, [U(33, 33), SP('new_badge', '#FFFFFF', 0)], [tagLb])
     def btn(p):    return emit_node('btn', p, 111, 0, [U(92, 52), SP('card_white', '#F2C34E', 1)],
                                     [btnLb, curIc, adIcon, newTag])
+    # lvLb：等级数字，左中锚点贴底框左下角（applyRow 按 L.tier 推导的落点烘死在此）
+    def lvLb(p):   return emit_node('lvLb', p, -151, -24,
+                                    [U(44 * SS, 16 * SS, ax=0), LB('', 44, 16, 14, '#7A4210', align='left')],
+                                    scale=(0.5, 0.5, 1), ax=0)
+    # nameImg：名字美术字（默认隐藏，applyRow 有 spec.nameImg 才显示并按原始比例重设宽）
+    def nameImg(p): return emit_node('nameImg', p, 0, 17, [U(60, 24), SP('name_0', '#FFFFFF', 0)], active=False)
 
     emit_node('cell', None, 0, 0, [U(322, 78)],
-              [stroke, bg, tierBg, ic, badge, nameIc, name, sub, btn])
+              [bg, tierBg, ic, badge, nameIc, name, sub, btn, lvLb, nameImg])
     return DOC.arr
 
 def main():

@@ -25,6 +25,7 @@ export const PREFAB_PATHS: string[] = [
     // UI
     'UI/UpgradeRow',   // 底栏内嵌面板的列表行单元（商店/升级/技能树共用）
     'UI/FloatText',    // 飘字单元（金币 / 瓶盖 / 提示）—— 高频借还，走 Pool
+    'UI/ToastBar',     // 顶部横条提示（Toast）—— 位置/底色/字号在编辑器可调
 ];
 
 export class Prefabs {

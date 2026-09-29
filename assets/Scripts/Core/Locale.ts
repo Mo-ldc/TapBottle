@@ -25,7 +25,7 @@ export const L: Record<string, Entry> = {
     back:             { zh: '返回', en: 'Back' },
     not_enough:       { zh: '资源不足', en: 'Not enough' },
     maxed:            { zh: '已升至最高等级', en: 'Max level' },
-    all_done:         { zh: '本类目已全部解锁', en: 'All unlocked here' },
+    all_done:         { zh: '已全部解锁', en: 'All unlocked' },
     tag_new:          { zh: '新', en: 'NEW' },
 
     /* 导航 */
@@ -252,13 +252,17 @@ export const L: Record<string, Entry> = {
     sk_critmoney:     { zh: '扣盖金币倍率', en: 'Cap Crit Multiplier' },
     sk_critmoney_d:   { zh: '扣盖金币 <color=#7CE38B>×{v}</color>', en: 'Cap landing coins <color=#7CE38B>×{v}</color>' },
     sk_machine:       { zh: '解锁瓶盖机', en: 'Unlock Cap Machine' },
-    sk_machine_d:     { zh: '在桌台下方激活传送带与料斗，自动接住并回收扣盖弹出的瓶盖。（原版为商店设施，1,000 瓶盖）', en: 'Activates the conveyor + hopper below the table. (Shop facility, 1,000 caps in the original.)' },
+    /* ★ 第一〇九轮：说明栏只有 158px 宽、19 号字（≈8 字/行，两行盒）——
+     *   超过 16 字的说明会撑出格子（实测这种 Label 的 SHRINK 不生效，只会原样溢出）。 */
+    sk_machine_d:     { zh: '激活桌下传送带，自动回收扣盖瓶盖', en: 'Activates the conveyor + hopper below the table.' },
     sk_berserkneed:   { zh: '狂暴所需连击', en: 'Berserk Combo' },
     sk_berserkneed_d: { zh: '连续 <color=#7CE38B>{v}</color> 次扣盖即可进入狂暴', en: '<color=#7CE38B>{v}</color> cap landings in a row triggers Berserk' },
 
     /* ---- 瓶子科技：T2~T7 研发解锁 ----
      * ★ 用户口径（第十九轮）：名字压到 6 字以内（底栏行只有 178px 宽，字号却提到 26，
-     *   原来的「研发 T2 铜质能量瓶」10 个字会被 SHRINK 压成蚂蚁字）。 */
+     *   原来的「研发 T2 铜质能量瓶」10 个字会被 SHRINK 压成蚂蚁字）。
+     *   ★ 第一〇九轮实测：这种 Label 的 SHRINK 并不生效——超宽只会**原样溢出**，
+     *   所以名字一律 ≤6 汉字宽（26px × 6 = 156 ≤ 158px 名字栏）。 */
     sk_ul_t2:         { zh: '研发 T2 铜瓶', en: 'Research T2 Bronze' },
     sk_ul_t2_d:       { zh: '解锁购买 · 扣盖 6×', en: 'Unlocks it · 6× cap' },
     sk_ul_t3:         { zh: '研发 T3 银瓶', en: 'Research T3 Silver' },
@@ -284,7 +288,7 @@ export const L: Record<string, Entry> = {
     sk_machinespeed:  { zh: '瓶盖机速度', en: 'Machine Speed' },
     sk_machinespeed_d:{ zh: '履带线速度 <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>（每级 +10%）', en: 'Belt speed <color=#7CE38B>+{cur}%</color> → <color=#9EE8B0>+{next}%</color>' },
     sk_gateunlock:    { zh: '解锁闸门', en: 'Unlock The Gate' },
-    sk_gateunlock_d:  { zh: '在履带中段树立量子克隆门，通过的瓶盖触发双倍判定。', en: 'A quantum clone gate on the belt doubles passing caps.' },
+    sk_gateunlock_d:  { zh: '履带中段的量子门，瓶盖通过双倍', en: 'A quantum clone gate on the belt doubles passing caps.' },
     sk_gatechance:    { zh: '闸门双倍概率', en: 'Gate Chance to Double' },
     sk_gatechance_d:  { zh: '穿门瓶盖双倍概率 <color=#7CE38B>{cur}%</color> → <color=#9EE8B0>{next}%</color>（满级 100%）', en: 'Double chance <color=#7CE38B>{cur}%</color> → <color=#9EE8B0>{next}%</color> (100% at max)' },
 
@@ -389,13 +393,17 @@ export const L: Record<string, Entry> = {
     shop_cursor_d:      { zh: '光圈跟手，拖过即翻', en: 'Halo follows your finger' },
     shop_cursor_on:     { zh: '已安装 · 光圈跟手', en: 'Installed · halo on' },
     cursor_bought:      { zh: '抓取光圈已开启', en: 'Grab halo unlocked' },
-    unlock_beltmod:     { zh: '解锁传送带模块', en: 'Unlock Belt Module' },
-    unlock_beltmod_d:   { zh: '开启「履带升级」科技线（瓶盖机器配套模块）', en: 'Opens the Belt tech line for the cap machine' },
+    unlock_beltmod:     { zh: '解锁履带模块', en: 'Unlock Belt Module' },
+    unlock_beltmod_d:   { zh: '开启「履带升级」科技线', en: 'Opens the Belt tech line for the cap machine' },
     /** 商店瓶子的「拥有 n/m」紧凑口径（原本是「拥有 {n}/{m}」，格子太窄会被压缩） */
     owned_short:        { zh: '{n}/{m}', en: '{n}/{m}' },
     /** ★ 商店瓶子行的说明：只留一句「增加一个瓶子」（原来「3/30 · $5/次 · 成功 50%」在 172px 格里被 SHRINK 压小、也没必要逐项解析） */
     add_bottle:         { zh: '增加一个瓶子', en: 'Add a bottle' },
-    tree_hint_income:   { zh: '先升一级「收入」，本阶其余词条才会解锁', en: 'Upgrade Income once to reveal the other perks' },
+    /* ★ 第一〇九轮（用户口径「名字太长的应该放说明行」）：占位提示行拆成
+     *   「短名字（名字栏 26px，≤6 字）+ 说明（说明栏 19px，≤16 字两行）」——
+     *   整句塞名字栏会两行大字撑出格子（实测 SHRINK 不生效）。 */
+    tree_hint_income:   { zh: '先升「收入」', en: 'Upgrade Income first' },
+    tree_hint_income_s: { zh: '其余词条会随后解锁', en: 'More perks unlock after' },
     module_locked:      { zh: '该模块尚未解锁', en: 'Module locked' },
     panel_hint:       { zh: '点右侧按钮购买 / 升级', en: 'Tap the button to buy / upgrade' },
     row_gate:         { zh: '需先解锁前置', en: 'Unlock prerequisite' },

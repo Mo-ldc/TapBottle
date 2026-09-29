@@ -36,7 +36,8 @@ export class AchRow extends Component {
         tint(this.icon, has ? '#FFD75E' : '#8A7256');
         if (this.titleLb && this.titleLb.isValid) {
             this.titleLb.string = t(a.title, G.lang);
-            tint(this.titleLb, has ? '#FFE9A8' : '#C0B096');
+            // 第110轮：行底改奶油 #F6E3C5 —— 浅底必须配深棕字（原浅金字在奶油底上看不清）
+        tint(this.titleLb, has ? '#7A4210' : '#A08A6A');
         }
         if (this.descLb && this.descLb.isValid) { this.descLb.string = t(a.desc, G.lang); }
     }

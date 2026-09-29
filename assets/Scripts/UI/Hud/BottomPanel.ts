@@ -96,10 +96,19 @@ const HELPER_CAP_NODES = ['h_bronze', 'h_silver', 'h_gold', 'h_ruby', 'h_emerald
 const PANEL_W = 708;
 const SCROLL_W = 664;
 /**
- * 滚动视口高度（★ 第六十轮：提示带移除后 170 → 204，视口平铺面板背景）。
+ * ★ 第一〇五：木板底板（bg=bd11）/ 列表背景框（inner=bd12）的**兜底口径**
+ * （= 当前 Game.scene 的烘焙值）。真源是场景 —— 编辑器里改这两个节点的尺寸/位置即生效，
+ * 这里只在「没有场景节点、运行时现建」的分支里用。
+ *   木板比面板外扩一圈（900×337.34，中心偏右下），列表框缩在框内（672×178，居中）。
  */
-const SCROLL_H = 204;
-/** 滚动视口中心 y（面板坐标）：±102 与 inner 内板边缘完全对齐（内板 = panelH-12） */
+const BG_W = 900, BG_H = 337.34, BG_X = 17.49, BG_Y = -26.69;
+const IN_W = 672, IN_H = 178, IN_X = 0, IN_Y = 0;
+/**
+ * 滚动视口高度（★ 第一〇一轮：面板改为「bd11 木板底板 + bd12 列表背景框」嵌套结构，
+ * 视口缩进框内：170 = 2 行(164) + 6，木板在框四周各露 ~18px —— 布局真源见 bindScene 从场景读取）。
+ */
+const SCROLL_H = 170;
+/** 滚动视口中心 y（面板坐标）：布局真源同上，场景烘焙值优先 */
 const SCROLL_CY = 0;
 /**
  * 列表内容上下呼吸位（★ 第六十三轮：算进 content 高度内部，行整体下移 TOP_PAD——
@@ -134,11 +143,12 @@ function navItems(): { ids: Array<'shop' | 'up' | 'tree' | 'dd' | 'ex'>; x: Reco
     return { ids: list.map((d) => d.id), x };
 }
 /**
- * 列表展开额外高度：可视区 170 → 350（2 行 → 4 行 = 8 格）。
- * ★ 用户口径：面板**底边钉死**（LAYOUT.panelY - panelH/2 = -616 贴屏幕底），
+ * 列表展开额外高度：可视区 170 → 380（2 行 → 4 行 = 8 格）。
+ * ★ 用户口径：面板**底边钉死**（panelY - panelH/2 = -616 贴屏幕底），
  *   变高的部分全部向上生长，展开后盖住履带/能力条/底栏（把手按钮 z 最高仍可点）。
+ * ★ 第一〇一：180 → 210（展开态同步加长，面板 228→438）。
  */
-const EXPAND_DH = 180;
+const EXPAND_DH = 210;
 
 @ccclass('BottomPanel')
 export class BottomPanel extends Component {
@@ -186,8 +196,33 @@ export class BottomPanel extends Component {
     /** 列表展开态（bd16 把手：箭头向上=伸出 8 格 / 向下=回收 4 格） */
     private expanded = false;
     private expandBtn: Node = null!;
+    /* ---- ★ 第一〇一：布局真源 = 场景烘焙值（bindScene 读进 layW/layH/layY/laySH/layCY）----
+     * 用户口径：后续 UI 的位置 / 大小调整**直接改场景/预制体**，运行时以烘焙值为基准伸缩，
+     * 不再用常量覆盖（改场景后游戏内不生效就是被旧常量覆盖了）。常量仅兜底（运行时现建分支）。 */
+    private layW = PANEL_W;         // 面板宽
+    private layH = LAYOUT.panelH;   // 收起态面板高
+    private layY = LAYOUT.panelY;   // 收起态面板中心 y
+    private laySW = SCROLL_W;       // 滚动视口宽
+    private laySH = SCROLL_H;       // 滚动视口高（收起）
+    private layCY = SCROLL_CY;      // 滚动视口中心 y（面板坐标）
+    /* ★ 第一〇五：木板底板（bg）与列表背景框（inner）同样以**场景烘焙值**为准 ——
+     * 之前它们是代码硬算的（bg 铺满面板 / inner = 面板宽-36），所以在编辑器里调 bg 尺寸
+     * 位置会被运行时覆盖（用户反馈「木板位置大小被代码改动」）。
+     * 现在记下场景里的尺寸与位置，运行时只叠加**展开增量 dh**（高度向上长、底边钉死），
+     * 尺寸/外扩量/偏移完全由场景决定。 */
+    private layBgW = BG_W;  private layBgH = BG_H;   // 木板尺寸（收起）
+    private layBgX = BG_X;  private layBgY = BG_Y;   // 木板位置（相对面板中心，恒定）
+    private layInW = IN_W;  private layInH = IN_H;   // 列表背景框尺寸（收起）
+    private layInX = IN_X;  private layInY = IN_Y;   // 列表背景框位置（恒定）
+    /* ★ 第一〇六：底栏五件（三页签/下拉框/把手）收进容器 **navGroup** —— 展开时只位移这个根，
+     * 内部节点位置一字不动（用户口径「位移根节点即可」）。navGroup 不存在时（旧场景/兜底）
+     * 回落到逐件位移，基准位由 gatherNavBases() 从节点当前位置采集。 */
+    private navGroup: Node = null!;
+    private layTab: Record<string, { x: number, y: number }> = {};
+    private layDd: { x: number, y: number } = { x: 0, y: 0 };
+    private layEx: { x: number, y: number } = { x: 0, y: 0 };
     /** 滚动视口当前高度（随展开切换；rebuild/滚动条都按它算） */
-    private get VH(): number { return SCROLL_H + (this.expanded ? EXPAND_DH : 0); }
+    private get VH(): number { return this.laySH + (this.expanded ? EXPAND_DH : 0); }
 
     private rows: RowUI[] = [];
     private built = false;
@@ -210,6 +245,7 @@ export class BottomPanel extends Component {
         if (this.built) { return; }
         this.built = true;
         if (!this.bindScene()) { this.construct(); }
+        this.gatherNavBases();      // ★ 第一〇六：采集底栏五件基准位（展开位移的回落路径用）
         this.applyNavLayout();      // ★ 第八十三轮：底栏件位收口（同时隐藏被开关停用的页签）
         this.reskinTabs();
         this.normalizeDropdown();
@@ -223,36 +259,41 @@ export class BottomPanel extends Component {
     }
 
     /**
+     * ★ 第一〇六：采集底栏五件的基准位（场景烘的或兜底建的初始位置）。
+     * navGroup 存在时展开位移只动组根，用不到这些；这里是为「无容器回落路径」兜底。
+     */
+    private gatherNavBases() {
+        for (const id of ['shop', 'up', 'tree'] as Tab[]) {
+            const n = this.tabUis[id]?.node;
+            if (n && n.isValid) { this.layTab[id] = { x: n.position.x, y: n.position.y }; }
+        }
+        if (this.ddNode && this.ddNode.isValid) { this.layDd = { x: this.ddNode.position.x, y: this.ddNode.position.y }; }
+        if (this.expandBtn && this.expandBtn.isValid) { this.layEx = { x: this.expandBtn.position.x, y: this.expandBtn.position.y }; }
+    }
+
+    /**
      * ★ 第八十三轮：底栏件位统一收口。
-     *
-     * 件数由 `navItems()` 按功能开关现算（关掉「升级」→ 5 件变 4 件，其余等距重排、整体居中），
-     * 场景实体化版（烘焙在 Game.scene，位置写死）与运行时兜底版**都**走这里 —— 否则关掉页签后
-     * 场景版会剩一个空洞、或那个空位上还留着一个能点的按钮。
-     *
-     * ⚠️ 只改 x，**不碰 y** —— 展开态的 y（跟着面板顶边抬高 EXPAND_DH）由 applyExpand() 负责。
+     * ★ 第一〇六改版：**位置真源 = 场景**——这里只负责开/关被 FEAT 停用的页签，
+     *   不再按 navItems() 重排 x（那会把编辑器里摆的位置盖掉，用户口径「运行的 UI 必须是
+     *   我设置的场景」）。展开态的 y 抬高由 applyExpandK 按「场景基准 y + dh」处理。
      */
     private applyNavLayout() {
-        const NV = navItems();
         for (const id of ['shop', 'up', 'tree'] as Tab[]) {
             const ui = this.tabUis[id];
             if (!ui || !ui.node || !ui.node.isValid) { continue; }
-            const on = tabEnabled(id);
-            ui.node.active = on;
-            if (on) { ui.node.setPosition(NV.x[id] ?? ui.node.position.x, ui.node.position.y, 0); }
+            ui.node.active = tabEnabled(id);
         }
         // 场景 @property 直接引用的那份（bindScene 可能没把它塞进 tabUis）
         if (this.tabUp && this.tabUp.isValid) { this.tabUp.active = tabEnabled('up'); }
-        if (this.ddNode && this.ddNode.isValid && NV.x['dd'] !== undefined) {
-            this.ddNode.setPosition(NV.x['dd'], this.ddNode.position.y, 0);
-        }
-        if (this.expandBtn && this.expandBtn.isValid && NV.x['ex'] !== undefined) {
-            this.expandBtn.setPosition(NV.x['ex'], this.expandBtn.position.y, 0);
-        }
     }
 
     /** 场景里已摆好底栏骨架（有 tab_shop）→ 补齐引用，返回 true */
     private bindScene(): boolean {
-        const g = (s: string) => this.node.getChildByName(s);
+        // ★ 第一〇六：底栏五件收在 navGroup 容器里 —— 查找兼容两级（direct / navGroup 下）
+        this.navGroup = this.node.getChildByName('navGroup') || null!;
+        const g = (s: string) => this.node.getChildByName(s)
+            || (this.navGroup && this.navGroup.isValid ? this.navGroup.getChildByName(s) : null)
+            || null!;
         if (!g('tab_shop')) { return false; }
         if (!this.tabShop || !this.tabShop.isValid) { this.tabShop = g('tab_shop')!; }
         if (!this.tabUp || !this.tabUp.isValid) { this.tabUp = g('tab_up')!; }
@@ -314,6 +355,30 @@ export class BottomPanel extends Component {
         if (this.ddNode) { this.ddW = this.ddNode.getComponent(UITransform)?.width || 236; this.ddX = this.ddNode.position.x; }
         // 编辑器里摆的 Label 是系统字体，进场景后统一换成 NotoSansSC
         applyFontDeep(this.node);
+        // ★ 第一〇一：布局真源从场景读取 —— 编辑器里改 panel / scroll 的位置尺寸，运行时直接生效
+        const put = this.panel.getComponent(UITransform);
+        if (put) { this.layW = put.width; this.layH = put.height; }
+        this.layY = this.panel.position.y;
+        if (this.scrollRoot && this.scrollRoot.isValid) {
+            const sut = this.scrollRoot.getComponent(UITransform);
+            if (sut) { this.laySW = sut.width; this.laySH = sut.height; }
+            this.layCY = this.scrollRoot.position.y;
+        }
+        // ★ 第一〇五：木板（bg）与列表背景框（inner）也读场景烘焙值（尺寸 + 位置）
+        const bgScene = this.panel.getChildByName('bg');
+        if (bgScene && bgScene.isValid) {
+            const but = bgScene.getComponent(UITransform);
+            if (but) { this.layBgW = but.width; this.layBgH = but.height; }
+            this.layBgX = bgScene.position.x; this.layBgY = bgScene.position.y;
+        }
+        const inScene = this.panel.getChildByName('inner');
+        if (inScene && inScene.isValid) {
+            const iut = inScene.getComponent(UITransform);
+            if (iut) { this.layInW = iut.width; this.layInH = iut.height; }
+            this.layInX = inScene.position.x; this.layInY = inScene.position.y;
+        }
+        // ★ 第一〇六：底栏五件基准位（编辑器里怎么摆，游戏里就怎么摆）
+        if (!this.navGroup || !this.navGroup.isValid) { this.navGroup = g('navGroup') || null!; }
         return true;
     }
 
@@ -391,6 +456,16 @@ export class BottomPanel extends Component {
         const eb = nd(root, 'expandBtn', W5, 52, exX, LAYOUT.panelY + LAYOUT.panelH / 2 + 30);
         setFrame(eb.addComponent(Sprite), 'skin/main/btn_arrow_up', W5, 52);
         this.expandBtn = eb;
+
+        // ★ 第一〇六：兜底版同样把底栏五件收进 navGroup（与场景版同构 —— 展开只位移组根）
+        const ng = new Node('navGroup');
+        ng.addComponent(UITransform).setContentSize(720, 1280);
+        root.addChild(ng);
+        for (const nm of ['tab_shop', 'tab_up', 'tab_tree', 'dropdown', 'expandBtn']) {
+            const n = this.node.getChildByName(nm);
+            if (n && n.isValid) { ng.addChild(n); }
+        }
+        this.navGroup = ng;
     }
 
     /**
@@ -414,9 +489,10 @@ export class BottomPanel extends Component {
     private buildPanel(root: Node) {
         const p = nd(root, 'panel', PANEL_W, LAYOUT.panelH, 0, LAYOUT.panelY);
         this.panel = p;
-        roundedPanel(p, PANEL_W, LAYOUT.panelH, 0, 0, '#EFDCBB', 20, '#4A2C14', 4, 'bg');
-        // 内圈浅色描边（木纹皮肤的「厚边」口径）：填色必须是不透明的 6 位 hex
-        roundedPanel(p, PANEL_W - 12, LAYOUT.panelH - 12, 0, 0, '#F4E4C6', 16, '#D8BF94', 2, 'inner');
+        // ★ 第一〇一：与场景实体化版同构 —— bg=bd11 木板底板（铺满面板）/ inner=bd12 列表背景框
+        //   （左右缩 36、上下随视口 +8，木板四周露木纹边），SLICED，applyExpandK 随展开动画一起拉伸
+        sliced(p, 'skin/main/panel_wood', BG_W, BG_H, BG_X, BG_Y, [30, 30, 30, 30], undefined, 'bg');
+        sliced(p, 'skin/main/row_bg', IN_W, IN_H, IN_X, IN_Y, [24, 24, 24, 24], undefined, 'inner');
 
         // ★ 第六十轮（用户口径）：面板顶部不再显示「下一步」提示带与里程碑进度，
         //   列表视口直接上移加高、平铺整个面板背景（提示带只留场景烘焙节点，运行时隐藏）。
@@ -492,48 +568,67 @@ export class BottomPanel extends Component {
     /** k∈[0,1]：0=完全收起，1=完全展开；动画期间传中间值，整块面板随 k 向上生长 */
     private applyExpandK(k: number) {
         if (!this.panel || !this.panel.isValid) { return; }
+        // ★ 第一〇一：布局真源 = 场景烘焙值（bindScene 读进 layW/layH/layY/laySH/layCY），常量只兜底
         const dh = EXPAND_DH * k;
-        const h = LAYOUT.panelH + dh;
-        const cy = (LAYOUT.panelY - LAYOUT.panelH / 2) + h / 2;
+        const h = this.layH + dh;
+        const cy = (this.layY - this.layH / 2) + h / 2;
         this.panel.setPosition(0, cy, 0);
-        setSize(this.panel, PANEL_W, h);
-        for (const nm of ['bg', 'inner']) {
-            const n = this.panel.getChildByName(nm);
-            if (!n) { continue; }
-            const inset = nm === 'inner' ? 12 : 0;
-            setSize(n, PANEL_W - inset, h - inset);
-            const st = n.getChildByName('stroke');
-            if (st) { setSize(st, PANEL_W - inset, h - inset); }
+        setSize(this.panel, this.layW, h);
+        // 滚动视口高度随 k 插值（bg/inner/视口/滚动条共用）
+        const vh = this.laySH + dh;
+        // bg = 木板底板：尺寸/位置**全部取自场景烘焙值**（layBgW/H/X/Y），运行时只叠加展开增量 dh
+        //   —— 高度向上长、位置不动（面板中心已上移 dh/2，故 bg 世界底边恒不变 = 「往上拉升」）
+        // inner = 列表背景框：同理（宽度 / 位置由场景决定，高度随视口长）
+        const bgN = this.panel.getChildByName('bg');
+        if (bgN) {
+            setSize(bgN, this.layBgW, this.layBgH + dh);
+            bgN.setPosition(this.layBgX, this.layBgY, 0);
+            const st = bgN.getChildByName('stroke');
+            if (st) { setSize(st, this.layBgW, this.layBgH + dh); }
         }
-        // 滚动视口（Mask=GRAPHICS_RECT 监听 SIZE_CHANGED 自动重绘）；视口中心 y 恒 SCROLL_CY（底边固定推导）
+        const inner = this.panel.getChildByName('inner');
+        if (inner) {
+            setSize(inner, this.layInW, this.layInH + dh);
+            inner.setPosition(this.layInX, this.layInY, 0);
+            const st = inner.getChildByName('stroke');
+            if (st) { setSize(st, this.layInW, this.layInH + dh); }
+        }
+        // 滚动视口（Mask=GRAPHICS_RECT 监听 SIZE_CHANGED 自动重绘）；视口中心 y 恒 layCY（场景烘焙值）
         // ⚠️ 动画期间视口尺寸必须随 k 插值（不能直接用终值 VH），否则遮罩先于面板变大、内容露出面板外
-        const vh = SCROLL_H + dh;
         if (this.scrollRoot && this.scrollRoot.isValid) {
-            setSize(this.scrollRoot, SCROLL_W, vh);
+            setSize(this.scrollRoot, this.laySW, vh);
             const view = this.scrollRoot.getChildByName('view');
-            if (view) { setSize(view, SCROLL_W, vh); }
-            this.scrollRoot.setPosition(0, SCROLL_CY, 0);
+            if (view) { setSize(view, this.laySW, vh); }
+            this.scrollRoot.setPosition(0, this.layCY, 0);
             const sb = this.scrollRoot.getComponent(UIScrollBar);
             if (sb) { sb.trackH = vh - 24; sb.viewH = vh; }
         }
         const sbar = this.panel.getChildByName('sbar');
-        if (sbar) { setSize(sbar, 6, vh - 24); sbar.setPosition(SCROLL_W / 2 + 12, SCROLL_CY, 0); }
-        // ★ 用户口径（第三十四轮）：列表向上伸出时，底栏 3 个页签（+下拉框）**跟着一起上移**，
-        //   始终贴在列表上方，不会被变高的面板盖住 —— 整条底栏随面板顶边抬高 EXPAND_DH。
+        if (sbar) { setSize(sbar, 6, vh - 24); sbar.setPosition(this.laySW / 2 + 12, this.layCY, 0); }
+        // ★ 用户口径（第三十四轮）：列表向上伸出时，底栏件**跟着一起上移**（贴在列表上方）。
+        //   ★ 第一〇六（用户口径）：**只位移底栏组的根节点** navGroup，内部五件位置一字不动；
+        //     没有容器时（旧场景 / 运行时兜底）才回落到逐件位移。
         const dy = dh;
-        for (const id of ['shop', 'up', 'tree'] as Tab[]) {
-            if (!tabEnabled(id)) { continue; }
-            const ui = this.tabUis[id];
-            if (ui && ui.node && ui.node.isValid && ui.node.active) {
-                ui.node.setPosition(ui.node.position.x, LAYOUT.navY + dy, 0);
+        if (this.navGroup && this.navGroup.isValid) {
+            this.navGroup.setPosition(0, dy, 0);
+        } else {
+            for (const id of ['shop', 'up', 'tree'] as Tab[]) {
+                if (!tabEnabled(id)) { continue; }
+                const ui = this.tabUis[id];
+                const base = this.layTab[id];
+                if (ui && ui.node && ui.node.isValid && ui.node.active && base) {
+                    ui.node.setPosition(base.x, base.y + dy, 0);
+                }
+            }
+            if (this.ddNode && this.ddNode.isValid) {
+                this.ddNode.setPosition(this.layDd.x, this.layDd.y + dy, 0);
+            }
+            if (this.expandBtn && this.expandBtn.isValid) {
+                this.expandBtn.setPosition(this.layEx.x, this.layEx.y + dy, 0);
             }
         }
-        if (this.ddNode && this.ddNode.isValid) {
-            this.ddNode.setPosition(this.ddNode.position.x, LAYOUT.navY + dy, 0);
-        }
-        // 把手：y 跟面板顶边走；箭头向上=伸出 / 向下=回收（scaleY 翻转，图内无文字可放心翻）
+        // 把手箭头：向上=伸出 / 向下=回收（scaleY 翻转，图内无文字可放心翻）
         if (this.expandBtn && this.expandBtn.isValid) {
-            this.expandBtn.setPosition(navItems().x['ex'], cy + h / 2 + 30, 0);
             this.expandBtn.setScale(1, this.expanded ? -1 : 1, 1);
         }
     }
@@ -853,7 +948,7 @@ export class BottomPanel extends Component {
         (this.content.getComponent(UITransform) as any).setContentSize(COLS * CELL_W + GAP_X, h);
         // 展开把手：内容超过一屏（4 格）或已展开时显示 —— ★ 展开态必须保持可见，否则收不回去
         if (this.expandBtn && this.expandBtn.isValid) {
-            const need = this.expanded || rowsH > SCROLL_H + 2;
+            const need = this.expanded || rowsH > this.laySH + 2;
             if (this.expandBtn.active !== need) { this.expandBtn.active = need; }
         }
         // content 锚点在顶部 → 顶部落位 = 视口半高（呼吸位已在 content 内部，贴边夹取不再吞掉它）。
@@ -918,12 +1013,17 @@ export class BottomPanel extends Component {
         return this.skillRows(ABILITY_GRAPH);
     }
 
-    /** 不可点的灰行（空列表占位 / 说明行）—— 不带 id，所以永远不挂「新」 */
-    private placeholderRow(text: string, icon = 'ui/icon/icon_medal'): RowSpec {
+    /**
+     * 不可点的灰行（空列表占位 / 说明行）—— 不带 id，所以永远不挂「新」。
+     * ★ 第一〇九轮（用户口径「名字太长的应该放说明行」）：长提示**不能**塞 name 栏
+     *   （26px × 超 6 字就两行大字撑出格子，实测这种 Label 的 SHRINK 不生效）——
+     *   name 只放 ≤6 字短句，剩余文案走 `sub`（说明栏，19px、两行盒）。
+     */
+    private placeholderRow(text: string, icon = 'ui/icon/icon_medal', sub = ''): RowSpec {
         return {
             icon,
             name: text,
-            sub: '',
+            sub,
             label: '—',
             tone: 'lock',
             onBuy: () => { /* 占位说明，不可点 */ },
@@ -961,7 +1061,9 @@ export class BottomPanel extends Component {
         // 收入 0 级 → 只给这一条 + 一条说明（头一次打开技能树就是这个样子）
         if (G.statLv(tier, 'income') <= 0) {
             if (!G.statMax(tier, 'income')) {
-                out.push(this.placeholderRow(t('tree_hint_income', G.lang), incomeDef.icon));
+                // ★ 第一〇九轮：长提示拆「短名 + 说明」两栏（原来整句塞名字栏撑出格子）
+                out.push(this.placeholderRow(
+                    t('tree_hint_income', G.lang), incomeDef.icon, t('tree_hint_income_s', G.lang)));
             }
             return out;
         }
@@ -1483,6 +1585,8 @@ export class BottomPanel extends Component {
             this.applyTabPlate(id, id === 'tree' && !G.hasMachine);
         }
     }
+    // ★ 第一〇一：面板 bg/inner 的换皮已烘焙进 Game.scene（panel_wood / row_bg），
+    //   运行时不再 setFrame 覆盖 —— 用户口径「UI 位置/大小/贴图直接改场景或预制体为准」。
 
     /** 语言切换：整块重建（文案全变了） */
     private onLang() {

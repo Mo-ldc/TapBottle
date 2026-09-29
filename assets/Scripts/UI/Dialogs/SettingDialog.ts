@@ -93,7 +93,8 @@ export class SettingDialog extends UIBase {
             if (!sp || !sp.isValid) { continue; }
             const sel = G.data.settings.lang === (i === 0 ? 'zh' : 'en');
             // ⚠️ 必须整体 new 一个 Color：就地改值 Cocos 的 color setter 会提前 return
-            sp.color = sel ? new Color(242, 195, 78, 255) : new Color(246, 227, 197, 255);
+            // 选中=亮金，未选=浅奶油（第110轮：行底改奶油后，未选钮再用心油色会糊进底里）
+            sp.color = sel ? new Color(242, 195, 78, 255) : new Color(255, 247, 230, 255);
         }
         Res.I && (Res.I.masterScale = G.data.settings.master);
     }

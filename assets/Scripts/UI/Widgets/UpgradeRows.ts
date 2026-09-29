@@ -60,7 +60,10 @@ const ICON_Y = -6;
 const TEXT_X = -112;        // 名称/说明的左缘（左对齐锚点）
 const TEXT_W = 172;         // 文字栏宽度（18 → 26 号字之后，能容纳 ~6 个汉字）
 const NAME_Y = 17, NAME_H = 30, NAME_SIZE = 26;
-const SUB_Y = -18, SUB_H = 24, SUB_SIZE = 19;
+/** ★ 第一〇九轮：说明行改**两行盒**（48 = 19 号字 × 1.15 行距 × 2）——
+ *  长说明（解锁型一句话、占位提示）放得下两行；单行文案垂直居中视觉不变。
+ *  ⚠️ 这种 Label 的 SHRINK 实测不生效（超宽只会原样溢出），行高必须靠盒子本身兜住。 */
+const SUB_Y = -18, SUB_H = 48, SUB_SIZE = 19;
 const BTN_W = 92, BTN_H = 52, BTN_X = 111, BTN_SIZE = 20;
 
 /* ---- 名称栏的「瓶阶图标 + 词条名」（★ 用户口径 · 第二十一轮）----
@@ -356,11 +359,17 @@ function bindRow(root: Node): RowUI {
     const btn = root.getChildByName('btn') || null!;
     // 第三十八轮：自定义字体资产已删除，prefab 里的 Label 保持系统默认字体，不再做替换
     const tag = btn.getChildByName('newTag');
-    // ★ 第四十四轮：prefab 烘的是旧版 Graphics 底板 → 强制换 buco06 圆徽章 + 白字
+    // ★ 第四十四轮：newTag 换 buco06/new_badge 圆徽章 + 白字
+    //   ★ 第一〇四轮：prefab 已烘好 tagLb → 按名复用，找不到才现建（兜底旧场景）
     if (tag && tag.isValid) {
         newBadgePlate(tag);
-        const nlb = label(tag, t('tag_new', G.lang), 0, 1, 24, 20, { size: 13, color: '#FFFFFF', overflow: 'shrink' });
-        nlb.node.name = 'tagLb';
+        let nlb = tag.getChildByName('tagLb')?.getComponent(Label) || null;
+        if (!nlb || !nlb.isValid) {
+            nlb = label(tag, t('tag_new', G.lang), 0, 1, 24, 20, { size: 13, color: '#FFFFFF', overflow: 'shrink' });
+            nlb.node.name = 'tagLb';
+        } else if (nlb.string !== t('tag_new', G.lang)) {
+            nlb.string = t('tag_new', G.lang);
+        }
     }
     const tierBg = root.getChildByName('tierBg') || null!;
     // ★ 第八十轮：实例化后**立刻快照 prefab 的布局** —— 之后 applyRow 再也不会写死坐标，
@@ -384,12 +393,15 @@ function bindRow(root: Node): RowUI {
         nameIc: spriteOf(root, 'nameIc'),
         name: labelOf(root, 'name'),
         sub: labelOf(root, 'sub'),
-        nameImg: null!, lvLb: null!,
         btn,
         btnSp: btn.getComponent(Sprite)!,
         btnLb: labelOf(btn, 'btnLb'),
         curSp: spriteOf(btn, 'curIc'),
         adSp: spriteOf(btn, 'adIcon'),
+        // ★ 第一〇四轮：prefab 已烘好这两个节点 → 按名绑定，applyRow 的惰性建不会再建第二份
+        //   （绑定为空时才走现建兜底；位置/宽高由 applyRow 按 spec 刷新）
+        nameImg: (root.getChildByName('nameImg')?.getComponent(Sprite) || null)!,
+        lvLb: (root.getChildByName('lvLb')?.getComponent(Label) || null)!,
         newTag: tag || null!,
         spec: null!,
     };

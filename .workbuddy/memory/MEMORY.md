@@ -52,9 +52,16 @@
   （贴图登记 `TEXTURE_PATHS`，**任何一条路径失败 → 整批加载不到**）。
 - 底栏五件（商店138/升级138/技能树154/下拉框188/列表展开把手56，NAV_W/NAV_X）内嵌面板，口径对齐
   `E:\LDC_Fby\BottleFlipInc\_analysis\model.json`；两列网格 CELL 322×78；跳转 API `showTreeCategory(page)`。
-  ★ 列表展开把手（bd16 整图 `expandBtn`）：面板底边钉死向上长 180（216→396，可视 2行→4行=8格），
+  ★ **第一〇一轮（2026-09-29）面板 = bd11 木板底板 + bd12 列表背景框嵌套**：
+  `panel/bg`→`skin/main/panel_wood`（bd11 压缩导入，763×1199 border30）、`panel/inner`→`skin/main/row_bg`
+  （**= bd12 同图**，704×343 border24），stroke 子节点关、color 复位白，全部**烘进 Game.scene**。
+  底部块重排：abilityY −140 / beltY −251(h108) / navY −343 / panelY −502(h228)，视口 SCROLL_H 204→170。
+  ★ 列表展开把手（bd16 整图 `expandBtn`）：面板底边钉死向上长 210（228→438，可视 2行→4行=8格），
   盖住底栏/履带；把手 y 跟面板顶边走、scaleY 翻转（伸出/回收），挂 bottomPanel 末位保证 z 最高；
   内容超 4 格或已展开才显示（★ 展开态必须强制显示，否则收不回去）。
+  ★ **布局真源 = 场景/预制体（用户硬性约定）**：BottomPanel 的 layW/layH/layY/laySH/layCY 在
+  bindScene 从场景烘焙值读取，常量只兜底；后续 UI 位置/大小/贴图调整**直接改场景或预制体**，
+  代码不做 setFrame/setSize 覆盖（reskinPanel 已删）——「改了场景游戏内不变」就是被旧常量覆盖了。
 - 购买引导走 `UI/Guidance.ts`，跳转用注入的 NavBridge（直接 import 面板会成环）。
 
 ## 流程
@@ -176,8 +183,8 @@
   （`__id__` 是数组下标，重排要全量 remap）。备份在 `.workbuddy/prefab_bak/`。
 
 ## 布局口径（设计 1280，y 以屏幕中心为 0）
-- 顶栏 barY 520/h134 → 木桌 statusY 386 → 底部块 abilityY −136 / beltY −256 / navY −356 /
-  panelY −508（内嵌面板）。`SAFE_BLOCKS.botTopY −85` 要跟着「底部块最上面是谁」走。
+- 顶栏 barY 520/h134 → 木桌 statusY 386 → 底部块 abilityY −140 / beltY −251 / navY −343 /
+  panelY −502(h228)（内嵌面板，第一〇一轮重排）。`SAFE_BLOCKS.botTopY −85` 要跟着「底部块最上面是谁」走。
 - 瓶子 bottleH 96，BOTTLE_SCALE=0.256；顶栏只留金币+瓶盖两个筹码。
 - 奶油底 #F6E3C5 配深棕字 #7A4210；深木牌底才 #F1E0C0；模态面必须实心 6 位 hex。
 

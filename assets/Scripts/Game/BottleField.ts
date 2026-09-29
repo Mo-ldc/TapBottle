@@ -659,12 +659,12 @@ export class BottleField extends Component {
             const txt = '$' + fmt(amount);
             FxLayer.I?.floatText(p.x, y, txt, '#3ED34F', crit ? 42 : 30, 82, 0.85);
         }
-        if (crit) {
-            // ★ 星星已在 Bottle.land 里画在瓶身正中间；这里原来又画一颗（在瓶子上方 75px）+
-            //   一层金色闪屏 —— 用户口径「倒立显示一个光效星星即可」，所以重复的星去掉。
-            //   全屏闪屏是「命中的整体反馈」，和星星不是一回事，保留。
-            FxLayer.I?.flash('#FFC85A', 42, 0.22);
-        }
+        // ★ 第九十八轮（用户口径「翻瓶子的时候会在屏幕有一瞬间泛光，黄色的……先移除这个泛光」）：
+        //   移除倒立（crit）落地时的全屏黄闪 `FxLayer.flash('#FFC85A', 42, 0.22)`。
+        //   完美落地出现频率很高，每出一只就整屏闪一下，翻得快时非常刺眼。
+        //   倒立的反馈保留两处，足够表达「这一下是完美落地」：
+        //     ① 瓶身正中间的星星（Bottle.land 里画）
+        //     ② 上面那行金币数字放大（crit ? 42 : 30）
         if (samurai) {
             FxLayer.I?.floatText(p.x, y + 46, '处决 +600%', '#FF9E7A', 24, 60, 0.8);
         }
