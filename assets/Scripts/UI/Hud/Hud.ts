@@ -113,6 +113,21 @@ export class Hud extends Component {
             sp.type = Sprite.Type.SIMPLE;
             setFrame(sp, 'skin/main/btn_back', undefined, undefined, '#FFFFFF');
         }
+        // ★ 第九十三轮：成就（cju）/ 统计（phb）按钮换皮 —— 自带木框的圆形按钮整图
+        //   （源 66×66，直贴 toolSize 52），和返回按钮同一手法：拆掉
+        //   「woodButton 底板 + icon」拼装件，整图直贴。语言按钮保持 woodButton 文字样式。
+        const tools: Array<[string, string]> = [
+            ['tool_ach', 'skin/main/btn_ach'],
+            ['tool_stats', 'skin/main/btn_phb'],
+        ];
+        for (const [name, tex] of tools) {
+            const n = this.node.getChildByName(name);
+            if (!n || !n.isValid) { continue; }
+            for (const c of [...n.children]) { c.destroy(); }
+            const sp = n.getComponent(Sprite) || n.addComponent(Sprite);
+            sp.type = Sprite.Type.SIMPLE;
+            setFrame(sp, tex, undefined, undefined, '#FFFFFF');
+        }
     }
 
     /** 场景里已摆好顶栏（有 btn_back）→ 补齐没绑的 @property 引用，返回 true */

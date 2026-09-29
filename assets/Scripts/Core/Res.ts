@@ -28,6 +28,8 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/skin/main/tab_ic_tree/spriteFrame',
     'Textures/skin/main/tab_ic_shop/spriteFrame',
     'Textures/skin/main/new_badge/spriteFrame',
+    'Textures/skin/main/btn_ach/spriteFrame',
+    'Textures/skin/main/btn_phb/spriteFrame',
     'Textures/bottle/name_0/spriteFrame',
     'Textures/bottle/name_1/spriteFrame',
     'Textures/bottle/name_2/spriteFrame',
