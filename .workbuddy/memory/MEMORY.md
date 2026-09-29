@@ -100,6 +100,20 @@
 - 验证闭环：`prefab_validate` → `prefab_edit{action:open}`（等价于双击）→ 看 `mode:"prefab-edit"`；
   再 `close{save:true}` 后 diff，**只应差 fileId 随机值**（实测已验证字节级等价）。
 
+## 空间索引（第九十六轮，2026-09-29）
+- `Core/SpatialGrid.ts` = 均匀网格（多叉分桶，cell 48，桶+槽位数组全程复用 → 零分配）。
+  选它不选四叉树：对象同尺寸/近均匀/边界固定 → 四叉树退化成「网格+递归指针」；
+  瓶子落位频繁改位置 → 四叉树重建要 new 节点对象（GC），网格重建只是按中心点写回桶。
+- 接入 `BottleField`：`grid/gridOut/tapOut/gridDirty`；脏标记 3 处
+  （`sortDepth()` / `onLanded()` **开头**（fail 分支提前 return，漏标留旧位置）/ `sync()` 末尾）。
+  **不要每帧重建** —— 重建要遍历全部对象，跟原来的全遍历同价。
+- ★ 网格按**本地坐标** `b.node.position` 建；`hitBottles(wx,wy,out)` 入参是**世界坐标**
+  （tapWorld 口径）→ 内部必须 `convertToNodeSpaceAR` 一次；漏了会「命中恒 0 且不报错」。
+- 实测 200 瓶：悬停 3.20→0.60µs（5.3×）、点击 22.07→2.53µs（8.7×）；
+  3000 随机点等价性 MISMATCH=0。命中**顺序**=格遍历序（≠原数组序），对点击无影响。
+- ⚠️ 量级：省下 ~0.02ms/帧，**不是卡顿主因**。真成本在渲染：120 瓶 8.6ms（影子占 3.3ms），
+  而 headless 下即使隐藏全部瓶子帧时间仍 55ms（软件渲染基线）。
+
 ## 坑（真金白银）
 - **★ 编辑器预览(7456)点击全灭 = 引擎输入时序 bug，非项目代码**：mouse-input 构造在模块求值时
   取 GameCanvas，预览页 canvas 插入更晚 → `?.` 静默跳过全部 canvas 监听（window 有监听/canvas 0 个
@@ -120,6 +134,16 @@
 - UI 出场「中央 Q 弹」popIn/popOut；popOut 会把 UIOpacity 复位 255，不能对已淡出节点再调。
 - 瓶身 `body_0..6.png` 画的是**瓶口朝下**（angle=180 才正立）；点击命中自己算（Bottle.hitTest 世界坐标判矩形 150×375/ay 0.34）。
 - 本机 bash `tail/dirname` 不可用；`&&` 链会整条短路。
+
+## 功能开关（2026-09-29 第八十三轮起，用户口径「先不用」）
+- **`Core/Features.ts`：`FEAT = { abilities: false, upgradeTab: false }`** —— 特殊技能（可乐/狂暴/处决）
+  与底栏「升级」页签**整体停用但未删除**。数据层（SKILLS/价格/存档/购买逻辑）一字未动，
+  场景里的 `abilityBar`/`tab_up`/`ad_berserk` 节点都在、运行时隐藏。**恢复 = 改 true 重建**，
+  老档已买等级直接回来。
+- 摘除手法：三能力唯一闸门 = State 的 `*Unlocked` getter 加 `FEAT.abilities &&`；底栏件位 =
+  `navItems()` 动态计算（停用页签自动重排居中，别再写 NAV_X[4] 这种固定下标）。
+- 停用期间无处购买的升级项：`p_cursorsize`（光圈大小）、`p_machineinc`（瓶盖机收入）、
+  `h_bronze..h_diamond`（助手许可）。技能树其余（瓶子天赋/履带/挂机/手部）正常。
 
 ## 数值与经济
 - **落地判定 = 纯概率制**（覆盖 GDD §3.1-3 角度容差）：成功树立 50%（倒立:正立恒 1:4 分池），
