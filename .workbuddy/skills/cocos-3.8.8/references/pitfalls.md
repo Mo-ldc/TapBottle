@@ -907,3 +907,93 @@ JS 堆栈，配合 chunk 行号回源码（preview chunk 在 `temp/programming/p
   4. 单例里注册的回调尽量持有「数据」而非「节点」。
 - **无头复现技巧**：emit 直发事件（`node.emit('touch-end')`）绕开坐标换算，先验逻辑链路；
   跨场景链路要单独写模板跑（进场景→返回→再操作），只测首启永远复现不了。
+
+## 编辑器预览整片崩：`cce:/internal/x/cc` 加载失败 / SystemJS Error#3（2026-09-29 第六十九轮）
+
+**这一条值得背下来 —— 症状看着像"整个工程坏了"，实际是一行项目设置。**
+
+- **症状**（三件套同时出现）：
+  1. 浏览器预览进不去，控制台 `Failed to load resource: net::ERR_FAILED` +
+     `Error: Error loading cce:/internal/x/cc (SystemJS Error#3 https://git.io/JvFET#3)`；
+  2. 编辑器里双击预制体：`[Window] Channel does not exist: scene:prefab-preview`；
+  3. （翻日志才看到）`temp/logs/project.log` 里 `Unknown browser query "MZ..."` **每秒刷一次**。
+- **★ 根因**：`settings/v2/packages/project.json` 里的
+  ```json
+  "script": { "previewBrowserslistConfigFile": "C:\\...\\chrome.exe" }
+  ```
+  这个字段的语义是**「一个 browserslist 文本配置文件的路径」**，却被填成了**浏览器可执行文件**。
+  编译服务老老实实去「读这个配置」→ 读到 PE 二进制 → Babel 抛
+  `Unknown browser query "MZ\x00\x01...This program cannot be run in DOS mode"`：
+  1. **preview 编译目标整体失败** → `targets/preview/import-map.json` 退化成 `{"imports":{}}`（空壳），
+     而 `targets/editor/import-map.json` 正常（46KB）→ 浏览器拿不到 `cce:/internal/x/cc` 映射 → SystemJS Error#3；
+  2. 预制体预览窗口的通道也建立不起来 → `Channel does not exist: scene:prefab-preview`。
+- **★ 二次症状会骗人（最容易白干一轮的地方）**：
+  `temp/programming/packer-driver/VERSION` 里 `previewTarget` 字段被写进 **9.1 MB 的 PE 二进制**
+  （JSON 字符串里塞裸字节，整个文件已不是合法 JSON）。**这是结果不是原因**——
+  设置还坏着就删 `temp/programming` 重开，会**原地重建出同样坏的文件**、报错一模一样，
+  于是误判成「缓存清不掉」。先删缓存那一轮纯属白折腾。
+- **修复**：项目设置 → 脚本 →「预览 Browserslist 配置文件」清空（字段写成 `""`）→ 重启编辑器。
+  **不用**手动删任何缓存，编辑器会把那个 9MB 的脏 VERSION 当非法缓存自己重建。
+- **验证三连**：① `targets/preview/import-map.json` 恢复到 ~45KB；
+  ② `project.log` 里 `Unknown browser query` 与 `cce:/internal/x/cc` 计数双双归零；
+  ③ 预览能出画面 + 预制体双击能开。
+- **排查顺序（照走，别跳步）**：
+  1. `project.log` grep `Unknown browser query` —— 命中即本条，**别往后再猜**；
+  2. `targets/{editor,preview}/import-map.json` 体积对比 —— preview 空壳实锤本条；
+  3. `packer-driver/VERSION` 的 `previewTarget` 是不是以 `MZ` 开头；
+  4. `git show HEAD:settings/v2/packages/project.json` 看 `script` 块是不是新加的工作区改动
+     （是 → 铁证：这行是后来在编辑器里被误设的）。
+- **为什么极易踩**：编辑器给的是「选择文件」按钮，随手选中桌面上的 `chrome.exe` **没有任何格式校验和提示**，
+  保存即生效；而报错信息里**完全看不到「设置」两个字**，全是 Babel / SystemJS 的锅。
+
+### ★ 外部脚本改完 prefab，编辑器里「没改」——已打开的面板持的是旧内存副本
+- 症状：脚本（`bake_*.py` 之类）改完 prefab 文件、`library/` 缓存也已刷新（有 mtime + 内容为证），
+  但美术在编辑器里打开的那个预制体面板**还是旧样子**，反馈「没改」。
+- 原因：prefab 编辑面板是**打开那一刻的反序列化副本**。asset-db 重新导入只更新 `library/`，
+  **不会回填已打开的面板**。
+- ★★ 真正危险的是**反向覆盖**：在旧面板里按保存（Ctrl+S / `close{save:true}`）会把旧内存数据
+  写回文件，**把脚本刚写进去的内容抹掉**。「文件已改好」与「面板显示旧值」能同时成立，下一秒就可能反过来。
+- **诊断（一步到位）**：用编辑器 MCP 的 `execute_editor_script` 直接问**面板内存**：
+  ```js
+  const s = cc.director.getScene();
+  const rows = [];
+  const walk = (n, p) => {
+    const l = n.getComponent('cc.Label');
+    if (l) { rows.push(p + ' | "' + l.string + '" | fs=' + l.fontSize + ' | ov=' + l.overflow); }
+    for (const c of n.children) { walk(c, p + '/' + c.name); }
+  };
+  if (s) { walk(s, s.name); }
+  return { scene: s ? s.name : null, rows };
+  ```
+  返回的 `fs`/`string` 与文件不一致 → 面板是旧副本，**或**用户正在面板里手改（未保存）。
+  再配 `scene_query{action:"dirty"}` 判断是否有未保存改动。
+- **工具**：`.workbuddy/tools/mcp_call.py`（客户端：`--list` / `--schema <tool>` / `<tool> '<json>'`）
+  + `mcp_probe_labels.py`（上面那段探针）。★ 必须 `ProxyHandler({})` 禁代理，响应是 SSE（拆 `data:` 行），
+  端口 3000，`Accept: application/json, text/event-stream`。
+- ⚠️ **别为了「刷新面板」去 `prefab_edit close/open`**：`close` 默认 `save:true` 会覆盖文件，
+  传 `save:false` 又会丢用户手上的改动。面板脏时一律**让用户自己关掉重开**（关的时候不要保存）。
+- **验收口径**：外部改 prefab 后，先查 `library/<前两位>/<uuid>.json` 的 mtime + 是否含新字符串
+  （= asset-db 已跟上），再让用户重开面板。**别只看资源管理器刷没刷新。**
+
+### ★ 预制体里写死 Label 文本 vs 运行时覆盖：字号留得住，文字留不住
+- `LocLabel`（`Scripts/UI/Widgets/LocLabel.ts`）与弹窗脚本（`ConfirmDialog.init` / `OfflineDialog.render`）
+  会在 `onLoad` 用 `t(key, G.lang)` **覆盖 `label.string`**，但**从不碰 `fontSize`**。
+- 所以：给美术在 prefab 里留一份中文占位文案 → 他调**字号/颜色/位置**永久生效；
+  他改**文字**则运行时会被词表盖回去（要改文字得改 `Core/Locale.ts`）。沟通时必须说清这条，
+  否则「我改了字没变」会被当成 bug 返工。
+- 写入工具：`.workbuddy/tools/bake_dialog_text.py`（只改 `cc.Label._string`，不动结构、不重排数组，
+  prefab 三件套与 fileId 原样）。★ 坑：同一 prefab 的多条改动必须共用**一份** `load()` 出来的数组对象，
+  逐条 `load()` 会各持快照、写回时互相覆盖；路径要从根 `arr[1]` 起算（弹窗是 `fit/card/...`）。
+
+- **跨场景状态判定必须用模块级标记，不能用类静态字段**（第七十二轮踩坑）：
+  「资源是否加载过」这类跨场景状态，Res/LoadScene 的组件实例随场景销毁重建（实例字段全丢），
+  类静态字段虽跨场景存活，但**赋值时机依赖某场景的 onLoad 跑过** —— 而构建包的启动场景是
+  Game（builder.json startScene），Load 的 onLoad 在首次返回前根本没跑过，判据直接失效。
+  正确做法：状态由拥有它的模块自己维护（Res.loadAll 的 finish 里置位模块级 bootFlags）。
+- **场景切换重建 ≠ 资源重载**：loadScene 后 assetManager 缓存还在（resources.load 秒回），
+  但每个新 Res 实例的 frames/clips 字典（实例字段）是空的 —— 走捷径跳过加载流程时，
+  务必后台补跑一次 loadAll() 填字典，否则再进游戏 Res.sf() 全返回 null → 满屏白块。
+  （UI 预制体不受影响：prefab 序列化 spriteFrame 引用由引擎自动解析，不走 Res.frames。）
+- **进度条动画是「固定时长演出」，与实际加载无关**：本工程 LoadScene.update 用
+  shown += dt * 0.55 平滑逼近 target，资源秒ready 时照样演 2.1s。凡「回访场景」，先想清楚
+  这段动画该不该跳过（无头验收用 rAF 轮询打点测真实耗时：修复前 2421ms → 修复后 344ms）。
