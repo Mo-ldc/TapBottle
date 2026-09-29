@@ -376,7 +376,7 @@ export class State {
     }
     /* ---- 光圈（光标指示器） ----
      * ★ 用户口径（第四十八轮）：「解锁光圈」模块已整体移除 —— 光圈**开局就显示**。
-     *   · 未解锁任何一阶「悬停翻转」→ 只是一个小点（跟手，但不触发）；
+     *   · 未解锁任何一阶「悬停翻转」→ 贴图 3 倍大（纯视觉引导），但触发半径只是一个小点（跟手，不触发）；
      *   · 解锁任一阶「悬停翻转」→ 恢复正常的吸附半径（拖过即翻）；
      *   · 广告「2 倍光圈」→ 视觉 + 半径一起 ×2，3 分钟后还原。
      */
@@ -385,7 +385,7 @@ export class State {
         const r = this.haloTriggerOn ? this.sk('p_cursorsize') : HALO_DOT_R;
         return r * (this.haloBuffOn ? 2 : 1);
     }
-    /** 光圈贴图缩放：小点 0.3 / 正常 1，广告增益期间 ×2 */
+    /** 光圈贴图缩放：未解锁 0.9（图片 3 倍，仅视觉，第七十八轮）/ 正常 1，广告增益期间 ×2 */
     get haloScale(): number {
         const s = this.haloTriggerOn ? 1 : HALO_DOT_SCALE;
         return s * (this.haloBuffOn ? 2 : 1);

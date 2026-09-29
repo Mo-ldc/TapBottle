@@ -722,6 +722,15 @@ export class BottomPanel extends Component {
 
     get currentTab(): Tab { return this.tab; }
 
+    /**
+     * 列表第一格的节点（新手引导挖洞用，第七十五轮）。
+     * 商店页签下第一格恒为「普通塑料瓶」的整格按钮；未构建/空列表 → null。
+     */
+    get firstCell(): Node | null {
+        const r = this.rows[0];
+        return (r && r.root && r.root.isValid) ? r.root : null;
+    }
+
     /* ================= 列表构建 ================= */
     private rebuild() {
         if (!this.built || !this.content || !this.content.isValid) { return; }

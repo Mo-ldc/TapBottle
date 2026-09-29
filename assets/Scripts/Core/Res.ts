@@ -69,6 +69,8 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/env/star/spriteFrame',
     'Textures/env/vignette/spriteFrame',
     'Textures/env/wood_table/spriteFrame',
+    // 新手引导手指（第七十五轮，SVN 切图 资源/shou.png）
+    'Textures/env/shou/spriteFrame',
     'Textures/stat/bonus/spriteFrame',
     'Textures/stat/buyable/spriteFrame',
     'Textures/stat/capgain/spriteFrame',

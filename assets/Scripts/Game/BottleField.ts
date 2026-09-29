@@ -9,6 +9,8 @@ import { CapMachine } from './CapMachine';
 import { FxLayer } from './Fx';
 import { label, nd, setFrame, setSize } from '../UI/Base/UIKit';
 import { Modal } from '../UI/Base/Modal';
+import { Tutorial } from './Tutorial';
+import { UIHitBlocks } from '../Core/UIHit';
 
 const { ccclass } = _decorator;
 
@@ -193,7 +195,8 @@ export class BottleField extends Component {
         }
         // 光圈**开局常显**（★ 第四十八轮：「解锁光圈」模块已移除，不再有 hasCursor 门控）。
         // 圈只是**触发范围指示**，圈内的瓶子会不会自动翻，取决于那阶有没有买「悬停翻转」：
-        //   · 一阶都没买 → G.haloTriggerOn=false → 半径只是一个小点，视觉上「跟手但不触发」；
+        //   · 一阶都没买 → G.haloTriggerOn=false → 触发半径只是一个小点（第 78 轮起贴图
+        //     3 倍大纯视觉引导，但范围不变大），视觉上「跟手但不触发」；
         //   · 买了任一阶 → 半径恢复 G.haloRadius（p_cursorsize，base 55），该阶瓶子拖过即翻。
         // 所以触发循环本身不需要任何额外门控 —— `G.hoverable(tier)` 天然只放行已解锁的阶。
         const cursorOn = !Modal.open;
@@ -234,7 +237,7 @@ export class BottleField extends Component {
             this.cursorPin.setSiblingIndex(this.node.children.length - 1);
         }
         // 吸附半径 = 0.55m × (1 + 0.05L)（§5.1 分支 2），单位 px；
-        // 未解锁触发时只有一个小点，广告「2 倍光圈」期间整体 ×2（State.haloRadius / haloScale）
+        // 未解锁触发时只有一个小点（贴图仍 3 倍纯视觉），广告「2 倍光圈」期间整体 ×2（State.haloRadius / haloScale）
         const r = G.haloRadius;
         if (cursorOn) {
             setSize(this.cursorRing, r * 2, r * 2);
@@ -303,7 +306,13 @@ export class BottleField extends Component {
     private pointerDown(uiX: number, uiY: number) {
         this.aim(uiX, uiY);
         if (Modal.open) { return; }
+        // ★ 新手引导第③步（买瓶）：黑幕挖洞罩着商城格子，桌面点击一律不响应 ——
+        //   否则手指隔着黑幕按到瓶子会把瓶子翻飞，挖洞引导就形同虚设。
+        if (Tutorial.locked) { return; }
         const w = this.uiToWorld(uiX, uiY);
+        // ★ 第七十七轮：活动区下探到履带上沿后，能力按钮（狂暴/可乐/处决）正后方
+        //   可能站着瓶子 —— 点按钮不应连带把身后的瓶子翻飞，先问登记过的 UI 矩形。
+        for (const hit of UIHitBlocks) { if (hit(w)) { return; } }
         this.lastWorld.set(w.x, w.y);
         this.tapWorld(w.x, w.y);
     }
@@ -320,11 +329,14 @@ export class BottleField extends Component {
      * 世界坐标直接喂给它，中间不再经过任何手写坐标换算。
      */
     private tapWorld(wx: number, wy: number) {
+        let hit = false;
         for (const b of this.bottles) {
             if (!b.idle) { continue; }
             if (!b.node.activeInHierarchy) { continue; }   // 飞入途中（真瓶子藏起来）不参与命中
-            if (b.hitTest(wx, wy)) { this.flip(b); }
+            if (b.hitTest(wx, wy)) { this.flip(b); hit = true; }
         }
+        // ★ 新手引导：只统计「玩家亲手点到瓶子」的次数（悬停触发/助手/冲击波都不算）
+        if (hit) { Tutorial.notifyTap(); }
     }
     /** 最近一次按下判定的世界坐标（调试/无头验收用） */
     lastWorld = new Vec2(0, 0);
@@ -364,7 +376,12 @@ export class BottleField extends Component {
                 // ★ 用户口径（第五十一轮）：买瓶落点**与其它瓶子一样随机**（原来固定飞向场地正中）。
                 //   `pickSpot` 的 best-of-N 会挑「离现有瓶子最远」的候选点 → 既随机又不会完全重叠。
                 const fly = !!this.flyReq && this.flyReq.tier === t;
-                const spot = this.pickSpot();
+                // ★ 新手引导（第七十五轮）：「游戏开始的第一个瓶子」固定落在活动区正中 ——
+                //   本局还没建出任何瓶子且存档里总共就这一只时生效（重开/读档后同样成立）。
+                const firstCenter = this.bottles.length === 0 && total === 1;
+                const spot = firstCenter
+                    ? { x: (PLAY_AREA.x0 + PLAY_AREA.x1) / 2, y: (PLAY_AREA.y0 + PLAY_AREA.y1) / 2 }
+                    : this.pickSpot();
                 const b = Bottle.create(this.bottleHolder, this.shadowHolder, t, spot.x, spot.y);
                 // 不再挂 b.enableTouch：点击命中统一由 tapWorld() 自己判定（见那里的注释）
                 b.onLanded = (bb, oc) => this.onLanded(bb, oc);

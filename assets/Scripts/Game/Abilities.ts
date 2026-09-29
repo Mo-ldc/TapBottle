@@ -1,6 +1,7 @@
-import { _decorator, Component, Node, Sprite, Tween, UIOpacity, Vec3, tween, Label } from 'cc';
+import { _decorator, Component, Node, Sprite, Tween, UIOpacity, UITransform, Vec3, tween, Label } from 'cc';
 import { ABILITY, LAYOUT } from '../Core/GameConfig';
 import { G } from '../Core/State';
+import { UIHitBlocks } from '../Core/UIHit';
 import { Res } from '../Core/Res';
 import { t } from '../Core/Locale';
 import { BottleField } from './BottleField';
@@ -48,6 +49,24 @@ export class Abilities extends Component {
         this.wire();
         this.layoutBar();
         G.addListener(() => this.layoutBar());
+        // ★ 第七十七轮：瓶子活动区下探到履带上沿后，能力按钮落进活动区内部 ——
+        //   把「激活中的按钮矩形吃掉点击」登记给 BottleField（点按钮不误翻身后瓶子）。
+        //   目前只有能力条登记；重开场景先清掉上一局的旧闭包再挂。
+        UIHitBlocks.length = 0;
+        UIHitBlocks.push((w) => this.hitButton(w));
+    }
+
+    /** 世界坐标点是否落在某个**激活中**的能力按钮矩形内（含 6px 手感余量） */
+    hitButton(w: Vec3): boolean {
+        for (const k of ['coke', 'berserk', 'samurai']) {
+            const n = this.btns[k];
+            if (!n || !n.isValid || !n.activeInHierarchy) { continue; }
+            const ut = n.getComponent(UITransform);
+            if (!ut) { continue; }
+            const l = ut.convertToNodeSpaceAR(w);
+            if (Math.abs(l.x) <= ut.width / 2 + 6 && Math.abs(l.y) <= ut.height / 2 + 6) { return true; }
+        }
+        return false;
     }
 
     /** 场景里已摆好能力条（有 abilityBar）→ 补齐引用，返回 true */

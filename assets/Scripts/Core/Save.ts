@@ -37,6 +37,13 @@ export interface SaveData {
      *   因为它在买下瓶盖机之前根本进不去，买下那一刻标「新」正好是玩家要的提示）。
      */
     seenBaseline: number;
+    /**
+     * 新手引导是否已播完（0 = 未做 / 1 = 完成，第七十五轮）。
+     * ★ 判定「要不要播」还要叠加「真·新档」条件（stats.flips === 0 且桌上只有开局那只）：
+     *   本功能上线前的老档 tut 一律是 0，但没有 flips>0 的老档会在这里被静默补标 1，
+     *   不会突然给老玩家弹一遍「点击瓶子」。
+     */
+    tut: number;
     ach: number[];
     stats: { flips: number; earned: number; capsEarned: number; time: number; best: number };
     settings: {
@@ -76,6 +83,7 @@ export function defaultSave(): SaveData {
         skills: {},
         seenModules: [],
         seenBaseline: 0,
+        tut: 0,
         ach: [],
         stats: { flips: 0, earned: 0, capsEarned: 0, time: 0, best: 0 },
         settings: {
@@ -104,6 +112,7 @@ function normalize(o: any): SaveData {
         ? o.seenModules.filter((s: any) => typeof s === 'string')
         : [];
     m.seenBaseline = o.seenBaseline ? 1 : 0;
+    m.tut = o.tut ? 1 : 0;
     if (!Array.isArray(m.bottles) || m.bottles.length !== TIERS.length) { m.bottles = d.bottles; }
     if (!versionOk || !Array.isArray(o.tierStats) || o.tierStats.length !== TIERS.length) {
         m.tierStats = emptyTierStats();

@@ -19,6 +19,7 @@ import { HelperHands } from './Game/HelperHands';
 import { CapMachine } from './Game/CapMachine';
 import { Abilities } from './Game/Abilities';
 import { FxLayer } from './Game/Fx';
+import { Tutorial } from './Game/Tutorial';
 
 const { ccclass, property } = _decorator;
 
@@ -69,6 +70,8 @@ export class GameRoot extends Component {
     private started = false;
     /** 正在淡出返回标题页（防连点重复 loadScene） */
     private leaving = false;
+    /** 狂暴提示条本次游玩是否已弹过（见 onBerserk 注释） */
+    private berserkToastShown = false;
 
     /** 场景未实体化的层用运行时兜底（与旧行为一致）。
      *  游戏层全部是**创作空间 720×1280** 的 UT；×DS×sA 的整体缩放挂在 gameRoot 上。
@@ -136,7 +139,15 @@ export class GameRoot extends Component {
 
         G.onAch = (id) => Toast.I?.achievement(id);
         G.onBerserk = () => {
-            Toast.I?.show(t('berserk_active', G.lang) + '  ×' + G.berserkMult.toFixed(1), '#FF9E7A');
+            // ★ 用户口径（第七十六轮）：狂暴提示条**每局只弹 1 次**。
+            //   狂暴是可以「连击续杯」的（连打时每攒够 berserkNeed 次扣盖就再补满一次），
+            //   而提示条停在屏幕正中（Toast.BAR_Y = 0）→ 反复触发等于一直糊在玩法区上，
+            //   挡住瓶子和手指。信息本身 HUD 状态行（berserkLb「狂暴！×5 ×5.5」）常显，
+            //   所以只在**首次激活**弹一条，后续激活只留闪光反馈。
+            if (!this.berserkToastShown) {
+                this.berserkToastShown = true;
+                Toast.I?.show(t('berserk_active', G.lang) + '  ×' + G.berserkMult.toFixed(1), '#FF9E7A');
+            }
             FxLayer.I?.flash('#FF7A3A', 70, 0.4);
         };
         // 里程碑达成（GDD §7 的 24 阶）：提示阶段 + 本阶解锁掉哪条瓶子词条
@@ -159,6 +170,7 @@ export class GameRoot extends Component {
         (globalThis as any).__tb = {
             G, res: Res, director, field: BottleField, abil: Abilities, bottom: BottomPanel,
             cap: CapMachine, hud: Hud, ads: Ads,
+            tut: Tutorial,   // 无头验收：__tb.tut.debug() 断言引导步骤/计数/完成态
             panels: this.panelLayer,
             /** 购买引导：无头验收直接断言「下一步」文案与差额提示 */
             goal: debugGoal,
@@ -334,6 +346,19 @@ export class GameRoot extends Component {
             });
         }
         G.checkAch();
+
+        // ★ 新手引导（第七十五轮）：真·新档（没翻过瓶、桌上只有开局那只）才播 ——
+        //   黑幕挖洞点瓶子 ×2 → 挖洞买第一只瓶。依赖全部注入，Tutorial 不 import
+        //   BottleField/BottomPanel（避免 ESM 循环依赖，见 Guidance.ts 注释）。
+        Tutorial.maybeBegin(this.node, {
+            field: () => (this.bottlesNode && this.bottlesNode.isValid) ? this.bottlesNode : null,
+            bottle: () => {
+                const b = BottleField.I && BottleField.I.bottles.length > 0 ? BottleField.I.bottles[0] : null;
+                return (b && b.node && b.node.isValid) ? b.node : null;
+            },
+            buyCell: () => BottomPanel.I && BottomPanel.I.isValid ? BottomPanel.I.firstCell : null,
+            showShop: () => BottomPanel.I?.showShopCategory(0),
+        });
     }
 
     /**

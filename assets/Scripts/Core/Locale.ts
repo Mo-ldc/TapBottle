@@ -186,6 +186,9 @@ export const L: Record<string, Entry> = {
     /* 离线弹窗双键（弹窗界面.jpg）：蓝=基础领取 / 橙=三倍领取 */
     claim_base:       { zh: '基础领取', en: 'Claim' },
     claim_x3:         { zh: '三倍领取', en: '×3 Claim' },
+    /* 新手引导（第七十五轮）：黑幕挖洞 + 手指 */
+    tut_tap:          { zh: '点击瓶子，把它翻起来！', en: 'Tap the bottle to flip it!' },
+    tut_buy:          { zh: '点击这里，买一只新瓶子！', en: 'Tap here to buy a new bottle!' },
 
     /* 设置 */
     display:          { zh: '显示', en: 'Display' },
