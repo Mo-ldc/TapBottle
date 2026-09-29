@@ -1,7 +1,7 @@
 import { _decorator, Camera, Canvas, Component, director, Label, Node, ResolutionPolicy, tween, Tween, UIOpacity, UITransform, view, Widget } from 'cc';
 import { DESIGN_H, DESIGN_W } from '../Core/GameConfig';
 import { G } from '../Core/State';
-import { Res } from '../Core/Res';
+import { Res, bootFlags } from '../Core/Res';
 import { UIMgr, UIName } from '../Core/UIMgr';
 import { installPreviewInputBridge } from '../Core/PreviewInputBridge';
 
@@ -32,6 +32,22 @@ const { ccclass, property } = _decorator;
 export class LoadScene extends Component {
     static I: LoadScene = null!;
 
+    /**
+     * ★ 回访判定用 `bootFlags.loaded`（Core/Res.ts 的模块级标记，跨场景存活）。
+     *
+     * 为什么需要回访快路径（第七十一轮）：
+     *   从游戏内点「返回开始界面」走的是 `director.loadScene('Load')`（整场景重建）。
+     *   回访时资源其实**早已就绪** —— assetManager 缓存全命中、UIMgr 的 prefabs Map
+     *   是静态单例、构建包里 Prefabs 也是静态单例 —— 真正的耗时只有进度条动画本身：
+     *   `update()` 里 `shown += dt * 0.55`，从 3% 爬到 99.5% 要 (0.995-0.03)/0.55 ≈ 1.75s，
+     *   再加 `onReady()` 的 0.35s 加载区淡出 —— 玩家白等 2.1 秒。
+     *
+     * ⚠️ 曾用过「LoadScene 类静态 booted，在正常流程末尾置位」的判据，被无头验收当场
+     *   抓包否决：构建包启动场景直接是 Game（builder.json startScene），Load 的 onLoad
+     *   在首次返回前从没跑过 → 第一次返回仍走完整进度条（实测 2421ms vs 快路径 259ms）。
+     *   「资源加载过没有」必须由资源模块自己（Res.loadAll 的 finish）说了算。
+     */
+
     @property({ type: Node, tooltip: '加载背景（拉伸铺满可见区）' })
     bgNode: Node = null!;
     @property({ type: Node, tooltip: 'UI 根（尺寸=可见区）' })
@@ -51,8 +67,9 @@ export class LoadScene extends Component {
     @property({ type: Node, tooltip: '资源节点（场景级，切场景常驻）' })
     resNode: Node = null!;
 
-    /** 骑瓶左缘相对填充条前沿的偏移（参考图：前沿被瓶身压住一点） */
-    private static readonly RIDER_LEAD = -8;
+    /** 骑瓶定位：瓶**右缘**压住填充前沿 9px（瓶宽 169 → 中心 = 前沿 - 75.5），
+     *  即瓶身横骑在进度条尖端上、瓶盖略探出前沿（旧值 -8 是瓶左缘贴前沿 → 整瓶悬在条右侧外）。 */
+    private static readonly RIDER_LEAD = -160;
     private innerW = 1186;
     private riderW = 178;
     private target = 0.03;
@@ -107,6 +124,15 @@ export class LoadScene extends Component {
         this.setFill(0.03);
         this.fitToVisible();
 
+        // ★ 回访快路径（资源已完整加载过一轮即触发，含构建包「首场景是 Game、
+        //   Load 的 onLoad 从没跑过」的第一次返回）—— 见类头注释。
+        //   插在这里是因为上面的 alignCanvas / fitToVisible / UIMgr.bindRoots 都必须照做
+        //   （PageRoot 是本场景的新节点，不重绑就没地方挂 StartPage）。
+        if (bootFlags.loaded) {
+            this.skipLoading();
+            return;
+        }
+
         // 资源加载（85%）→ UI 预制体预载（15%）→ 就绪
         // （★ resNode 若在上面的 uuid 换回中变成了常驻老节点，getComponent 命中的就是
         //   首次启动那个已 loadAll 完成的 Res 实例 —— loadAll 幂等，ready 直接回调）
@@ -122,12 +148,15 @@ export class LoadScene extends Component {
         }, (f) => { this.setProgress(f * 0.85); });
     }
 
-    /** 填充宽度 + 骑瓶位置（同旧 Boot.setFill：内槽左锚点坐标系） */
+    /** 填充宽度 + 骑瓶位置（同旧 Boot.setFill：内槽左锚点坐标系）。
+     *  ★ 填充是九宫格（bd02 左右切边 21+21）：宽度下限 44，低于切边和圆头会破；
+     *  ★ 骑瓶起步时进度≈0，若不夹会整体探出进度条左端（inner 距条框仅 ~33px），夹回条内。 */
     private setFill(p: number) {
-        const w = Math.max(6, p * this.innerW);
+        const w = Math.max(44, p * this.innerW);
         const ut = this.fillBar.getComponent(UITransform);
         if (ut) { ut.setContentSize(w, ut.height); }
-        this.bottleRider.setPosition(w + LoadScene.RIDER_LEAD + this.riderW / 2, this.bottleRider.position.y, 0);
+        const cx = Math.max(this.riderW / 2 - 33, w + LoadScene.RIDER_LEAD + this.riderW / 2);
+        this.bottleRider.setPosition(cx, this.bottleRider.position.y, 0);
     }
 
     private setProgress(f: number) {
@@ -183,6 +212,33 @@ export class LoadScene extends Component {
                 if (w) { w.updateAlignment(); }
             }
         }
+    }
+
+    /**
+     * ★ 回访快路径：不演进度条，直接把加载区按掉、拉起 StartPage。
+     *
+     * `ready = true` 是必须的：`update()` 里靠它提前 return，否则下一帧 `shown` 会
+     * 从 3% 重新往上爬、爬到 1 再走一遍 `onReady()`（等于白跳）。
+     * 置 active=false 在 onLoad 内完成，早于本帧渲染 → 不会闪一下加载条。
+     *
+     * ⚠️ 别省掉下面的 loadAll/preload：首次返回时（构建包首场景 = Game）本场景的
+     *   Res 是**全新副本**，frames/clips 字典（实例字段）是空的 —— StartPage 的贴图走
+     *   prefab 序列化引用不受影响，但之后点「开始游戏」进 Game，瓶子/Fx 全走
+     *   `Res.I.sf()`，字典不填就是满屏白块。loadAll 会命中 assetManager 缓存瞬时完成；
+     *   UIMgr.preload 同理补 UI 预制体缓存（Game 首启没走过 preload）。
+     */
+    private skipLoading(): void {
+        this.ready = true;
+        if (this.loadingRoot && this.loadingRoot.isValid) { this.loadingRoot.active = false; }
+        const res = this.resNode && this.resNode.isValid
+            ? (this.resNode.getComponent(Res) || this.resNode.addComponent(Res))
+            : Res.I;
+        if (res) { res.loadAll(() => { /* 缓存命中，瞬时 */ }); }
+        UIMgr.boot().preload([
+            UIName.StartPage, UIName.SettingDialog, UIName.StatsDialog,
+            UIName.AchDialog, UIName.OfflineDialog, UIName.ConfirmDialog,
+        ]);
+        UIMgr.boot().showPage(UIName.StartPage);
     }
 
     /** 资源就绪：加载区淡出 → 按需拉起 StartPage 预制体 */

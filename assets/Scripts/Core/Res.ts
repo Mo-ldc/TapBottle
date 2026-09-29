@@ -180,6 +180,18 @@ export const AUDIO_PATHS: string[] = [
 ];
 
 /**
+ * 跨场景存活的「资源已完整加载过一轮」标记（模块级 → JS 模块只求值一次，切场景不丢）。
+ *
+ * 为什么不用 Res 实例的 ready 字段判断「是否回访」（第七十一轮踩坑）：
+ *   构建包的启动场景直接是 Game（profiles/v2/packages/builder.json 的 startScene），
+ *   Game 场景的 Res 节点**不是** persist —— 玩家第一次点「返回开始界面」时 Game 的
+ *   Res 随场景销毁，Load 场景反序列化出的是全新 Res 副本（ready=false、frames={}），
+ *   实例字段永远看不出「资源其实早已在 assetManager 缓存里」。只有模块级标记能
+ *   跨场景回答「加载过没有」，LoadScene 靠它在回访时跳过 2.1s 的进度条动画。
+ */
+export const bootFlags = { loaded: false };
+
+/**
  * Res —— 资源与音频管理（Cocos resources bundle + AudioSource）
  */
 @ccclass('Res')
@@ -212,6 +224,7 @@ export class Res extends Component {
 
         const finish = (ok: boolean) => {
             this.ready = true;
+            bootFlags.loaded = true;
             const ps = this.pending; this.pending = [];
             for (const p of ps) { p(ok); }
         };
@@ -335,6 +348,7 @@ export class Res extends Component {
     release() {
         this.frames = {};
         this.clips = {};
+        bootFlags.loaded = false;
         void assetManager;
     }
 }

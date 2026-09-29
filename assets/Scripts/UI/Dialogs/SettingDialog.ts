@@ -102,6 +102,7 @@ export class SettingDialog extends UIBase {
     private confirmDelete(): void {
         UIMgr.I.showDialog(UIName.ConfirmDialog, undefined, {
             text: t('delete_confirm', G.lang),
+            question: t('delete_confirm_q', G.lang),
             danger: true,
             onOk: () => {
                 clearSave();

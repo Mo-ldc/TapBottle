@@ -27,16 +27,19 @@ export interface OfflineArg {
  */
 @ccclass('OfflineDialog')
 export class OfflineDialog extends UIBase {
-    @property({ type: Label, tooltip: '收益行，形如 "$ 1.2K   +   30 瓶盖"' })
+    @property({ type: Label, tooltip: '金币行，形如 "金币：$ 1.2K"（图标左侧，文字左对齐）' })
     earnLb: Label = null!;
 
-    @property({ type: Label, tooltip: '离线时长，形如 "离线 42 分钟"' })
+    @property({ type: Label, tooltip: '瓶盖行，形如 "瓶盖：30"' })
+    capLb: Label = null!;
+
+    @property({ type: Label, tooltip: '说明行，形如 "您已离线2小时40分钟，可获得"' })
     timeLb: Label = null!;
 
-    @property({ type: Node, tooltip: '“×3 看广告”按钮' })
+    @property({ type: Node, tooltip: '"三倍领取"按钮（橙，右，带视频角标）' })
     adBtn: Node = null!;
 
-    @property({ type: Node, tooltip: '“确定”按钮（看完广告后居中）' })
+    @property({ type: Node, tooltip: '"基础领取"按钮（蓝，左；看完广告后居中）' })
     okBtn: Node = null!;
 
     private money = 0;
@@ -53,12 +56,12 @@ export class OfflineDialog extends UIBase {
         this.render();
         if (this.adBtn) {
             this.adBtn.active = true;
-            this.adBtn.setPosition(116, -152, 0);
+            this.adBtn.setPosition(162, -278, 0);
         }
-        if (this.okBtn) { this.okBtn.setPosition(-116, -152, 0); }
+        if (this.okBtn) { this.okBtn.setPosition(-162, -278, 0); }
     }
 
-    /** 看广告 → 收益 ×3（把差额 2× 补给玩家），按钮让位给确定 */
+    /** 看广告 → 收益 ×3（把差额 2× 补给玩家），按钮让位给基础领取 */
     onAdX3(): void {
         if (this.tripled) { return; }
         this.tripled = true;
@@ -72,7 +75,7 @@ export class OfflineDialog extends UIBase {
         G.notify();
         this.render();
         if (this.adBtn) { this.adBtn.active = false; }
-        if (this.okBtn) { this.okBtn.setPosition(0, -152, 0); }
+        if (this.okBtn) { this.okBtn.setPosition(0, -278, 0); }
         Toast.I?.show(t('ad_x3_done', G.lang), '#FFE9A8');
     }
 
@@ -100,15 +103,31 @@ export class OfflineDialog extends UIBase {
         }
     }
 
+    /* ---------------- 皮肤（第七十轮：按效果图弹窗界面.jpg 重烘，见 bake_dialogs_v2.py） ----------------
+     * 面板 = popup/buco01（596×410）· 标题 = popup/buco03 木牌 + popup/wzi04「挂机奖励」美术字
+     * 说明行 = timeLb（"您已离线X小时Y分钟，可获得"）· 金币行 = coin 图标 + earnLb（左对齐）
+     * 瓶盖行 = capIc(capchip_6) + capLb · 关闭叉 = popup/buco02（节点名 close，UIBase 自动绑）
+     * 基础领取 = popup/buco04 蓝胶囊（左）· 三倍领取 = popup/buco05 橙胶囊（右 + buco06 视频角标）
+     * 按键文字白字描边3（蓝 #1B66B9 / 橙 #B8561B）
+     * ------------------------------------------------------------------------------ */
+
     private render(): void {
-        const m = this.money * (this.tripled ? OFFLINE_AD_MULT : 1);
-        const c = this.caps * (this.tripled ? OFFLINE_AD_MULT : 1);
-        if (this.earnLb && this.earnLb.isValid) {
-            this.earnLb.string = '$ ' + fmt(m) + '   +   ' + fmt(c) + (G.lang === 'zh' ? ' 瓶盖' : ' caps');
-        }
+        const zh = G.lang === 'zh';
+        const mult = this.tripled ? OFFLINE_AD_MULT : 1;
+        const m = this.money * mult;
+        const c = this.caps * mult;
+        const h = Math.floor(this.seconds / 3600);
+        const min = Math.floor((this.seconds % 3600) / 60);
         if (this.timeLb && this.timeLb.isValid) {
-            this.timeLb.string = (G.lang === 'zh' ? '离线 ' : 'Away ')
-                + Math.floor(this.seconds / 60) + (G.lang === 'zh' ? ' 分钟' : ' min');
+            this.timeLb.string = zh
+                ? (h > 0 ? '您已离线' + h + '小时' + min + '分钟，可获得' : '您已离线' + min + '分钟，可获得')
+                : (h > 0 ? 'Away for ' + h + 'h ' + min + 'm — you earned' : 'Away for ' + min + 'm — you earned');
+        }
+        if (this.earnLb && this.earnLb.isValid) {
+            this.earnLb.string = (zh ? '金币：$ ' : 'Coins: $') + fmt(m);
+        }
+        if (this.capLb && this.capLb.isValid) {
+            this.capLb.string = (zh ? '瓶盖：' : 'Caps: ') + fmt(c);
         }
     }
 }

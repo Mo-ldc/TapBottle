@@ -241,7 +241,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": -128,
-      "y": -6,
+      "y": -0.048,
       "z": 0
     },
     "_lrot": {
@@ -785,7 +785,7 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": -112,
+      "x": -106.664,
       "y": 17,
       "z": 0
     },
@@ -1447,7 +1447,7 @@
       "__id__": 44
     },
     "_children": [],
-    "_active": false,
+    "_active": true,
     "_components": [
       {
         "__id__": 58
@@ -1502,8 +1502,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 30,
-      "height": 30
+      "width": 46,
+      "height": 36
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1544,7 +1544,7 @@
     },
     "_type": 0,
     "_fillType": 0,
-    "_sizeMode": 0,
+    "_sizeMode": 1,
     "_fillCenter": {
       "__type__": "cc.Vec2",
       "x": 0,

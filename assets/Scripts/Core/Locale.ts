@@ -180,6 +180,12 @@ export const L: Record<string, Entry> = {
     highest_flip:     { zh: '最高单次收入', en: 'Best single flip' },
     offline_earn:     { zh: '离线收益', en: 'Offline earnings' },
     welcome_back:     { zh: '欢迎回来！离线期间助手为你赚取：', en: 'Welcome back! Your helpers earned:' },
+    /* 删档确认拆两段（第七十轮，对齐美术效果图）：说明行 + 橙色强调句 */
+    delete_confirm:   { zh: '重新开始游戏将会丢失现有的所有进度和升级。', en: 'Restarting the game will lose all current progress and upgrades.' },
+    delete_confirm_q: { zh: '确定重新开始吗？', en: 'Sure to restart?' },
+    /* 离线弹窗双键（弹窗界面.jpg）：蓝=基础领取 / 橙=三倍领取 */
+    claim_base:       { zh: '基础领取', en: 'Claim' },
+    claim_x3:         { zh: '三倍领取', en: '×3 Claim' },
 
     /* 设置 */
     display:          { zh: '显示', en: 'Display' },
@@ -195,7 +201,6 @@ export const L: Record<string, Entry> = {
     music_volume:     { zh: '音乐音量', en: 'Music Volume' },
     sfx_volume:       { zh: '音效音量', en: 'SFX Volume' },
     delete_game:      { zh: '删除所有游戏进度。\n已解锁的成就将会保留。', en: 'Delete all progress.\nUnlocked achievements are kept.' },
-    delete_confirm:   { zh: '确定要开始新游戏吗？\n当前所有游戏进度都将丢失。', en: 'Start a new game?\nAll current progress will be lost.' },
 
     /* 能力 HUD */
     berserk_active:   { zh: '狂暴！', en: 'BERSERK!' },
