@@ -101,15 +101,17 @@ export class StartPage extends UIBase {
     private applyStartLabel(startBtn: Node, hasSave: boolean): void {
         let wzi = startBtn.getChildByName('wzi');
         if (!wzi) {
+            // 只在**运行时现建**时给坐标；预制体里已存在的 wzi 一律以预制体坐标为准
+            // （用户口径「以预制体为主」：编辑器里挪过的位置不能被代码顶回去）
             wzi = new Node('wzi');
             wzi.addComponent(UITransform);
             startBtn.addChild(wzi);
             wzi.addComponent(Sprite);
+            wzi.setPosition(0, 0, 0);
         }
         const sp = wzi.getComponent(Sprite)!;
         // 先 CUSTOM 再赋 frame，防 sizeMode=TRIM 把节点尺寸改回原图（UIKit.setFrame 已内置）
         setFrame(sp, hasSave ? 'startUI/wzi02' : 'startUI/wzi01', hasSave ? 270 : 283, hasSave ? 81 : 99);
-        wzi.setPosition(0, 0, 0);
     }
 
     /** @param restart true = 删档重开；false = 有档继续 / 无档新游戏 */

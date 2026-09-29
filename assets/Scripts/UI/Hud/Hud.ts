@@ -1,12 +1,10 @@
 import { _decorator, Component, Label, Node, Sprite, Tween, UIOpacity, Vec3, tween } from 'cc';
-import { LAYOUT, OFFLINE_AD_MULT } from '../../Core/GameConfig';
+import { LAYOUT } from '../../Core/GameConfig';
 import { G } from '../../Core/State';
 import { t } from '../../Core/Locale';
 import { fmt } from '../../Core/Util';
-import { button, img, label, MASK_SIZE, nd, popIn, popOut, pressable, rect, setFrame, setSize, sizeOf, TEXT_SCALE, tint, applyFontDeep } from '../Base/UIKit';
-import { chipPlate, WOOD, woodButton, woodPlate } from '../Base/Theme';
-import { Modal } from '../Base/Modal';
-import { Ads } from '../Base/Ads';
+import { button, img, label, nd, pressable, rect, setFrame, setSize, sizeOf, TEXT_SCALE, tint, applyFontDeep } from '../Base/UIKit';
+import { chipPlate, WOOD, woodButton } from '../Base/Theme';
 import { Toast } from '../Base/Toast';
 
 const { ccclass, property } = _decorator;
@@ -388,78 +386,5 @@ export class Hud extends Component {
         if (this.langLb && this.langLb.isValid) {
             this.langLb.string = G.lang === 'zh' ? '中' : 'EN';
         }
-    }
-
-    /**
-     * 离线收益结算 —— 中央 Q 弹弹出，收起是缩放回去（木纹皮肤版）。
-     * @param root 弹窗挂载层 —— 必须传 panelLayer（在 uiLayer 之上）：
-     *   左侧广告按钮（AdButtons）比 hudRoot 晚创建，挂在 hudRoot 的弹窗会被它盖住，
-     *   遮罩压不暗按钮、按钮还能穿透点击。
-     */
-    showOffline(money: number, caps: number, seconds: number, root?: Node) {
-        const host = root && root.isValid ? root : this.node;
-        // 登记模态：否则「点确定」的那一下会顺带翻一只背后的瓶子
-        // （瓶子的输入挂在全局 input 上，遮罩的 BlockInputEvents 拦不住）
-        Modal.push();
-        const modalRoot = nd(host, 'offline', MASK_SIZE.w, MASK_SIZE.h, 0, 0);
-        // ★ pop 必须挂在「节点销毁」上而不是「点确定」上：
-        //   Modal.count 是模块级单例，只要有一条销毁路径没 pop，计数就永久残留 >0
-        //   → BottleField 的 aim()/pointerDown() 永远 return → 整局点不动。
-        //   （实测：无头脚本直接 destroy 掉这个弹窗就把整局输入锁死了。）
-        modalRoot.on(Node.EventType.NODE_DESTROYED, () => { Modal.pop(); });
-        const rootOp = modalRoot.addComponent(UIOpacity);
-        rootOp.opacity = 0;
-        rect(modalRoot, MASK_SIZE.w, MASK_SIZE.h, 0, 0, '#000000AA', 'm');
-        const card = woodPlate(modalRoot, {
-            w: 600, h: 430, x: 0, y: 0, fill: WOOD.cream, radius: 30,
-            inner: WOOD.creamDark, name: 'card',
-        });
-        label(card, t('welcome_back', G.lang), 0, 148, 550, 48, {
-            size: 32, color: WOOD.text, outline: '#FFF3D6', outlineWidth: 3,
-        });
-        img(card, 'ui/icon/coin', 90, 90, 0, 52);
-        const earnLb = label(card, '$ ' + fmt(money) + '   +   ' + fmt(caps) + ' 瓶盖', 0, -30, 540, 54, {
-            size: 34, color: '#8A5A20', outline: '#FFF3D6', outlineWidth: 3,
-        });
-        label(card, (G.lang === 'zh' ? '离线 ' : 'Away ') + Math.floor(seconds / 60) + (G.lang === 'zh' ? ' 分钟' : ' min'),
-            0, -84, 540, 38, { size: 25, color: '#9A7A50' });
-
-        let tripled = false;
-        /** 看完广告 → 离线收益 ×3（在原结算基础上把差额 2× 补上） */
-        const grantX3 = () => {
-            if (tripled) { return; }
-            tripled = true;
-            const extraM = money * (OFFLINE_AD_MULT - 1);
-            const extraC = caps * (OFFLINE_AD_MULT - 1);
-            G.data.money += extraM;
-            G.data.caps += extraC;
-            G.data.stats.earned += extraM;
-            G.data.stats.capsEarned += extraC;
-            G.save();
-            G.notify();
-            earnLb.string = '$ ' + fmt(money * OFFLINE_AD_MULT) + '   +   ' + fmt(caps * OFFLINE_AD_MULT) + ' 瓶盖';
-            adBtn.active = false;
-            okBtn.setPosition(0, -152, 0);
-            Toast.I?.show(t('ad_x3_done', G.lang), '#FFE9A8');
-        };
-        const close = () => {
-            // Modal.pop 交给 NODE_DESTROYED 监听（见 showOffline 顶部注释），这里不要重复 pop
-            tween(rootOp).to(0.16, { opacity: 0 }).start();
-            popOut(card, 0.16, () => modalRoot.destroy());
-        };
-        const adBtn = button(card, {
-            w: 210, h: 84, x: 116, y: -152,
-            tex: 'ui/panel/card_white', inset: [30, 30, 30, 30], texColor: WOOD.gold,
-            text: t('ad_x3', G.lang), fontSize: 26, textColor: WOOD.text, sound: 'click',
-            onClick: () => { Ads.I.show('offline_x3', grantX3); },
-        });
-        const okBtn = button(card, {
-            w: 210, h: 84, x: -116, y: -152,
-            tex: 'ui/panel/card_white', inset: [30, 30, 30, 30], texColor: WOOD.gold,
-            text: t('ok', G.lang), fontSize: 30, textColor: WOOD.text, sound: 'click',
-            onClick: close,
-        });
-        tween(rootOp).to(0.15, { opacity: 255 }).start();
-        popIn(card);
     }
 }

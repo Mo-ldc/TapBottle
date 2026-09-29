@@ -46,7 +46,13 @@ export const CELL_H = 78;
 export const GAP_X = 14;
 export const GAP_Y = 10;
 
-/* ---- 格子内部排版（一次算好，别再散落魔数） ---- */
+/* ---- 格子内部排版常量 ----
+ * ★★ 第八十轮起：这些常量**只用于两处兜底**，不再决定运行时布局 ——
+ *   ① `constructCell()`（prefab 加载失败时的运行时搭建）；
+ *   ② `snap()` 在节点缺失时的默认尺寸。
+ *   实际排版以 `Prefabs/UI/UpgradeRow.prefab` 为准（改这里不会影响游戏里已加载的 prefab）。
+ *   要调商店页 / 升级页 / 技能树的行内位置，改 prefab；改完跑 drift_check.py 确认没被代码顶掉。
+ */
 const ICON_H = 46;          // 图标高度（瓶身贴图按 0.4 瘦高比缩宽，见 iconW）
 const ICON_X = -128;        // 图标/底板中心（★ 第四十一轮右移 8px：底框左缘 -154，距格子左缘 7px，不再贴边）
 /** 图标中心 y：下移 6px，给左上角的「新」角标让出顶部空间（瓶口只被盖 ~4px） */
@@ -74,13 +80,10 @@ const NAME_TEXT_X = -98, NAME_TEXT_W = 158;
  * 词条图标缩小成角标**跨在底板右下角**（对照用户给的参考图）。
  * 节点顺序即渲染序：底板（先建）→ 瓶身 → 角标（后建、画在最上）。 */
 const TIER_BG = 46;         // 底板边长（格子左缘 -161，左留 2px）
-const TIER_BG_R = 11;       // 底板圆角
 const TIER_BOTTLE_H = 40;   // 底板里瓶身的显示高度（≈87%，留边）
 const BADGE_ICON = 18;      // 词条角标边长
 /** 角标中心：贴底板右下角内侧（★ 第四十一轮随底框右移 8px；右缘 -102，与文字左缘 -98 留 4px） */
 const BADGE_X = -112, BADGE_Y = -24;
-/** 有底板/阶图标时名字与说明的左缘右移（底板右缘 -102，留 4px 起字） */
-const NAME_SHIFT_X = -98, NAME_SHIFT_W = 158;
 
 /* ---- 价格按钮内部的「货币图标 + 数字」排布（★ 第二十轮） ----
  * 用户口径（第二十轮复盘）：图标和数字要**拉开** —— 原来间隙只有 4px，
@@ -89,10 +92,10 @@ const NAME_SHIFT_X = -98, NAME_SHIFT_W = 158;
 const CUR_ICON_H = 22;
 /** 图标中心（按钮本地坐标：贴左缘内缩 13 → 右缘落在 -22，与数字栏留 ~10px 间隙） */
 const CUR_ICON_X = -BTN_W / 2 + 13;
-/** 有图标时数字栏：右移给图标让位，间隙 ≥10px */
+/** 有货币图标时数字栏：右移给图标让位，间隙 ≥10px。
+ *  第八十轮：无货币图标的行不再需要「另一个常量」—— 数字直接居中于按钮（x=0），
+ *  宽度取按钮宽 -10，见 applyRow 里的 btnLb 段。 */
 const CUR_TEXT_X = 13, CUR_TEXT_W = 50;
-/** 没有货币的行（MAX / 解锁 / —）：数字栏铺满按钮 */
-const PLAIN_TEXT_X = 0, PLAIN_TEXT_W = BTN_W - 10;
 
 /* ---- 右上角两枚角标 ----
  * ⚠️⚠️ 这里的坐标是**相对价格按钮**的，不是相对格子 —— 角标必须挂在按钮节点之下。
@@ -204,8 +207,55 @@ export interface RowSpec {
     onBuy: (after: () => void, from?: Node) => void;
 }
 
+/**
+ * 行内各节点的**初始布局** —— 实例化时从 prefab 读一次，之后不再变。
+ *
+ * ★★ 第八十轮（用户口径）：「列表选项的预制体和技能模块预制体我也没法手动调整…
+ *    我改动预制体能直接调整对应的游戏位置」。此前 applyRow 把 8 处坐标写成常量
+ *    （ICON_X/BADGE_X/NAME_TEXT_X…），编辑器里拖 prefab 一律被顶回去。
+ *    现在位置与尺寸**只认这份快照**，也就是：
+ *      · 改 `UpgradeRow.prefab` 里任一节点的位置/大小 → 商店页 / 升级页 / 技能树**全部**生效；
+ *      · 代码只负责「填文字 / 换图 / 切 active / 按贴图比例算图标宽」这些数据活。
+ *    （prefab 缺节点时走 constructCell 兜底，快照取下面的常量，两条路径同构。）
+ */
+export interface RowRect { x: number; y: number; w: number; h: number; }
+export interface RowLayout {
+    /** 左侧大图标（h = 显示高度，宽度按贴图比例算） */
+    icon: RowRect;
+    /** 图标背后的稀有度底板（w = 边长） */
+    tier: RowRect;
+    /** 底板右下角的词条小角标（h = 边长） */
+    badge: RowRect;
+    /** 名称栏最左的瓶阶小图标（h = 高度） */
+    nameIc: RowRect;
+    /** 名称文字栏（x = 左缘 —— label 锚点在左；w 是**栅格化**宽度） */
+    name: RowRect;
+    /** 说明文字栏（宽度跟着 name） */
+    sub: RowRect;
+    /** 价格区容器（无货币图标的行，数字铺满它） */
+    btn: RowRect;
+    /** 价格数字（有货币图标时的态：x = 数字栏中心，w = 栏宽） */
+    btnLb: RowRect;
+    /** 左上角「新」角标（按钮本地坐标） */
+    newTag: RowRect;
+}
+
+/** 读节点实例化后的初始布局（节点缺失时用兜底尺寸） */
+function snap(n: Node | null, dw: number, dh: number): { x: number; y: number; w: number; h: number } {
+    const ok = !!n && n.isValid;
+    const ut = ok ? (n!.getComponent('cc.UITransform') as any) : null;
+    return {
+        x: ok ? n!.position.x : 0,
+        y: ok ? n!.position.y : 0,
+        w: ut ? ut.contentSize.width : dw,
+        h: ut ? ut.contentSize.height : dh,
+    };
+}
+
 export interface RowUI {
     root: Node;
+    /** 初始布局快照（见 RowLayout 注释；applyRow 的位置一律取这里） */
+    L: RowLayout;
     /** 瓶阶词条行的稀有度色圆角底板（`spec.badge` 为空时隐藏；画在瓶身**下面**） */
     tierBg: Node;
     icon: Sprite;
@@ -312,9 +362,23 @@ function bindRow(root: Node): RowUI {
         const nlb = label(tag, t('tag_new', G.lang), 0, 1, 24, 20, { size: 13, color: '#FFFFFF', overflow: 'shrink' });
         nlb.node.name = 'tagLb';
     }
+    const tierBg = root.getChildByName('tierBg') || null!;
+    // ★ 第八十轮：实例化后**立刻快照 prefab 的布局** —— 之后 applyRow 再也不会写死坐标，
+    //   编辑器里拖 prefab 里任一节点即可改商店页/升级页/技能树的排版。
+    const L: RowLayout = {
+        icon: snap(root.getChildByName('ic'), ICON_H, TIER_BOTTLE_H),
+        tier: snap(tierBg, TIER_BG, TIER_BG),
+        badge: snap(root.getChildByName('badgeIc'), BADGE_ICON, BADGE_ICON),
+        nameIc: snap(root.getChildByName('nameIc'), 11, NAME_ICON_H),
+        name: snap(root.getChildByName('name'), TEXT_W * TEXT_SS, NAME_H * TEXT_SS),
+        sub: snap(root.getChildByName('sub'), TEXT_W * TEXT_SS, SUB_H * TEXT_SS),
+        btn: snap(btn, BTN_W, BTN_H),
+        btnLb: snap(btn ? btn.getChildByName('btnLb') : null, CUR_TEXT_W * TEXT_SS, (BTN_H - 12) * TEXT_SS),
+        newTag: snap(tag, NEW_X, NEW_Y),
+    };
     return {
-        root,
-        tierBg: root.getChildByName('tierBg') || null!,
+        root, L,
+        tierBg,
         icon: spriteOf(root, 'ic'),
         badgeSp: spriteOf(root, 'badgeIc'),
         nameIc: spriteOf(root, 'nameIc'),
@@ -389,7 +453,19 @@ function constructCell(parent: Node): RowUI {
     adNode.active = false;
     const adSp = setFrame(adNode.addComponent(Sprite), 'ui/icon/ksp', AD_ICON, AD_ICON);
 
-    const ui: RowUI = { root, tierBg, icon, badgeSp, nameIc, name, sub, nameImg: null!, lvLb: null!, btn, btnSp: btn.getComponent(Sprite)!, btnLb, curSp, adSp, newTag: null!, spec: null! };
+    // 兜底路径的布局快照 = 上面的常量（与 UpgradeRow.prefab 逐节点同值，改 prefab 时别忘了这里）
+    const L: RowLayout = {
+        icon: { x: ICON_X, y: ICON_Y, w: ICON_H, h: TIER_BOTTLE_H },
+        tier: { x: ICON_X, y: ICON_Y, w: TIER_BG, h: TIER_BG },
+        badge: { x: BADGE_X, y: BADGE_Y, w: BADGE_ICON, h: BADGE_ICON },
+        nameIc: { x: NAME_IC_X, y: NAME_Y, w: niW, h: NAME_ICON_H },
+        name: { x: NAME_TEXT_X, y: NAME_Y, w: NAME_TEXT_W * TEXT_SS, h: NAME_H * TEXT_SS },
+        sub: { x: NAME_TEXT_X, y: SUB_Y, w: NAME_TEXT_W * TEXT_SS, h: SUB_H * TEXT_SS },
+        btn: { x: 0, y: 0, w: BTN_W, h: BTN_H },
+        btnLb: { x: CUR_TEXT_X, y: 1, w: CUR_TEXT_W * TEXT_SS, h: (BTN_H - 12) * TEXT_SS },
+        newTag: { x: NEW_X, y: NEW_Y, w: 0, h: 0 },
+    };
+    const ui: RowUI = { root, L, tierBg, icon, badgeSp, nameIc, name, sub, nameImg: null!, lvLb: null!, btn, btnSp: btn.getComponent(Sprite)!, btnLb, curSp, adSp, newTag: null!, spec: null! };
 
     // ★ 右上角「新」角标（用户口径：新出现的可买/可研发项要标出来，点过即消）
     //   底板 = buco06 红圆徽章整图（33×33 原尺寸），中间「新」字原生字体白字
@@ -419,12 +495,13 @@ export function applyRow(r: RowUI, spec: RowSpec) {
     // ★ 瓶阶词条行（第二十一轮）：瓶身缩进稀有度底板里（42 高）——
     //   ★ 第三十八轮起**所有行**都进底框（用户口径：底框不止瓶子，功能板块一样有），
     //   图标统一 contain 到 TIER_BOTTLE_H，视觉完全一致。
+    const L = r.L;
     const bd = spec.badge;
-    const ih = TIER_BOTTLE_H;
+    // ★ 第八十轮：图标**显示高度**取 prefab 里 ic 的高度（编辑器里拖 ic 即可放大缩小），
+    //   宽度仍按贴图比例算（瓶身 0.4 瘦高比 / 方形图标 1:1）——这部分是「数据活」，不该写死。
+    const ih = L.icon.h;
     const iw = iconW(spec.icon, ih);
-    // ★ 第四十一轮：图标位置强制按常量摆（prefab 里的旧坐标不再参与布局，
-    //   防止再出现「prefab 路径与 construct 兜底路径不同心」的错位）
-    r.icon.node.setPosition(ICON_X, ICON_Y, 0);
+    // 位置不再写死：以 prefab 快照为准（第八十轮，见 RowLayout 注释）
     (r.icon.node.getComponent('cc.UITransform') as any).setContentSize(iw, ih);
     setFrame(r.icon, spec.icon, iw, ih);
     // 底框（★ 第三十五轮换皮 ztk 双层；★ 第三十八轮起**所有行都显示**）：
@@ -432,19 +509,19 @@ export function applyRow(r: RowUI, spec: RowSpec) {
     //   每升一级涨一截，点满 = 1 完全盖住 → 视觉即满级金底框）。
     //   没有等级概念的行（机器/光圈等一次性购买）不传 lv/lvMax → 只显示奶油底框。
     //   prefab 里的 tierBg 节点只当容器用（Graphics 组件禁用，不删节点不动数组）。
+    const tierBgN = L.tier.w + 6;   // 进度层比底板外扩 6px
     if (r.tierBg && r.tierBg.isValid) {
         r.tierBg.active = true;
-        r.tierBg.setPosition(ICON_X, ICON_Y, 0);   // ★ 第四十一轮：同上，位置以常量为准
         const g = r.tierBg.getComponent(Graphics);
         if (g && g.enabled) { g.enabled = false; }
-        // 懒建两层（prefab / constructCell 都没有这两层，运行时补齐）
+        // 懒建两层（prefab / constructCell 都没有这两层，运行时补齐；中心随底板）
         let z1 = r.tierBg.getChildByName('ztk1');
         let z2 = r.tierBg.getChildByName('ztk2');
         if (!z1) {
-            z1 = nd(r.tierBg, 'ztk1', TIER_BG + 6, TIER_BG + 6, 0, 0);
-            setFrame(z1.addComponent(Sprite), 'skin/tier/ztk_1', TIER_BG + 6, TIER_BG + 6);
-            z2 = nd(r.tierBg, 'ztk2', TIER_BG + 6, TIER_BG + 6, 0, 0);
-            const sp2 = setFrame(z2!.addComponent(Sprite), 'skin/tier/ztk_2', TIER_BG + 6, TIER_BG + 6);
+            z1 = nd(r.tierBg, 'ztk1', tierBgN, tierBgN, 0, 0);
+            setFrame(z1.addComponent(Sprite), 'skin/tier/ztk_1', tierBgN, tierBgN);
+            z2 = nd(r.tierBg, 'ztk2', tierBgN, tierBgN, 0, 0);
+            const sp2 = setFrame(z2!.addComponent(Sprite), 'skin/tier/ztk_2', tierBgN, tierBgN);
             sp2.type = Sprite.Type.FILLED;
             sp2.fillType = Sprite.FillType.HORIZONTAL;   // 横向：从左往右按等级填充
             sp2.fillStart = 0;
@@ -455,7 +532,7 @@ export function applyRow(r: RowUI, spec: RowSpec) {
         // ★ 等级数字「0/10」（效果图口径）：贴底框左下角**框内**，随 lv/lvMax 刷新
         //   （y = 下沿 -32 + 半盒 8 → 底边正好压住框内沿；之前 +2 时出框 6px）
         if (!r.lvLb || !r.lvLb.isValid) {
-            r.lvLb = label(r.root, '', ICON_X - (TIER_BG + 6) / 2 + 3, ICON_Y - (TIER_BG + 6) / 2 + 8, 44, 16, {
+            r.lvLb = label(r.root, '', L.tier.x - tierBgN / 2 + 3, L.tier.y - tierBgN / 2 + 8, 44, 16, {
                 size: 14, color: '#7A4210', hAlign: 'left', anchorX: 0, overflow: 'shrink',
             });
             r.lvLb.node.name = 'lvLb';
@@ -467,8 +544,7 @@ export function applyRow(r: RowUI, spec: RowSpec) {
     // 词条角标（跨在底板右下角）
     if (r.badgeSp && r.badgeSp.isValid) {
         r.badgeSp.node.active = !!bd;
-        r.badgeSp.node.setPosition(BADGE_X, BADGE_Y, 0);   // ★ 第四十一轮：同上，位置以常量为准
-        if (bd) { setFrameH(r.badgeSp, bd, BADGE_ICON); }
+        if (bd) { setFrameH(r.badgeSp, bd, L.badge.h); }
     }
     // ★ 名称栏的瓶阶小图标（第二十一轮）：有 nameIcon 就亮图标，并把名字右移、收窄
     //   ⚠️ label 节点存的是**栅格化尺寸**（UIKit.label：盒子 ×TEXT_SS 再缩回 TEXT_SCALE），
@@ -476,20 +552,17 @@ export function applyRow(r: RowUI, spec: RowSpec) {
     const ni = spec.nameIcon;
     if (r.nameIc && r.nameIc.isValid) {
         r.nameIc.node.active = !!ni;
-        r.nameIc.node.setPosition(NAME_IC_X, NAME_Y, 0);   // ★ 第四十一轮：位置以常量为准
-        if (ni) { setFrameH(r.nameIc, ni, NAME_ICON_H); }
+        if (ni) { setFrameH(r.nameIc, ni, L.nameIc.h); }
     }
-    // 名称 / 说明两行的左缘与宽度**一起**切：★ 第三十八轮起所有行都有底框 → 始终右移收窄
-    // （右缘保持不动（60 = 价格按钮左缘 65 内缩 5），只是文字不能伸到底框/角标底下）。
-    const shift = true;
-    const tx2 = shift ? NAME_TEXT_X : TEXT_X;
-    const tw2 = (shift ? NAME_TEXT_W : TEXT_W) * TEXT_SS;
+    // 名称 / 说明两行的左缘与宽度**一起**切（★ 第八十轮：值全部来自 prefab 快照）。
+    //   ⚠️ 快照里存的是**栅格化尺寸**（UIKit.label：盒子 ×TEXT_SS 再缩回 TEXT_SCALE），
+    //      所以直接赋给 contentSize 即可，**不要**再乘一次 TEXT_SS（会缩成蚂蚁字）。
+    const tx2 = L.name.x;
+    const tw2 = L.name.w;
     const nUT = r.name.node.getComponent('cc.UITransform') as any;
-    r.name.node.setPosition(tx2, NAME_Y, 0);
-    nUT.setContentSize(tw2, NAME_H * TEXT_SS);
+    nUT.setContentSize(tw2, L.name.h);
     const sUT = r.sub.node.getComponent('cc.UITransform') as any;
-    r.sub.node.setPosition(tx2, SUB_Y, 0);
-    sUT.setContentSize(tw2, SUB_H * TEXT_SS);
+    sUT.setContentSize(tw2, L.sub.h);
     // ★ 第四十三轮：文本**先比对再写** —— 底栏面板每 0.25s 会对整块列表 applyRow 一次，
     //   无条件写 string 会让系统字体 Label 每次都重排 + 重绘 canvas + 上传纹理
     //   （实测 3 秒内 name/sub/lvLb/btnLb 各被写 100+ 次，是「生成瓶盖时掉帧」的主源之一）。
@@ -499,7 +572,7 @@ export function applyRow(r: RowUI, spec: RowSpec) {
     // ★ 名字美术字（wzi，第三十五轮）：有 nameImg 就显示图、隐藏文本；
     //   宽度按图片比例 contain 到 24 高，左缘与文本栏对齐（锚点 0.5 → x = 左缘 + 宽/2）。
     if (!r.nameImg || !r.nameImg.isValid) {
-        const n = nd(r.root, 'nameImg', 60, NAME_IMG_H, 0, NAME_Y);
+        const n = nd(r.root, 'nameImg', 60, NAME_IMG_H, 0, L.name.y);
         n.active = false;
         r.nameImg = setFrame(n.addComponent(Sprite), 'bottle/name_0', 60, NAME_IMG_H);
     }
@@ -514,7 +587,7 @@ export function applyRow(r: RowUI, spec: RowSpec) {
         const k = oh > 0 ? NAME_IMG_H / oh : 1;
         const w = Math.round(ow * k);
         (r.nameImg.node.getComponent('cc.UITransform') as any).setContentSize(w, NAME_IMG_H);
-        r.nameImg.node.setPosition(tx2 + w / 2 + 2, NAME_Y, 0);
+        r.nameImg.node.setPosition(tx2 + w / 2 + 2, L.name.y, 0);
     }
     r.name.node.active = !spec.nameImg;
     // ★ 第三十九轮：价格区的**底框停用**（整格即按钮，价格只是浮在行底框上的标签）。
@@ -529,12 +602,13 @@ export function applyRow(r: RowUI, spec: RowSpec) {
     const cur = spec.cur;
     const lbNode = r.btnLb.node;
     const lbUT = lbNode.getComponent('cc.UITransform') as any;
-    const lbH = (BTN_H - 12) * TEXT_SS;
+    const lbH = L.btnLb.h;
     // 右上角挂了摄像机角标 → 数字整体往左让 12px，两者不打架
-    const tx = (cur ? CUR_TEXT_X : PLAIN_TEXT_X) - (spec.ad ? 12 : 0);
-    const tw = cur ? CUR_TEXT_W : PLAIN_TEXT_W;
-    lbNode.setPosition(tx, 1, 0);
-    lbUT.setContentSize(tw * TEXT_SS, lbH);
+    // （基准 x/y 来自 prefab：有货币图标时用 btnLb 的位置；没有图标时居中于按钮 = x 0）
+    const tx = (cur ? L.btnLb.x : 0) - (spec.ad ? 12 : 0);
+    const tw = cur ? L.btnLb.w : (L.btn.w - 10) * TEXT_SS;
+    lbNode.setPosition(tx, L.btnLb.y, 0);
+    lbUT.setContentSize(tw, lbH);
     if (r.curSp && r.curSp.isValid) {
         r.curSp.node.active = !!cur;
         if (cur) { setFrameH(r.curSp, cur === 'cap' ? 'bottle/capchip_6' : 'ui/icon/coin', CUR_ICON_H); }
@@ -551,8 +625,7 @@ export function applyRow(r: RowUI, spec: RowSpec) {
         }
     }
     if (r.newTag && r.newTag.isValid) {
-        // 广告角标占了右上角 → 「新」角标往左让位，两枚不叠在一起
-        r.newTag.setPosition(NEW_X, NEW_Y, 0);
+        // 位置由 prefab 决定（第八十轮）；这里只管亮灭：新出现且没点过才挂角标
         r.newTag.active = !!spec.id && !G.itemSeen(spec.id);
     }
 }

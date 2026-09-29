@@ -1,4 +1,4 @@
-import { _decorator, Label, Node } from 'cc';
+import { _decorator, Label, Node, Vec3 } from 'cc';
 import { OFFLINE_AD_MULT } from '../../Core/GameConfig';
 import { G } from '../../Core/State';
 import { t } from '../../Core/Locale';
@@ -24,6 +24,10 @@ export interface OfflineArg {
  *   · 模态登记交给 UIBase.show()/finishHide() 统一管理，不再靠
  *     `NODE_DESTROYED` 监听补 pop（那条老路只要有一条销毁路径没走到，
  *     Modal.count 就永久残留 → 整局点不动瓶子）。
+ *
+ * ★★ 第七十九轮起铁律（用户口径「以预制体为主」）：本脚本**只填文字、只切 active**，
+ *   绝不对预制体里的节点写死 position / contentSize —— 所有位置与尺寸都在
+ *   `OfflineDialog.prefab` 里调，编辑器所见即所得。
  */
 @ccclass('OfflineDialog')
 export class OfflineDialog extends UIBase {
@@ -46,6 +50,15 @@ export class OfflineDialog extends UIBase {
     private caps = 0;
     private seconds = 0;
     private tripled = false;
+    /**
+     * 预制体里两个领取键的**原始坐标**（init 时抓一次）。
+     * ★ 第七十九轮（用户口径：以预制体为主）—— 代码不再往按钮上写死 (162,-278)/(-162,-278)，
+     *   位置完全由 `OfflineDialog.prefab` 决定；只有「看完广告后基础领取键居中」这一个
+     *   运行期状态需要挪节点，且挪的目标也从预制体原始坐标算出来（取两键水平中点 + 保留
+     *   基础键的原始 y），这样用户在编辑器里把按钮挪到哪儿，居中逻辑都跟着走。
+     */
+    private okHome = new Vec3(-162, -278, 0);
+    private adHome = new Vec3(162, -278, 0);
 
     init(arg?: unknown): void {
         const a = (arg || {}) as Partial<OfflineArg>;
@@ -53,12 +66,13 @@ export class OfflineDialog extends UIBase {
         this.caps = a.caps || 0;
         this.seconds = a.seconds || 0;
         this.tripled = false;
+        // 抓预制体原始坐标（此时代码还没碰过它们）
+        if (this.okBtn) { this.okHome.set(this.okBtn.position); }
+        if (this.adBtn) { this.adHome.set(this.adBtn.position); }
         this.render();
-        if (this.adBtn) {
-            this.adBtn.active = true;
-            this.adBtn.setPosition(162, -278, 0);
-        }
-        if (this.okBtn) { this.okBtn.setPosition(-162, -278, 0); }
+        // ⚠️ 这里**不能**再 setPosition —— 会把编辑器里调好的位置顶掉（用户实测踩过）
+        if (this.adBtn) { this.adBtn.active = true; }
+        if (this.okBtn) { this.okBtn.setPosition(this.okHome); }
     }
 
     /** 看广告 → 收益 ×3（把差额 2× 补给玩家），按钮让位给基础领取 */
@@ -75,7 +89,8 @@ export class OfflineDialog extends UIBase {
         G.notify();
         this.render();
         if (this.adBtn) { this.adBtn.active = false; }
-        if (this.okBtn) { this.okBtn.setPosition(0, -278, 0); }
+        // 居中 = 两键原始横坐标的中点（预制体里对称，算出来就是 0）；y 用基础键原始值
+        if (this.okBtn) { this.okBtn.setPosition((this.okHome.x + this.adHome.x) / 2, this.okHome.y, 0); }
         Toast.I?.show(t('ad_x3_done', G.lang), '#FFE9A8');
     }
 

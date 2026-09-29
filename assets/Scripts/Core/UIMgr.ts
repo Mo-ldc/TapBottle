@@ -5,7 +5,11 @@ import { UIBase } from '../UI/Base/UIBase';
 export enum UIName {
     /** 标题页（点击开始游戏）—— 仅在开局出现一次 */
     StartPage = 'StartPage',
-    /** 游戏主界面：顶栏 HUD + 能力条 + 底栏 + 履带 + 广告按钮 */
+    /**
+     * 游戏主界面（顶栏 HUD + 能力条 + 底栏 + 履带 + 广告按钮）。
+     * ⚠️ 它**不是 prefab**：整块玩法 UI 已实体化进 `Scenes/Game.scene`
+     *    （hudRoot / navRoot / adRoot），所以不在 UI_ENTRIES 预加载清单里。
+     */
     GamePage = 'GamePage',
 
     /** 设置弹窗 */
@@ -28,7 +32,8 @@ export const UI_ROOT = 'Prefabs/UI';
 /** 清单里每一项的路径（缺文件会让整批 preload 失败，见 Prefabs.ts 的同类坑） */
 export const UI_ENTRIES: UIName[] = [
     UIName.StartPage,
-    UIName.GamePage,
+    // ⚠️ 这里**不能**放 GamePage —— 它没有 prefab，整块玩法 UI 在 Game.scene 里，
+    //    放进来只会让 preload 每次都报一次 resources.load 失败（第七十九轮清理）。
     UIName.SettingDialog,
     UIName.StatsDialog,
     UIName.AchDialog,
