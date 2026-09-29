@@ -36,6 +36,17 @@ const HAND_W = 108, HAND_H = 135;
 /** 手指弹跳下压幅度 */
 const HAND_DIP = 30;
 
+/* ---- 提示字上浮动画（第九十一轮，用户口径） ----
+ * 「出现后往上移动再逐渐消失」，一轮 1s，循环播（引导期间一直有字，但视觉上一直在飘）。
+ * 动画不能挂 tween —— 提示字的位置每帧由 update 跟着黑幕洞重排，tween 会被覆写，
+ * 所以节奏自己用 dt 推，只在最后一步叠上「上浮偏移 + 透明度」。 */
+/** 一轮时长（秒） */
+const TIP_DUR = 1.0;
+/** 上浮高度（引导层设计单位，字高 44 → 48 足够明显） */
+const TIP_RISE = 48;
+/** 开头淡入占一轮的比例（剩下的时间用来上浮淡出） */
+const TIP_FADE_IN = 0.12;
+
 /** 引导依赖（GameRoot 注入，全部惰性取值） */
 export interface TutorialDeps {
     /** 瓶子场节点（BottleField 宿主，坐标换算基准） */
@@ -92,7 +103,10 @@ export class Tutorial extends Component {
     private hand: Node = null!;
     private handImg: Node = null!;
     private tipLb: Label = null!;
+    private tipOp: UIOpacity = null!;
     private tipText = '';
+    /** 提示字本轮已播时间（0..TIP_DUR，循环） */
+    private tipT = 0;
 
     /**
      * 入口：满足「真·新档」才播（从没翻过瓶 + 桌上只有开局自带那只）。
@@ -156,6 +170,8 @@ export class Tutorial extends Component {
             size: 44, color: '#FFFFFF', outline: '#1B1006', outlineWidth: 3,
         });
         this.tipLb = lb;
+        // 上浮淡出要动透明度：Label 本身没有 opacity，给节点挂 UIOpacity（会带动描边一起淡）
+        this.tipOp = lb.node.getComponent(UIOpacity) || lb.node.addComponent(UIOpacity);
 
         // 买中 T1 瓶（bottles[0] 1 → 2）= 引导终点
         G.addListener(() => {
@@ -175,7 +191,7 @@ export class Tutorial extends Component {
     }
 
     /* ---------------- 每帧：洞跟随目标 + 步进检测 ---------------- */
-    protected update() {
+    protected update(dt: number) {
         if (!this.step) { return; }
         // 点满 2 次 → 等最后一次翻瓶落地（含失败平躺/Q 弹）再切「购买」引导
         if (this.step === 'tap' && this.taps >= this.needTaps && !this.advancing) {
@@ -203,7 +219,7 @@ export class Tutorial extends Component {
         for (const m of [this.mT, this.mB, this.mL, this.mR]) { m.active = show; }
         this.hand.active = show;
         this.tipLb.node.active = show;
-        if (!hole) { return; }
+        if (!hole) { this.tipT = 0; return; }   // 洞不在（等目标重建）→ 下一轮从头播
 
         // 洞不出屏
         hole.x = Math.max(-W / 2 + hole.hw, Math.min(W / 2 - hole.hw, hole.x));
@@ -220,7 +236,17 @@ export class Tutorial extends Component {
         const tipGap = this.step === 'buy' ? 136 : 64;
         const above = hole.y + hole.hh + tipGap + 40 < H / 2;
         this.hand.setPosition(hole.x, hole.y, 0);
-        this.tipLb.node.setPosition(hole.x, above ? hole.y + hole.hh + tipGap : hole.y - hole.hh - 64, 0);
+
+        // ★ 提示字节奏（1s 一轮循环）：前 12% 原位淡入 → 其余时间上浮 TIP_RISE 并淡出。
+        //   位置每帧照旧跟洞走（base），只在 y 上叠一个上浮偏移，不写死任何屏幕数值。
+        this.tipT += dt;
+        if (this.tipT >= TIP_DUR) { this.tipT %= TIP_DUR; }
+        const d = this.tipT / TIP_DUR;
+        const rising = d <= TIP_FADE_IN ? 0 : (d - TIP_FADE_IN) / (1 - TIP_FADE_IN);
+        const alpha = d <= TIP_FADE_IN ? d / TIP_FADE_IN : 1 - rising * rising;
+        this.tipOp.opacity = Math.round(255 * Math.max(0, Math.min(1, alpha)));
+        const tipY = above ? hole.y + hole.hh + tipGap : hole.y - hole.hh - 64;
+        this.tipLb.node.setPosition(hole.x, tipY + TIP_RISE * rising, 0);
     }
 
     private place(n: Node, x: number, y: number, w: number, h: number) {
@@ -280,6 +306,8 @@ export class Tutorial extends Component {
     }
 
     private setTip(s: string) {
+        this.tipT = 0;                                  // 换文案（tap → buy）从头播一轮
+        if (this.tipOp) { this.tipOp.opacity = 255; }
         if (this.tipText === s) { return; }
         this.tipText = s;
         this.tipLb.string = s;

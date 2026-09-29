@@ -9,6 +9,13 @@ import { nd, setFrame } from '../UI/Base/UIKit';
 
 const { ccclass } = _decorator;
 
+/**
+ * 助手手驻留高度（本地坐标）：原值 = 旧 PLAY_AREA.y1(270) - 26。
+ * ★ 第九十二轮起**不跟随** PLAY_AREA.y1 —— 活动区上探到 325 后，手的站位/飞回高度
+ *   保持原视觉位置（要跟的话把这里改回 `PLAY_AREA.y1 - 26`）。
+ */
+const HAND_Y0 = 244;
+
 interface Hand { node: Node; t: number; busy: number; }
 
 /** 助手之手：自动翻瓶（Cocos tween 驱动） */
@@ -21,7 +28,7 @@ export class HelperHands extends Component {
         // 机械手排在活动区上方：每行 5 只、最多 2 行，整体水平居中（新布局的桌面上方留白）
         const col = i % 5, row = Math.floor(i / 5);
         const n = nd(this.node, 'hand' + i, 62, 88,
-            -150 + col * 75, PLAY_AREA.y1 - 26 - row * 72);
+            -150 + col * 75, HAND_Y0 - row * 72);
         const sp = n.addComponent(Sprite);
         setFrame(sp, 'env/hand', 62, 88);
         n.setScale(0.95, 0.95, 1);
@@ -73,7 +80,7 @@ export class HelperHands extends Component {
         const p = target.node.position;
         const to = new Vec3(p.x, p.y + LAYOUT.bottleH * 0.60, 0);
         const back = new Vec3((Math.random() - 0.5) * 380,
-            PLAY_AREA.y1 - 30 + Math.random() * 40, 0);
+            HAND_Y0 - 4 + Math.random() * 40, 0);
 
         tween(h.node)
             .to(0.20, { position: to }, { easing: 'quadOut' })
@@ -102,7 +109,7 @@ export class HelperHands extends Component {
                 (Math.random() - 0.5) * 300, PLAY_AREA.y0 + 60);
         }
         if (r.success && !G.data.settings.hideIncome && Math.random() < 0.05 && FxLayer.I) {
-            FxLayer.I.floatText((Math.random() - 0.5) * 380, PLAY_AREA.y1 - 30,
+            FxLayer.I.floatText((Math.random() - 0.5) * 380, HAND_Y0 - 4,
                 '$' + r.amount.toFixed(0), '#9EE8B0', 22, 60, 0.7);
         }
     }
