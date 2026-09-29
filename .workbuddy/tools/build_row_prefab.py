@@ -32,6 +32,8 @@ SS = 2
 SF = {
     'card_white': '62a176fe-219f-4cff-b9a9-ea10612f835f@f9941',
     'row_bg': '4bfa7376-2399-47fe-b1b6-9b0343a16d52@f9941',
+    # ★ 第一一五轮：行卡底换成 bd17（自带深棕描边圆角，border 22）
+    'row_card': '235c0203-e431-458e-8af5-2c331e4daef3@f9941',
     'stat_income': '588aafd0-8646-4d7a-b0f5-594f595d2884@f9941',
     'body_0': '02bd5bdd-e1e8-4071-a310-730596cb90fd@f9941',
     'coin': 'c70ee16d-ca97-4483-b441-e3fe99fa2f4d@f9941',
@@ -159,9 +161,10 @@ def build():
     #   · tierBg 下烘 ztk1/ztk2 双层底框（applyRow 惰性建 → 改为按名复用）；
     #   · newTag 烘 33×33 new_badge 整图 + tagLb 13 号白字（删旧 card_white 底板 bg）；
     #   · 根级补 lvLb（等级数字）与 nameImg（名字美术字，默认隐藏，applyRow 接管）。
-    #   ★ 第一〇七：行底 = bd12 奶油圆角（skin/main/row_bg，白 tint）——与 makeCell 414 行同口径；
+    #   ★ 第一〇七：行底 = bd12 奶油圆角（skin/main/row_bg，白 tint）——与 makeCell 同口径；
     #     上一轮误烘成旧口径 card_white #5C2E12（深棕），用户发现升级选项背景变色。
-    def bg(p):     return emit_node('bg', p, 0, 0, [U(322, 78), SP('row_bg', '#FFFFFF', 1)])
+    #   ★ 第一一五：行底换成 bd17 深描边圆角卡（skin/main/row_card，白 tint，border 22）——用户口径。
+    def bg(p):     return emit_node('bg', p, 0, 0, [U(322, 78), SP('row_card', '#FFFFFF', 1)])
     def tierBg(p): return emit_node('tierBg', p, -128, -6, [U(46, 46), GR()],
                                     [lambda q: emit_node('ztk1', q, 0, 0, [U(52, 52), SP('ztk_1', '#FFFFFF', 0)]),
                                      lambda q: emit_node('ztk2', q, 0, 0, [U(52, 52), SP('ztk_2', '#FFFFFF', 3)])])

@@ -15,9 +15,11 @@ const { ccclass } = _decorator;
  *   ③ 光圈变大 —— 3 分钟内光标吸附光圈 ×2（解锁光圈后按钮才出现）
  *   ④ 狂暴模式 —— 看广告直接补满狂暴次数（= 连击攒满的同一数值 G.berserkFlipsMax）
  *
- * 规则：
- *   · ①②③ 是 3 分钟计时增益，生效期间不可再获得，按钮压暗显示秒数倒计时；
+ * 规则（★ 第一百一十四轮改口径）：
+ *   · ①②③ 是计时增益，**可无限看** —— 再看一次时间直接叠加；
+ *     生效期间按钮**不再置灰**，剩余时间显示在**按钮下方**的小字里；
  *   · 到期时间是绝对时间戳（存档 data.adBuffs）→ 离线 / 关游戏期间也在正常倒计时；
+ *   · ④ 狂暴不是计时增益，保留「次数 > 0 时压暗显示 ×N」的旧表现；
  *   · 按钮自带触摸区，浮在木桌左缘（瓶子活动区 x∈[-150,150] 之外，不挡点击）。
  *
  * ★ 换皮（2026-09-28）：按钮视觉 = 一张完整 UI 图（skin/main/ab_*），
@@ -31,8 +33,8 @@ export class AdButtons extends Component {
     private items: Array<{
         kind: 'coin' | 'cap' | 'halo' | 'berserk';
         plate: Node;
-        dim: Node;
-        timeLb: Label;
+        dim: Node | null;
+        timeLb: Label | null;
     }> = [];
 
     /**
@@ -117,35 +119,45 @@ export class AdButtons extends Component {
     }
 
     /**
-     * 统一收尾：倒计时盖层 + 倒计时文字。
-     *  ★ 用户口径（第三十三轮）：盖层**不用纯色方块**，改用同一张整图（bd07-10）压暗
-     *    → 遮罩形状 = 图片轮廓（透明区不遮挡），看起来就是「这张图变灰暗」。
-     *    实现：dim 的 Sprite 换成本牌同图 + color 整体赋深灰（乘法压暗，alpha 略透）。
+     * 统一收尾：计时增益（coin/cap/halo）→ 剩余时间小字放**按钮下方**，不置灰（★ 第114轮）；
+     * 狂暴（berserk）→ 保留「次数>0 时同图压暗显示 ×N」的旧表现。
      */
     private makeItem(kind: 'coin' | 'cap' | 'halo' | 'berserk', plate: Node) {
-        // ★ 第四十二轮：盖层尺寸**以底图节点为准**（场景实体化后四块牌已是原图尺寸
-        //   104×100 / 105×100 / 104×112 / 105×106，此前写死 136×116 → 置灰图大一圈还变形）
+        // ★ 第四十二轮：尺寸**以底图节点为准**（场景实体化后四块牌已是原图尺寸
+        //   104×100 / 105×100 / 104×112 / 105×106，此前写死 136×116 → 盖层大一圈还变形）
         const put = plate.getComponent('cc.UITransform') as any;
         const w = put ? put.width : 136, h = put ? put.height : 116;
-        let dim = plate.getChildByName('dim');
-        if (!dim) {
-            dim = nd(plate, 'dim', w, h, 0, 0);
-            dim.active = false;
-        } else {
-            (dim.getComponent('cc.UITransform') as any).setContentSize(w, h);
-        }
-        let dsp = dim.getComponent(Sprite);
-        if (!dsp) { dsp = dim.addComponent(Sprite); }
-        setFrame(dsp, AdButtons.skinOf(kind), w, h);
-        // 必须整体赋值：就地改 sp.color 的内部值引用不变 → setter 提前 return，静默不变色
-        dsp.color = new Color(46, 46, 46, 208);
-        let timeLb = dim.getChildByName('label')?.getComponent(Label) || null;
-        if (!timeLb) {
-            timeLb = label(dim, '', 0, 0, 126, 40, {
+        if (kind === 'berserk') {
+            // 盖层 = 同一张整图压暗（遮罩形状 = 图片轮廓，透明区不遮挡）
+            let dim = plate.getChildByName('dim');
+            if (!dim) {
+                dim = nd(plate, 'dim', w, h, 0, 0);
+                dim.active = false;
+            } else {
+                (dim.getComponent('cc.UITransform') as any).setContentSize(w, h);
+            }
+            let dsp = dim.getComponent(Sprite);
+            if (!dsp) { dsp = dim.addComponent(Sprite); }
+            setFrame(dsp, AdButtons.skinOf(kind), w, h);
+            // 必须整体赋值：就地改 sp.color 的内部值引用不变 → setter 提前 return，静默不变色
+            dsp.color = new Color(46, 46, 46, 208);
+            const timeLb = label(dim, '', 0, 0, 126, 40, {
                 size: 30, color: '#FFE9A8', outline: '#1B0E04', outlineWidth: 3,
             });
+            return { kind, plate, dim, timeLb };
         }
-        return { kind, plate, dim, timeLb };
+        // 计时增益：不置灰（旧版压暗盖层直接销毁），只在按钮下方挂一行剩余时间小字
+        const stale = plate.getChildByName('dim');
+        if (stale && stale.isValid) { stale.destroy(); }
+        let timeLb = plate.getChildByName('timeSub')?.getComponent(Label) || null;
+        if (!timeLb) {
+            timeLb = label(plate, '', 0, -h / 2 - 14, 132, 26, {
+                size: 22, color: '#1B0E04',
+            });
+            timeLb.node.name = 'timeSub';
+            timeLb.node.active = false;
+        }
+        return { kind, plate, dim: null as Node | null, timeLb };
     }
 
     /** 狂暴模式：看广告直接补满狂暴次数（与连击攒满同一数值来源） */
@@ -167,19 +179,27 @@ export class AdButtons extends Component {
         for (const it of this.items) {
             // 光圈变大按钮：★ 第四十八轮起光圈开局常显（「解锁光圈」已移除）→ 按钮也常显
             if (it.kind === 'halo' && !it.plate.active) { it.plate.active = true; }
-            let on = false;
-            let txt = '';
             if (it.kind === 'berserk') {
-                on = G.berserkFlips > 0;
-                if (on) { txt = '×' + G.berserkFlips; }
-            } else {
-                const left = G.adBuffLeft(it.kind);
-                on = left > 0;
-                if (on) { txt = Math.ceil(left) + 's'; }
+                // 狂暴：不是计时增益，保留「次数>0 压暗显示 ×N」的旧表现
+                const on = G.berserkFlips > 0;
+                if (it.dim && it.dim.isValid && it.dim.active !== on) { it.dim.active = on; }
+                if (on && it.timeLb && it.timeLb.isValid && it.timeLb.string !== '×' + G.berserkFlips) {
+                    it.timeLb.string = '×' + G.berserkFlips;
+                }
+                continue;
             }
-            if (it.dim.active !== on) { it.dim.active = on; }
-            if (on && it.timeLb && it.timeLb.isValid && it.timeLb.string !== txt) {
-                it.timeLb.string = txt;
+            // 计时增益：按钮永远可点，剩余时间显示在按钮下方（m:ss），无增益时隐藏
+            const left = G.adBuffLeft(it.kind);
+            const on = left > 0;
+            let txt = '';
+            if (on) {
+                const m = Math.floor(left / 60);
+                const s = Math.ceil(left - m * 60);
+                txt = s >= 60 ? (m + 1) + ':00' : m + ':' + (s < 10 ? '0' : '') + s;
+            }
+            if (it.timeLb && it.timeLb.isValid) {
+                if (it.timeLb.node.active !== on) { it.timeLb.node.active = on; }
+                if (on && it.timeLb.string !== txt) { it.timeLb.string = txt; }
             }
         }
     }

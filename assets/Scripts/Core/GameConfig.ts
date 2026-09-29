@@ -29,7 +29,7 @@ export const AUTHOR_H = 1280;            // 创作空间高
 export const BASE_INCOME = 1.0;
 
 /* ================================================================== *
- *  七阶瓶子（GDD §4.1 —— 全部为原版真实值）
+ *  七阶瓶子（GDD §4.1 原版值 + 第一百一十六轮用户口径：T4+ 成本×10/阶、收益×5/阶→难度递增）
  * ================================================================== */
 export interface TierDef {
     tier: number;
@@ -83,26 +83,26 @@ export const TIERS: TierDef[] = [
     },
     {
         tier: 3, key: 'gold', zh: '琥珀棕瓶', en: 'Amber Bottle', rarity: 'Legendary', color: RARITY_COLOR.Legendary,
-        art: 3, mass: 1.7, techCost: 10000, shopBase: 50, shopGrowth: 1.10,
-        timesIncome: 4.0, baseIncome: 50.0, cap: 30, hoverCost: 10000, critMult: 5.0,
+        art: 3, mass: 1.7, techCost: 48000, shopBase: 30000, shopGrowth: 1.10,
+        timesIncome: 4.0, baseIncome: 100, cap: 30, hoverCost: 160000, critMult: 5.0,
         passiveZh: '扣盖时必定额外掉落 1 枚瓶盖', passiveEn: 'Cap landing always drops +1 cap',
     },
     {
         tier: 4, key: 'ruby', zh: '红宝石瓶', en: 'Ruby Bottle', rarity: 'Mythic', color: RARITY_COLOR.Mythic,
-        art: 5, mass: 2.0, techCost: 20000, shopBase: 150, shopGrowth: 1.10,
-        timesIncome: 5.0, baseIncome: 150.0, cap: 30, hoverCost: 25000, critMult: 5.0,
+        art: 5, mass: 2.0, techCost: 480000, shopBase: 300000, shopGrowth: 1.10,
+        timesIncome: 5.0, baseIncome: 500, cap: 30, hoverCost: 1600000, critMult: 5.0,
         passiveZh: '狂暴期间收益额外 +50%', passiveEn: 'Berserk income +50%',
     },
     {
         tier: 5, key: 'emerald', zh: '黄金瓶', en: 'Gold Bottle', rarity: 'Divine', color: RARITY_COLOR.Divine,
-        art: 4, mass: 2.2, techCost: 45000, shopBase: 500, shopGrowth: 1.10,
-        timesIncome: 6.0, baseIncome: 500.0, cap: 30, hoverCost: 100000, critMult: 5.0,
+        art: 4, mass: 2.2, techCost: 4800000, shopBase: 3000000, shopGrowth: 1.10,
+        timesIncome: 6.0, baseIncome: 2500, cap: 30, hoverCost: 16000000, critMult: 5.0,
         passiveZh: '决意值积攒速度 +25%', passiveEn: 'Resolve gain +25%',
     },
     {
         tier: 6, key: 'diamond', zh: '钻石天界瓶', en: 'Diamond Celestial Bottle', rarity: 'Celestial', color: RARITY_COLOR.Celestial,
-        art: 6, mass: 2.5, techCost: 90000, shopBase: 2500, shopGrowth: 1.10,
-        timesIncome: 7.0, baseIncome: 2500.0, cap: 30, hoverCost: 230000, critMult: 5.0,
+        art: 6, mass: 2.5, techCost: 48000000, shopBase: 30000000, shopGrowth: 1.10,
+        timesIncome: 7.0, baseIncome: 12500, cap: 30, hoverCost: 160000000, critMult: 5.0,
         passiveZh: '全场所有瓶子总收益永久翻倍', passiveEn: 'All bottles income ×2',
     },
 ];
@@ -141,7 +141,7 @@ export const BOTTLE_STATS: BottleStatDef[] = [
         // 一次性：解锁该阶瓶子的「手指悬停即翻转」
         id: 'hover', name: 'bs_hover', desc: 'bs_hover_d', icon: 'env/cursor',
         unit: 'unlock', mode: 'add', currency: 'money', once: true, ms: 0,
-        tiers: [100, 6000, 16000, 10000, 25000, 100000, 230000]
+        tiers: [100, 6000, 16000, 160000, 1600000, 16000000, 160000000]
             .map(v => ({ base: v, max: 1, r: 1, step: 1 })),
     },
     {
@@ -158,62 +158,32 @@ export const BOTTLE_STATS: BottleStatDef[] = [
     {
         id: 'income', name: 'bs_income', desc: 'bs_income_d', icon: 'stat/income',
         unit: 'flat', mode: 'add', currency: 'money', ms: 0,
-        tiers: [
-            { base: 40, max: 20, r: 1.60, step: 1 }, { base: 400, max: 20, r: 1.60, step: 5 },
-            { base: 3200, max: 20, r: 1.60, step: 20 }, { base: 1500, max: 20, r: 1.60, step: 1 },
-            { base: 4500, max: 20, r: 1.60, step: 1 }, { base: 15000, max: 20, r: 1.60, step: 1 },
-            { base: 75000, max: 20, r: 1.60, step: 1 },
-        ],
+        tiers: [{ base: 40, max: 20, r: 1.60, step: 1 }, { base: 400, max: 20, r: 1.60, step: 5 }, { base: 3200, max: 20, r: 1.60, step: 20 }, { base: 32000, max: 20, r: 1.60, step: 200 }, { base: 320000, max: 20, r: 1.60, step: 2000 }, { base: 3200000, max: 20, r: 1.60, step: 20000 }, { base: 32000000, max: 20, r: 1.60, step: 200000 }],
     },
     {
         id: 'capincome', name: 'bs_capincome', desc: 'bs_capincome_d', icon: 'stat/capgain',
         unit: 'flat', mode: 'add', currency: 'caps', ms: 12,
-        tiers: [
-            { base: 20, max: 10, r: 1.20, step: 1 }, { base: 160, max: 10, r: 1.20, step: 5 },
-            { base: 500, max: 10, r: 1.30, step: 20 }, { base: 10, max: 10, r: 1.50, step: 1 },
-            { base: 10, max: 10, r: 1.50, step: 1 }, { base: 10, max: 10, r: 1.50, step: 1 },
-            { base: 10, max: 10, r: 1.50, step: 1 },
-        ],
+        tiers: [{ base: 20, max: 10, r: 1.20, step: 1 }, { base: 160, max: 10, r: 1.20, step: 5 }, { base: 500, max: 10, r: 1.30, step: 20 }, { base: 5000, max: 10, r: 1.30, step: 200 }, { base: 50000, max: 10, r: 1.30, step: 2000 }, { base: 500000, max: 10, r: 1.30, step: 20000 }, { base: 5000000, max: 10, r: 1.30, step: 200000 }],
     },
     {
         id: 'multiplier', name: 'bs_multiplier', desc: 'bs_multiplier_d', icon: 'stat/bonus',
         unit: 'percent', mode: 'mul', currency: 'money', ms: 3,
-        tiers: [
-            { base: 40, max: 10, r: 1.10, step: 0.10 }, { base: 420, max: 10, r: 1.20, step: 0.10 },
-            { base: 700, max: 10, r: 1.30, step: 0.10 }, { base: 100, max: 10, r: 1.00, step: 0.10 },
-            { base: 100, max: 10, r: 1.00, step: 0.10 }, { base: 100, max: 10, r: 1.00, step: 0.10 },
-            { base: 100, max: 10, r: 1.50, step: 0.10 },
-        ],
+        tiers: [{ base: 40, max: 10, r: 1.10, step: 0.10 }, { base: 420, max: 10, r: 1.20, step: 0.10 }, { base: 700, max: 10, r: 1.30, step: 0.10 }, { base: 7000, max: 10, r: 1.30, step: 0.10 }, { base: 70000, max: 10, r: 1.30, step: 0.10 }, { base: 700000, max: 10, r: 1.30, step: 0.10 }, { base: 7000000, max: 10, r: 1.30, step: 0.10 }],
     },
     {
         id: 'speed', name: 'bs_speed', desc: 'bs_speed_d', icon: 'stat/flipspeed',
         unit: 'mult', mode: 'mul', currency: 'money', ms: 2,
-        tiers: [
-            { base: 35, max: 10, r: 1.30, step: 0.10 }, { base: 200, max: 10, r: 1.20, step: 0.10 },
-            { base: 600, max: 10, r: 1.30, step: 0.10 }, { base: 10, max: 10, r: 1.50, step: 0.10 },
-            { base: 10, max: 10, r: 1.50, step: 0.10 }, { base: 10, max: 10, r: 1.50, step: 0.10 },
-            { base: 10, max: 10, r: 1.50, step: 0.10 },
-        ],
+        tiers: [{ base: 35, max: 10, r: 1.30, step: 0.10 }, { base: 200, max: 10, r: 1.20, step: 0.10 }, { base: 600, max: 10, r: 1.30, step: 0.10 }, { base: 6000, max: 10, r: 1.30, step: 0.10 }, { base: 60000, max: 10, r: 1.30, step: 0.10 }, { base: 600000, max: 10, r: 1.30, step: 0.10 }, { base: 6000000, max: 10, r: 1.30, step: 0.10 }],
     },
     {
         id: 'capgain', name: 'bs_capgain', desc: 'bs_capgain_d', icon: 'stat/capgain',
         unit: 'count', mode: 'add', currency: 'caps', ms: 13,
-        tiers: [
-            { base: 200, max: 4, r: 2.00, step: 1 }, { base: 750, max: 5, r: 2.00, step: 1 },
-            { base: 2500, max: 4, r: 2.00, step: 1 }, { base: 10, max: 4, r: 2.00, step: 1 },
-            { base: 10, max: 4, r: 2.00, step: 1 }, { base: 10, max: 4, r: 2.00, step: 1 },
-            { base: 10, max: 4, r: 2.00, step: 1 },
-        ],
+        tiers: [{ base: 200, max: 4, r: 2.00, step: 1 }, { base: 750, max: 5, r: 2.00, step: 1 }, { base: 2500, max: 4, r: 2.00, step: 1 }, { base: 25000, max: 4, r: 2.00, step: 10 }, { base: 250000, max: 5, r: 2.00, step: 100 }, { base: 2500000, max: 4, r: 2.00, step: 1000 }, { base: 25000000, max: 4, r: 2.00, step: 10000 }],
     },
     {
         id: 'limit', name: 'bs_limit', desc: 'bs_limit_d', icon: 'stat/buyable',
         unit: 'count', mode: 'add', currency: 'money', ms: 5,
-        tiers: [
-            { base: 70, max: 4, r: 1.40, step: 5 }, { base: 410, max: 4, r: 1.20, step: 5 },
-            { base: 1200, max: 4, r: 1.30, step: 5 }, { base: 10, max: 4, r: 1.50, step: 5 },
-            { base: 10, max: 4, r: 1.50, step: 5 }, { base: 10, max: 4, r: 1.50, step: 5 },
-            { base: 10, max: 4, r: 1.50, step: 5 },
-        ],
+        tiers: [{ base: 70, max: 4, r: 1.40, step: 5 }, { base: 410, max: 4, r: 1.20, step: 5 }, { base: 1200, max: 4, r: 1.30, step: 5 }, { base: 12000, max: 4, r: 1.30, step: 5 }, { base: 120000, max: 4, r: 1.30, step: 5 }, { base: 1200000, max: 4, r: 1.30, step: 5 }, { base: 12000000, max: 4, r: 1.30, step: 5 }],
     },
     {
         // ★ 第十七轮口径：**翻转精通**决定成功率 —— 每级 +5%，满 10 级 = 100%（FLIP.successBase/Step）
@@ -221,42 +191,22 @@ export const BOTTLE_STATS: BottleStatDef[] = [
         //   效果值不走 statValue，统一由 G.successChance(tier) 计算。
         id: 'mastery', name: 'bs_mastery', desc: 'bs_mastery_d', icon: 'stat/mastery',
         unit: 'percent', mode: 'add', currency: 'money', ms: 4,
-        tiers: [
-            { base: 50, max: 10, r: 1.10, step: 0.05 }, { base: 900, max: 10, r: 1.20, step: 0.05 },
-            { base: 2200, max: 10, r: 1.30, step: 0.05 }, { base: 10, max: 10, r: 1.50, step: 0.05 },
-            { base: 10, max: 10, r: 1.50, step: 0.05 }, { base: 10, max: 10, r: 1.50, step: 0.05 },
-            { base: 10, max: 10, r: 1.50, step: 0.05 },
-        ],
+        tiers: [{ base: 50, max: 10, r: 1.10, step: 0.05 }, { base: 900, max: 10, r: 1.20, step: 0.05 }, { base: 2200, max: 10, r: 1.30, step: 0.05 }, { base: 22000, max: 10, r: 1.30, step: 0.05 }, { base: 220000, max: 10, r: 1.30, step: 0.05 }, { base: 2200000, max: 10, r: 1.30, step: 0.05 }, { base: 22000000, max: 10, r: 1.30, step: 0.05 }],
     },
     {
         id: 'double', name: 'bs_double', desc: 'bs_double_d', icon: 'stat/plusincome',
         unit: 'percent', mode: 'mul', currency: 'money', ms: 11,
-        tiers: [
-            { base: 1200, max: 3, r: 1.26, step: 0.10 }, { base: 4200, max: 3, r: 1.26, step: 0.10 },
-            { base: 8400, max: 3, r: 1.26, step: 0.10 }, { base: 10, max: 10, r: 1.50, step: 0.10 },
-            { base: 10, max: 10, r: 1.50, step: 0.10 }, { base: 10, max: 10, r: 1.50, step: 0.10 },
-            { base: 10, max: 10, r: 1.50, step: 0.10 },
-        ],
+        tiers: [{ base: 1200, max: 3, r: 1.26, step: 0.10 }, { base: 4200, max: 3, r: 1.26, step: 0.10 }, { base: 8400, max: 3, r: 1.26, step: 0.10 }, { base: 84000, max: 3, r: 1.26, step: 0.10 }, { base: 840000, max: 3, r: 1.26, step: 0.10 }, { base: 8400000, max: 3, r: 1.26, step: 0.10 }, { base: 84000000, max: 3, r: 1.26, step: 0.10 }],
     },
     {
         id: 'again', name: 'bs_again', desc: 'bs_again_d', icon: 'stat/chance',
         unit: 'percent', mode: 'add', currency: 'money', ms: 9,
-        tiers: [
-            { base: 700, max: 5, r: 1.40, step: 0.02 }, { base: 5000, max: 5, r: 1.20, step: 0.02 },
-            { base: 8300, max: 5, r: 1.25, step: 0.02 }, { base: 10, max: 5, r: 1.50, step: 0.02 },
-            { base: 10, max: 5, r: 1.50, step: 0.02 }, { base: 10, max: 5, r: 1.50, step: 0.02 },
-            { base: 10, max: 5, r: 1.50, step: 0.02 },
-        ],
+        tiers: [{ base: 700, max: 5, r: 1.40, step: 0.02 }, { base: 5000, max: 5, r: 1.20, step: 0.02 }, { base: 8300, max: 5, r: 1.25, step: 0.02 }, { base: 83000, max: 5, r: 1.25, step: 0.02 }, { base: 830000, max: 5, r: 1.25, step: 0.02 }, { base: 8300000, max: 5, r: 1.25, step: 0.02 }, { base: 83000000, max: 5, r: 1.25, step: 0.02 }],
     },
     {
         id: 'random', name: 'bs_random', desc: 'bs_random_d', icon: 'stat/flipcount',
         unit: 'percent', mode: 'add', currency: 'money', ms: 7,
-        tiers: [
-            { base: 400, max: 5, r: 1.40, step: 0.02 }, { base: 2200, max: 5, r: 1.25, step: 0.02 },
-            { base: 4400, max: 5, r: 1.25, step: 0.02 }, { base: 10, max: 5, r: 1.50, step: 0.02 },
-            { base: 10, max: 5, r: 1.50, step: 0.02 }, { base: 10, max: 5, r: 1.50, step: 0.02 },
-            { base: 10, max: 5, r: 1.50, step: 0.02 },
-        ],
+        tiers: [{ base: 400, max: 5, r: 1.40, step: 0.02 }, { base: 2200, max: 5, r: 1.25, step: 0.02 }, { base: 4400, max: 5, r: 1.25, step: 0.02 }, { base: 44000, max: 5, r: 1.25, step: 0.02 }, { base: 440000, max: 5, r: 1.25, step: 0.02 }, { base: 4400000, max: 5, r: 1.25, step: 0.02 }, { base: 44000000, max: 5, r: 1.25, step: 0.02 }],
     },
 ];
 
@@ -770,11 +720,38 @@ export const WORLD_ENV = { x0: -320, x1: 320, y0: -150, y1: 340 };
  *   （履带同样在 UI 层压住瓶子）—— ⚠️ 这两条遮挡都是用户要的「铺满」的代价。
  *   ⚠️ 这里**不动 WORLD_ENV**：它只负责中部舞台的 fit 缩放与居中，跟着放大会让整台舞台
  *   一起缩小，「加 50 像素」反而落空（要整体变大得改 GameRoot 的 SAFE_BLOCKS 留白）。
+ *
+ * ★ 第一百一十二轮（用户口径「活动范围改用游戏界面的像素，保持在对应的比例范围内」）：
+ *   上下界**不再写死** —— GameRoot.applySafeLayout 每次布局时按「顶栏底边 ↔ 履带面顶」
+ *   这条 UI 可用带经 WORLD_XFORM 实时换算成本地坐标写进 y0/y1（见 fitPlayAreaToBand），
+ *   任何窗口比例下瓶子都撒不出顶栏和履带。下面的常量只是**资源加载完成前的兜底值**
+ *   （= 9:16 参考比例换算的结果）。
+ *   ⚠️ 瓶身几何：视觉顶 = 落点 y + 94.08、视觉底 = 落点 y - 1.92（ART_UP/restDy 推导，
+ *   见 Bottle.ts）—— 旧注释里「瓶顶≈落点+14」是错的，别再按那个口径调 y1。
  */
 export const PLAY_AREA = {
     x0: -250, x1: 250,
-    y0: -320, y1: 375,
+    y0: -254, y1: 240,
 };
+
+/**
+ * 把活动区上下界对齐到 UI 可用带（GameRoot.applySafeLayout 专用）。
+ *
+ * @param bandTop  顶栏底边在 gameRoot 本地（创作空间）的 y
+ * @param beltTop  履带面顶在 gameRoot 本地的 y（世界层所有姿态的瓶底都不应低于它）
+ * @param ws       世界层当前缩放（WORLD_XFORM.s）
+ * @param oy       世界层在 gameRoot 本地里的 y 偏移（WORLD_XFORM.oy）
+ *
+ * 换算式：screen = local × ws + oy → local = (screen - oy) / ws。
+ * 顶部再让出 94.08（瓶身视觉顶相对落点的高度）+ 8 余量；
+ * 底部再让出 1.92（瓶底相对落点）+ 6 边距 —— 三种落地姿态的剪影最低点都贴这条线。
+ */
+export function fitPlayAreaToBand(bandTop: number, beltTop: number, ws: number, oy: number) {
+    if (!(ws > 1e-4)) { return; }
+    PLAY_AREA.y1 = (bandTop - oy) / ws - 102;
+    PLAY_AREA.y0 = (beltTop - oy) / ws + 8;
+    if (PLAY_AREA.y0 > PLAY_AREA.y1) { const m = (PLAY_AREA.y0 + PLAY_AREA.y1) / 2; PLAY_AREA.y0 = m; PLAY_AREA.y1 = m; }
+}
 
 /**
  * ★ 已废弃（第五十一轮）：同屏显示配额 `VISIBLE_PER_TIER` 已删除。
@@ -803,7 +780,8 @@ export const TIER_SHORT_EN: string[] = ['Basic', 'Bronze', 'Silver', 'Gold', 'Ru
  *     那是 `pointerDown` 的点击命中，与光圈无关）；贴图是**纯视觉 3 倍大**（第七十八轮：
  *     用户口径「初始大小 3 倍，指图片非范围」），真实触发半径仍是 HALO_DOT_R 小点；
  *   · 解锁任一阶「悬停翻转」→ 光圈恢复到正常吸附半径，可以「拖过即翻」（和之前一样）；
- *   · 广告「2 倍光圈」→ 当前光圈（贴图 + 触发半径）直接 ×2，3 分钟后自动还原。
+ *   · 广告「光圈变大」（★ 第114轮）→ 不再用倍率：半径固定 = 光圈大小满级值 × 1.5，
+ *     且所有阶级的瓶子都能被悬停触发（State.hoverable 放行），时间结束自动还原。
  */
 /** 「未解锁」状态的光圈触发半径（设计像素）—— 这才是真的范围，解锁前不变大 */
 export const HALO_DOT_R = 14;
@@ -879,7 +857,7 @@ export const POOL = {
  *    单次扣盖的实际上限仍受同阶 `capgain` 词条（+1/级）与 T4 被动（+1）影响，
  *    与原版一样是「基础值 + 词条 + 被动」。
  */
-export const CAP_GAIN_BASE: number[] = [4, 6, 8, 11, 14, 18, 22];
+export const CAP_GAIN_BASE: number[] = [4, 6, 8, 40, 200, 1000, 5000];
 
 /**
  * 每阶瓶盖的颜色 = 该阶瓶身的**主色调**（用 PIL 从 `bottle/body_N.png` 采样得出），

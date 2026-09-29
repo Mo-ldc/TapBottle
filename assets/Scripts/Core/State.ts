@@ -212,8 +212,9 @@ export class State {
         for (let t = 0; t < 7; t++) { if (this.hoverUnlocked(t)) { return true; } }
         return false;
     }
-    /** 该阶瓶子能否被「光标悬停」触发 */
-    hoverable(tier: number): boolean { return this.data.bottles[tier] > 0 && this.hoverUnlocked(tier); }
+    /** 该阶瓶子能否被「光标悬停」触发
+     *  ★ 第一百一十四轮：广告「光圈变大」生效期间**全部阶级放行**（不受 hover 解锁限制） */
+    hoverable(tier: number): boolean { return this.data.bottles[tier] > 0 && (this.haloBuffOn || this.hoverUnlocked(tier)); }
     buyHover(tier: number): boolean {
         if (this.hoverUnlocked(tier)) { return false; }
         if (!this.spendMoney(this.hoverCost(tier))) { return false; }
@@ -379,17 +380,24 @@ export class State {
      * ★ 用户口径（第四十八轮）：「解锁光圈」模块已整体移除 —— 光圈**开局就显示**。
      *   · 未解锁任何一阶「悬停翻转」→ 贴图 3 倍大（纯视觉引导），但触发半径只是一个小点（跟手，不触发）；
      *   · 解锁任一阶「悬停翻转」→ 恢复正常的吸附半径（拖过即翻）；
-     *   · 广告「2 倍光圈」→ 视觉 + 半径一起 ×2，3 分钟后还原。
+     *   · 广告「光圈变大」（★ 第一百一十四轮改口径）：**不再用倍率** —— 生效期间半径固定为
+     *     「光圈大小满级值 × 1.5」，且**所有阶级的瓶子都能被悬停触发**（绕过各阶 hover 解锁）；
+     *     时间结束后自动还原（半径回到小点/吸附半径，悬停放行恢复按解锁表）。
      */
-    /** 光圈触发半径（px）：小点 / 吸附半径（p_cursorsize）× 广告增益 2 倍 */
-    get haloRadius(): number {
-        const r = this.haloTriggerOn ? this.sk('p_cursorsize') : HALO_DOT_R;
-        return r * (this.haloBuffOn ? 2 : 1);
+    /** 广告「光圈变大」的固定触发半径（px）= p_cursorsize 满级值 × 1.5（真源是 SKILL 表，不写死） */
+    get haloAdRadius(): number {
+        const def = SKILL_BY_ID['p_cursorsize'];
+        return ((def ? def.base + def.max * def.step : 82.5)) * 1.5;
     }
-    /** 光圈贴图缩放：未解锁 0.9（图片 3 倍，仅视觉，第七十八轮）/ 正常 1，广告增益期间 ×2 */
+    /** 光圈触发半径（px）：小点 / 吸附半径（p_cursorsize）/ 广告增益期间 = 满级×1.5 */
+    get haloRadius(): number {
+        if (this.haloBuffOn) { return this.haloAdRadius; }
+        return this.haloTriggerOn ? this.sk('p_cursorsize') : HALO_DOT_R;
+    }
+    /** 光圈贴图缩放：广告增益期间按「广告半径 / 当前光圈半径」等比放大，其余同旧口径 */
     get haloScale(): number {
-        const s = this.haloTriggerOn ? 1 : HALO_DOT_SCALE;
-        return s * (this.haloBuffOn ? 2 : 1);
+        if (this.haloBuffOn) { return this.haloAdRadius / Math.max(1, this.sk('p_cursorsize')); }
+        return this.haloTriggerOn ? 1 : HALO_DOT_SCALE;
     }
 
     /* ================= 广告增益（UI/Ads.ts 统一入口激活） ================= */
@@ -401,10 +409,12 @@ export class State {
     get coinBuffOn(): boolean { return this.adBuffLeft('coin') > 0; }
     get capBuffOn(): boolean { return this.adBuffLeft('cap') > 0; }
     get haloBuffOn(): boolean { return this.adBuffLeft('halo') > 0; }
-    /** 激活 / 续上一次 3 分钟增益 */
+    /** 激活增益（★ 第一百一十四轮：可无限看，时间**直接叠加** —— 未到期再续 = 从现有到期时间往后加） */
     activateAdBuff(kind: 'coin' | 'cap' | 'halo') {
         if (!this.data.adBuffs) { this.data.adBuffs = { coin: 0, cap: 0, halo: 0 }; }
-        this.data.adBuffs[kind] = Date.now() + AD_BUFF_SEC * 1000;
+        const now = Date.now();
+        const cur = this.data.adBuffs[kind] || 0;
+        this.data.adBuffs[kind] = Math.max(now, cur) + AD_BUFF_SEC * 1000;
         this.save();
         this.notify();
     }

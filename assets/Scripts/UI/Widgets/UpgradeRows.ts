@@ -414,7 +414,9 @@ function constructCell(parent: Node): RowUI {
     // 卡片底（★ bd12 换皮：奶油圆角底板自带描边，外圈 stroke 保留同构但隐藏）
     //   描边先建（兄弟序=渲染序，底板盖在上面）
     const st = sliced(root, 'ui/panel/card_white', CELL_W + 6, CELL_H + 6, 0, 0, [24, 24, 24, 24], '#3A1C08', 'stroke');
-    const bg = sliced(root, 'skin/main/row_bg', CELL_W, CELL_H, 0, 0, [24, 24, 24, 24], '#FFFFFF', 'bg');
+    // ★ 第一百一十五轮：行卡底 = bd17（skin/main/row_card，自带深棕描边圆角）——用户口径；
+    //   面板内衬仍用 row_bg（BottomPanel:495），别混
+    const bg = sliced(root, 'skin/main/row_card', CELL_W, CELL_H, 0, 0, [22, 22, 22, 22], '#FFFFFF', 'bg');
     st.node.active = false;
     void bg;
 

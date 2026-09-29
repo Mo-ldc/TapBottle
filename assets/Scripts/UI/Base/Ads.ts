@@ -70,16 +70,14 @@ export class Ads {
             });
     }
 
-    /** 左侧广告按钮：看广告激活 3 分钟增益（生效期间再点只报剩余时间，不重复发奖） */
+    /** 左侧广告按钮：看广告激活增益。
+     *  ★ 第一百一十四轮：**可无限看** —— 生效期间再看 = 时间直接叠加（activateAdBuff 负责续期），
+     *    不再拦截报「剩余时间」。 */
     watchBuff(kind: AdBuffKind) {
-        const left = G.adBuffLeft(kind);
-        if (left > 0) {
-            Toast.I?.show(t('ad_active_toast', G.lang).replace('{n}', String(Math.ceil(left))), '#FFE9A8');
-            return;
-        }
         this.show(('buff_' + kind) as AdPlacement, () => {
             G.activateAdBuff(kind);
-            Toast.I?.show(t('ad_grant_' + kind, G.lang), '#FFE9A8');
+            Toast.I?.show(t('ad_grant_' + kind, G.lang)
+                + '  ' + Math.ceil(G.adBuffLeft(kind) / 60) + 'min', '#FFE9A8');
         });
     }
 

@@ -508,6 +508,25 @@ export class BottleField extends Component {
     rebuild() { this.sync(); }
 
     /**
+     * 活动区被适配层改动后调用（第一百一十二轮）：
+     * 窗口比例变化 → GameRoot.applySafeLayout 重算 UI 可用带并收缩 PLAY_AREA，
+     * 这里把存量瓶子夹回新范围（夹不动的翻转途中瓶子落地后自然落在新界内）、
+     * 顺带把 +N 角标挪到新上界之下，最后重建空间索引。
+     */
+    onPlayAreaChanged() {
+        let moved = false;
+        for (const b of this.bottles) {
+            if (!b.node || !b.node.isValid) { continue; }
+            if (b.clampToArea(PLAY_AREA.x0, PLAY_AREA.x1, PLAY_AREA.y0, PLAY_AREA.y1)) { moved = true; }
+        }
+        if (this.overflowLb && this.overflowLb.isValid) {
+            this.overflowLb.setPosition(0, Math.min(PLAY_AREA.y1 - 14, 300), 0);
+        }
+        if (moved) { this.sortDepth(); }
+        this.gridDirty = true;
+    }
+
+    /**
      * 在桌面活动区里随机取一个落点。
      * best-of-6 候选里挑「离其他瓶子最远」的那个 —— 允许堆叠，但不会完全重合。
      */

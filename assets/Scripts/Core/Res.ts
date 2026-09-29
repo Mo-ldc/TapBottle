@@ -21,6 +21,7 @@ export const TEXTURE_PATHS: string[] = [
     'Textures/skin/main/chip_bg/spriteFrame',
     'Textures/skin/main/btn_back/spriteFrame',
     'Textures/skin/main/row_bg/spriteFrame',
+    'Textures/skin/main/row_card/spriteFrame',
     'Textures/skin/main/tab_on/spriteFrame',
     'Textures/skin/main/tab_off/spriteFrame',
     'Textures/skin/main/tab_ic_up/spriteFrame',

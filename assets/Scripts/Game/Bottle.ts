@@ -176,6 +176,22 @@ export class Bottle extends Component {
         this.node.setSiblingIndex(order);
     }
 
+    /**
+     * 把落点夹回活动区（第一百一十二轮：窗口比例变化 → 适配层收缩活动区后调用）。
+     * 只动 homeX/homeY 并按当前姿态重新贴地；翻转途中（busy）只改落点数据、
+     * 不打断 tween（落地时 land() 会用它自己的 landX/landY 覆盖，极小概率落在外面，可接受）。
+     * @returns 是否真的移动过（供调用方决定要不要重排层级/重建索引）
+     */
+    clampToArea(x0: number, x1: number, y0: number, y1: number): boolean {
+        const nx = Math.min(x1, Math.max(x0, this.homeX));
+        const ny = Math.min(y1, Math.max(y0, this.homeY));
+        if (nx === this.homeX && ny === this.homeY) { return false; }
+        this.homeX = nx;
+        this.homeY = ny;
+        if (!this.busy) { this.applyRest(false); }
+        return true;
+    }
+
     /* ---------------- 姿态 ---------------- */
 
     /** 从 from 到 to 的最短角度差（-180,180] */

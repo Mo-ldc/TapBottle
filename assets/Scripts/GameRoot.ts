@@ -1,5 +1,5 @@
 import { _decorator, Canvas, Component, Node, UITransform, Sprite, Vec3, tween, UIOpacity, input, Input, view, ResolutionPolicy, director, profiler, sys, Widget } from 'cc';
-import { BOTTLE_STATS, AUTHOR_H, AUTHOR_W, DESIGN_H, DESIGN_W, DS, LAYOUT, MILESTONES, SAFE_BLOCKS, WORLD_ENV, WORLD_XFORM } from './Core/GameConfig';
+import { BOTTLE_STATS, AUTHOR_H, AUTHOR_W, DESIGN_H, DESIGN_W, DS, fitPlayAreaToBand, LAYOUT, MILESTONES, SAFE_BLOCKS, WORLD_ENV, WORLD_XFORM } from './Core/GameConfig';
 import { AutoNodeScale } from './Core/AutoNodeScale';
 import { G } from './Core/State';
 import { Res } from './Core/Res';
@@ -525,6 +525,15 @@ export class GameRoot extends Component {
         WORLD_XFORM.ox = wx;
         WORLD_XFORM.oy = wy;
         WORLD_XFORM.navDY = navDY;
+
+        // ---- 2b) 瓶子活动区对齐 UI 可用带（第一百一十二轮，用户口径「用游戏界面的像素」）----
+        //   顶界 = 顶栏底边、底界 = 履带面顶，经世界层变换换算成 BottleField 本地坐标。
+        //   之前 y0/y1 写死（-320~375），宽窗口下瓶子成排压进顶栏、半截插进履带。
+        const beltTopScreen = LAYOUT.beltY + LAYOUT.beltH / 2 + navDY;
+        fitPlayAreaToBand(bandTop, beltTopScreen, ws, wy);
+        if (BottleField.I && BottleField.I.node && BottleField.I.node.isValid) {
+            BottleField.I.onPlayAreaChanged();
+        }
 
         // ---- 3) 木桌铺满可见区（宽屏/超高屏外侧不能露底） ----
         if (this.bgDark && this.bgDark.isValid) { setSize(this.bgDark, vwE + 40, vhE + 40); }
