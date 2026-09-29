@@ -1,5 +1,6 @@
 import { _decorator, Component, Node, Sprite, Tween, UIOpacity, UITransform, Vec3, tween, Label } from 'cc';
 import { ABILITY, LAYOUT } from '../Core/GameConfig';
+import { FEAT } from '../Core/Features';
 import { G } from '../Core/State';
 import { UIHitBlocks } from '../Core/UIHit';
 import { Res } from '../Core/Res';
@@ -27,6 +28,8 @@ export class Abilities extends Component {
     onLoad() { }
 
     lateUpdate(dt: number) {
+        // ★ 第八十三轮：能力条停用（bar 为空）时整段跳过 —— 可乐冷却 / 条刷新 / 特效跟随都不跑
+        if (!this.bar || !this.bar.isValid) { return; }
         // 可乐冷却
         if (G.cokeUnlocked) {
             if (this.cokeCd > 0) { this.cokeCd -= dt; }
@@ -45,6 +48,17 @@ export class Abilities extends Component {
      *   → 只绑引用；否则运行时现建（与场景树逐节点同构）。事件统一在 wire() 接。
      */
     buildBar(parent: Node) {
+        // ★ 第八十三轮（用户口径）：「特殊技能」暂整体停用 —— 不绑场景、不建条、
+        //   不注册吞点击（UIHitBlocks 留空即自然失效）。场景里的 abilityBar 节点保留，
+        //   仅隐藏；把 FEAT.abilities 改回 true 就完整恢复（连同老存档里的技能等级）。
+        if (!FEAT.abilities) {
+            this.bar = null!;
+            this.btns = {}; this.overlays = {}; this.labels = {};
+            const old = this.node.getChildByName('abilityBar');
+            if (old && old.isValid) { old.active = false; }
+            UIHitBlocks.length = 0;
+            return;
+        }
         if (!this.bindScene()) { this.construct(); }
         this.wire();
         this.layoutBar();

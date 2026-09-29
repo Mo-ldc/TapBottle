@@ -393,6 +393,8 @@ export const L: Record<string, Entry> = {
     unlock_beltmod_d:   { zh: '开启「履带升级」科技线（瓶盖机器配套模块）', en: 'Opens the Belt tech line for the cap machine' },
     /** 商店瓶子的「拥有 n/m」紧凑口径（原本是「拥有 {n}/{m}」，格子太窄会被压缩） */
     owned_short:        { zh: '{n}/{m}', en: '{n}/{m}' },
+    /** ★ 商店瓶子行的说明：只留一句「增加一个瓶子」（原来「3/30 · $5/次 · 成功 50%」在 172px 格里被 SHRINK 压小、也没必要逐项解析） */
+    add_bottle:         { zh: '增加一个瓶子', en: 'Add a bottle' },
     tree_hint_income:   { zh: '先升一级「收入」，本阶其余词条才会解锁', en: 'Upgrade Income once to reveal the other perks' },
     module_locked:      { zh: '该模块尚未解锁', en: 'Module locked' },
     panel_hint:       { zh: '点右侧按钮购买 / 升级', en: 'Tap the button to buy / upgrade' },

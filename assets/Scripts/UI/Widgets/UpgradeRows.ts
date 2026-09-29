@@ -775,11 +775,5 @@ export function statDesc(d: BottleStatDef, tier: number): string {
     return body;
 }
 
-/**
- * 该阶当前「成功树立概率」文案（纯概率判定，第十七轮口径）。
- * 商店里每阶瓶子挂一行，玩家一眼能看到买它 / 升精通值不值。
- */
-export function successText(tier: number): string {
-    const pct = Math.round(G.successChance(tier) * 100);
-    return (G.lang === 'zh' ? '成功 ' : 'OK ') + pct + '%';
-}
+/* ★ 第九十轮：`successText()`（「成功 50%」）已删 —— 商店瓶子行的说明改为一句「增加一个瓶子」，
+ *   成功率不再挂在行内（要恢复的话从 git 历史取回，接回 BottomPanel.shopBottleRows 即可）。 */

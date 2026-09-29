@@ -3,12 +3,13 @@ import {
     ABILITY_GRAPH, BOTTLE_STATS, BOTTLE_TREE_ORDER, BottleStatDef, HELPER_GRAPH,
     LAYOUT, PLAYER_GRAPH, SkillNodeDef, TIERS,
 } from '../../Core/GameConfig';
+import { FEAT, tabEnabled } from '../../Core/Features';
 import { G, SKILL_BY_ID, UNLOCK_SKILL } from '../../Core/State';
 import { t } from '../../Core/Locale';
 import { fmt, hex } from '../../Core/Util';
 import { applyFontDeep, label, nd, newBadgePlate, pressable, setFrame, setSize, sliced, destroyChildren, roundedPanel, scrollView, UIScrollBar, sizeOf } from '../Base/UIKit';
 import { WOOD, wobble, woodButton, woodPlate } from '../Base/Theme';
-import { applyRow, makeCell, COLS, CELL_W, CELL_H, GAP_X, GAP_Y, RowSpec, RowUI, skillSub, statSub, successText } from '../Widgets/UpgradeRows';
+import { applyRow, makeCell, COLS, CELL_W, CELL_H, GAP_X, GAP_Y, RowSpec, RowUI, skillSub, statSub } from '../Widgets/UpgradeRows';
 import { capsShortAd, MACHINE_PRICE, moneyShortAd } from './Guidance';
 import { Toast } from '../Base/Toast';
 import { BottleField } from '../../Game/BottleField';
@@ -106,13 +107,32 @@ const SCROLL_CY = 0;
  */
 const TOP_PAD = 8;
 /**
- * 底栏五件等距宽度：商店 / 升级 / 技能树 / 种类下拉框 / 列表展开按钮。
- * ★ 第三十四轮：为塞下第 5 件（展开/收起把手），四件各缩窄，总宽仍 706（左右各留 7）。
+ * 底栏件位定义：商店 / 升级 / 技能树 / 种类下拉框 / 列表展开按钮。
+ * ★ 第三十四轮：为塞下第 5 件（展开/收起把手），四件各缩窄，全 5 件时总宽 706（左右各留 7）。
+ * ★ 第八十三轮：件数改为**随功能开关浮动** —— 「升级」页签停用后自动变 4 件并整体重排居中，
+ *   （见 FEAT.upgradeTab / navItems()），不再有固定下标（旧的 NAV_X[4] 这种写法已废）。
  */
-const NAV_W = [138, 138, 154, 188, 56];
+const NAV_DEF: Array<{ id: 'shop' | 'up' | 'tree' | 'dd' | 'ex'; w: number }> = [
+    { id: 'shop', w: 138 },
+    { id: 'up', w: 138 },
+    { id: 'tree', w: 154 },
+    { id: 'dd', w: 188 },
+    { id: 'ex', w: 56 },
+];
 const NAV_GAP = 8;
-/** 五件的中心 x（和 674 + 4×8 间隙 = 706 → 左缘 -353，右缘 +353） */
-const NAV_X = [-284, -138, 16, 195, 325];
+
+/** 当前实际生效的底栏件位（中心 x，整体居中；被开关停用的件直接不参与） */
+function navItems(): { ids: Array<'shop' | 'up' | 'tree' | 'dd' | 'ex'>; x: Record<string, number> } {
+    const list = NAV_DEF.filter((d) => d.id !== 'up' || FEAT.upgradeTab);
+    const total = list.reduce((s, d) => s + d.w, 0) + NAV_GAP * (list.length - 1);
+    const x: Record<string, number> = {};
+    let cur = -total / 2;
+    for (const d of list) {
+        x[d.id] = cur + d.w / 2;
+        cur += d.w + NAV_GAP;
+    }
+    return { ids: list.map((d) => d.id), x };
+}
 /**
  * 列表展开额外高度：可视区 170 → 350（2 行 → 4 行 = 8 格）。
  * ★ 用户口径：面板**底边钉死**（LAYOUT.panelY - panelH/2 = -616 贴屏幕底），
@@ -190,6 +210,7 @@ export class BottomPanel extends Component {
         if (this.built) { return; }
         this.built = true;
         if (!this.bindScene()) { this.construct(); }
+        this.applyNavLayout();      // ★ 第八十三轮：底栏件位收口（同时隐藏被开关停用的页签）
         this.reskinTabs();
         this.normalizeDropdown();
         this.wire();
@@ -199,6 +220,34 @@ export class BottomPanel extends Component {
         this.lastLang = G.lang;
         this.rebuild();
         this.baselineSeen();
+    }
+
+    /**
+     * ★ 第八十三轮：底栏件位统一收口。
+     *
+     * 件数由 `navItems()` 按功能开关现算（关掉「升级」→ 5 件变 4 件，其余等距重排、整体居中），
+     * 场景实体化版（烘焙在 Game.scene，位置写死）与运行时兜底版**都**走这里 —— 否则关掉页签后
+     * 场景版会剩一个空洞、或那个空位上还留着一个能点的按钮。
+     *
+     * ⚠️ 只改 x，**不碰 y** —— 展开态的 y（跟着面板顶边抬高 EXPAND_DH）由 applyExpand() 负责。
+     */
+    private applyNavLayout() {
+        const NV = navItems();
+        for (const id of ['shop', 'up', 'tree'] as Tab[]) {
+            const ui = this.tabUis[id];
+            if (!ui || !ui.node || !ui.node.isValid) { continue; }
+            const on = tabEnabled(id);
+            ui.node.active = on;
+            if (on) { ui.node.setPosition(NV.x[id] ?? ui.node.position.x, ui.node.position.y, 0); }
+        }
+        // 场景 @property 直接引用的那份（bindScene 可能没把它塞进 tabUis）
+        if (this.tabUp && this.tabUp.isValid) { this.tabUp.active = tabEnabled('up'); }
+        if (this.ddNode && this.ddNode.isValid && NV.x['dd'] !== undefined) {
+            this.ddNode.setPosition(NV.x['dd'], this.ddNode.position.y, 0);
+        }
+        if (this.expandBtn && this.expandBtn.isValid && NV.x['ex'] !== undefined) {
+            this.expandBtn.setPosition(NV.x['ex'], this.expandBtn.position.y, 0);
+        }
     }
 
     /** 场景里已摆好底栏骨架（有 tab_shop）→ 补齐引用，返回 true */
@@ -273,11 +322,15 @@ export class BottomPanel extends Component {
         const root = this.node;
 
         /* ---- 底栏：五件等距铺满 720：【商店】【升级】【技能树】【下拉框】【展开/回收】 ----
-         *   138 + 138 + 154 + 188 + 56 + 4×8 间隙 = 706，左右各留 7（见 NAV_W / NAV_X） */
+         *   全 5 件时 138 + 138 + 154 + 188 + 56 + 4×8 间隙 = 706；停用「升级」后剩 4 件自动重排居中
+         *   —— 件位一律由 navItems() 现算，见那里 */
         const H = LAYOUT.navH;
         const Y = LAYOUT.navY;
-        const [W1, W2, W3, W4, W5] = NAV_W;
-        const [shopX, upX, treeX, ddX, exX] = NAV_X;
+        const NV = navItems();
+        const [W1, W2, W3, W4, W5] = NAV_DEF.map((d) => d.w);
+        // 停用的件不在 NV.x 里 → 兜底 0（反正 build() 末尾的 applyNavLayout 会隐藏它）
+        const shopX = NV.x['shop'] ?? 0, upX = NV.x['up'] ?? 0, treeX = NV.x['tree'] ?? 0;
+        const ddX = NV.x['dd'] ?? 0, exX = NV.x['ex'] ?? 0;
 
         const mkTab = (id: Tab, x: number, w: number, key: string, icon: string) => {
             const n = woodButton(root, {
@@ -353,7 +406,8 @@ export class BottomPanel extends Component {
         for (const r of this.shopBottleRows()) { add(r); }
         add(this.machineRow());
         add(this.helperRow());
-        for (const r of this.upgradeRows()) { add(r); }
+        // ★ 第八十三轮：升级页停用 → 它的行不参与「已读基线」（暂停用期间它们根本不会出现）
+        if (tabEnabled('up')) { for (const r of this.upgradeRows()) { add(r); } }
         G.markBaseline(ids);
     }
 
@@ -468,8 +522,9 @@ export class BottomPanel extends Component {
         //   始终贴在列表上方，不会被变高的面板盖住 —— 整条底栏随面板顶边抬高 EXPAND_DH。
         const dy = dh;
         for (const id of ['shop', 'up', 'tree'] as Tab[]) {
+            if (!tabEnabled(id)) { continue; }
             const ui = this.tabUis[id];
-            if (ui && ui.node && ui.node.isValid) {
+            if (ui && ui.node && ui.node.isValid && ui.node.active) {
                 ui.node.setPosition(ui.node.position.x, LAYOUT.navY + dy, 0);
             }
         }
@@ -478,7 +533,7 @@ export class BottomPanel extends Component {
         }
         // 把手：y 跟面板顶边走；箭头向上=伸出 / 向下=回收（scaleY 翻转，图内无文字可放心翻）
         if (this.expandBtn && this.expandBtn.isValid) {
-            this.expandBtn.setPosition(NAV_X[4], cy + h / 2 + 30, 0);
+            this.expandBtn.setPosition(navItems().x['ex'], cy + h / 2 + 30, 0);
             this.expandBtn.setScale(1, this.expanded ? -1 : 1, 1);
         }
     }
@@ -497,6 +552,8 @@ export class BottomPanel extends Component {
             out.push({ id: 'bt' + i, key: '', icon: 'bottle/body_' + TIERS[i].art, tier: i });
         }
         for (const c of TREE_TECHS) {
+            // ★ 第八十三轮：特殊技能停用 → 「特殊技能」这条科技线不进下拉框
+            if (c.id === 'abil' && !FEAT.abilities) { continue; }
             if (c.req && G.skLv(c.req) <= 0) { continue; }
             out.push(c);
         }
@@ -667,6 +724,11 @@ export class BottomPanel extends Component {
     /* ================= 对外 API ================= */
     showTab(tb: Tab) {
         if (this.tab === tb && this.built) { return; }
+        // ★ 第八十三轮：「升级」页签被功能开关停用 → 任何来源的切换都回落商店页
+        if (!tabEnabled(tb)) {
+            if (this.tab === 'shop') { return; }
+            tb = 'shop';
+        }
         // ★ 原版口径：商店的瓶盖机器到手，技能树才打得开
         if (tb === 'tree' && !G.hasMachine) {
             Toast.I?.show(t('need_machine', G.lang), '#FFD98A');
@@ -691,6 +753,8 @@ export class BottomPanel extends Component {
             this.showTab('shop');
             return;
         }
+        // ★ 第八十三轮：「特殊技能」科技线停用 → page 3 不可达，回落瓶子模块
+        if (page === 3 && !FEAT.abilities) { page = 0; }
         if (page === 0) {
             this.showTab('tree');
             // 跳到「当前最高已研发阶」的树 —— 解锁下一阶瓶的入口就在它的末尾
@@ -833,7 +897,8 @@ export class BottomPanel extends Component {
         let out: RowSpec[];
         if (this.tab === 'shop') {
             out = this.shopRows();
-        } else if (this.tab === 'up') {
+        } else if (this.tab === 'up' && tabEnabled('up')) {
+            // ★ 第八十三轮：升级页停用时这条分支不可达（showTab 已拦）—— 这里再兜一层
             out = this.upgradeRows();
         } else {
             out = this.rowsForCat(cat);
@@ -1023,11 +1088,9 @@ export class BottomPanel extends Component {
                 lv: G.data.bottles[tier],
                 lvMax: cap,
                 name: G.lang === 'zh' ? d.zh : d.en,
-                // ★ 第十九轮：说明压短（原来「拥有 3/30 · +$1/次 · ±18°」13 个字在 172px 里会被 SHRINK 压小）
-                // ★ 第十七轮：判定改纯概率 → 末尾改成「成功 50%」（= 50% + 精通 ×5%）
-                sub: t('owned_short', G.lang).replace('{n}', String(G.data.bottles[tier])).replace('{m}', String(cap))
-                    + ' · $' + fmt(G.bottleIncome(tier)) + (G.lang === 'zh' ? '/次' : '/flip')
-                    + ' · ' + successText(tier),
+                // ★ 第九十轮（用户口径）：说明不再逐项解析（拥有 n/m · 单次收益 · 成功率），
+                //   商店里买瓶就是「多一个瓶子」，一行说清楚即可——数字都已在名字栏/进度条上。
+                sub: t('add_bottle', G.lang),
                 label: '',
                 tone: 'on',
                 buySfx: true,   // ★ 商店物品：买成补一声 buy（升级页/技能树不播）
@@ -1372,6 +1435,7 @@ export class BottomPanel extends Component {
     private refreshTabs() {
         const keys: Record<Tab, string> = { shop: 'nav_shop', up: 'nav_upgrade', tree: 'nav_skill' };
         for (const id of ['shop', 'up', 'tree'] as Tab[]) {
+            if (!tabEnabled(id)) { continue; }     // ★ 第八十三轮：停用的页签不刷新
             const ui = this.tabUis[id];
             if (!ui || !ui.node.isValid) { continue; }
             // 技能树没买瓶盖机器前是「暗着」的（点了会提示，见 showTab）
@@ -1415,6 +1479,7 @@ export class BottomPanel extends Component {
     /** build 时一次性换皮（refreshTabs 里切页签时再按选中态重刷） */
     private reskinTabs() {
         for (const id of ['shop', 'up', 'tree'] as Tab[]) {
+            if (!tabEnabled(id)) { continue; }     // ★ 第八十三轮：停用的页签不换皮
             this.applyTabPlate(id, id === 'tree' && !G.hasMachine);
         }
     }

@@ -1,5 +1,6 @@
 import { _decorator, Component, Color, Label, Node, Sprite } from 'cc';
 import { G } from '../../Core/State';
+import { FEAT } from '../../Core/Features';
 import { t } from '../../Core/Locale';
 import { label, nd, setFrame } from '../Base/UIKit';
 import { Ads } from '../Base/Ads';
@@ -57,6 +58,8 @@ export class AdButtons extends Component {
 
     /** 场景实体化版没有 ad_berserk（旧版只有三块）→ 运行时补建 */
     private ensureBerserk() {
+        // ★ 第八十三轮：特殊技能停用 → 「狂暴模式」广告牌也不补建
+        if (!FEAT.abilities) { return; }
         if (this.items.some(i => i.kind === 'berserk')) { return; }
         this.items.push(this.newPlate('berserk', -232));
     }
@@ -69,8 +72,11 @@ export class AdButtons extends Component {
             { kind: 'coin', name: 'ad_coin' },
             { kind: 'cap', name: 'ad_cap' },
             { kind: 'halo', name: 'ad_halo' },
-            { kind: 'berserk', name: 'ad_berserk' },
+            // ★ 第八十三轮：特殊技能停用 → 不接「狂暴模式」牌（若场景里残留同名节点，下面一并隐藏）
+            ...(FEAT.abilities ? [{ kind: 'berserk' as const, name: 'ad_berserk' }] : []),
         ];
+        const stale = this.node.getChildByName('ad_berserk');
+        if (stale && stale.isValid) { stale.active = FEAT.abilities; }
         this.items = [];
         for (const s of specs) {
             const plate = this.node.getChildByName(s.name);
@@ -86,7 +92,8 @@ export class AdButtons extends Component {
             { kind: 'coin', y: 152 },
             { kind: 'cap', y: 24 },
             { kind: 'halo', y: -104 },
-            { kind: 'berserk', y: -232 },
+            // ★ 第八十三轮：特殊技能停用 → 第四块「狂暴模式」不摆
+            ...(FEAT.abilities ? [{ kind: 'berserk' as const, y: -232 }] : []),
         ];
         for (const s of specs) {
             this.items.push(this.newPlate(s.kind, s.y));
@@ -143,6 +150,7 @@ export class AdButtons extends Component {
 
     /** 狂暴模式：看广告直接补满狂暴次数（与连击攒满同一数值来源） */
     private watchBerserk() {
+        if (!FEAT.abilities) { return; }     // ★ 第八十三轮：特殊技能停用
         if (G.berserkFlips > 0) {
             Toast.I?.show(t('ad_grant_berserk', G.lang) + ' ×' + G.berserkFlips, '#FFE9A8');
             return;

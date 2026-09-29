@@ -3,6 +3,7 @@ import {
     MILESTONES, MilestoneDef, SKILLS, SkillDef, TIERS, TreeId,
 } from './GameConfig';
 import { SaveData, defaultSave, loadSave, writeSave, clearSave } from './Save';
+import { FEAT } from './Features';
 import { clamp, clamp01 } from './Util';
 
 /** 单次翻转结果 */
@@ -422,13 +423,17 @@ export class State {
     get gateChance() { return clamp01(this.skLv('p_gatechance') * 0.10); }
 
     /* ================= 三大终极技能（§5.1 分支 4 / §5.2） ================= */
-    get cokeUnlocked() { return this.skLv('a_coke') > 0; }
+    // ★ 第八十三轮（用户口径）：「特殊技能」暂整体停用（FEAT.abilities === false）。
+    //   下面三个 `*Unlocked` 是整条链路的唯一闸门 —— 恒 false 就同时掐掉：
+    //   能力条显示、可乐冷却、狂暴连击累积、处决决意积攒、HUD 狂暴/决意状态行、广告「狂暴模式」。
+    //   数据层（技能等级 / 价格 / 存档字段）一字未动，开关改回 true 即完整恢复。
+    get cokeUnlocked() { return FEAT.abilities && this.skLv('a_coke') > 0; }
     /** 冷却：75s − 20s/级（最低 15s） */
     get cokeCooldown() { return Math.max(ABILITY.coke.cdMin, this.sk('a_cokecd')); }
     /** 同屏可乐数量：1 + L（最多 10） */
     get cokeCount() { return Math.min(ABILITY.coke.countMax, Math.floor(this.sk('a_cokecount'))); }
 
-    get berserkUnlocked() { return this.skLv('a_berserk') > 0; }
+    get berserkUnlocked() { return FEAT.abilities && this.skLv('a_berserk') > 0; }
     /** 激活所需连续扣盖次数（固定 3） */
     get berserkNeed() { return ABILITY.berserk.need; }
     /** 狂暴有效翻转次数：2 + L（3 级 → 5） */
@@ -440,7 +445,7 @@ export class State {
         return m;
     }
 
-    get samuraiUnlocked() { return this.skLv('a_samurai') > 0; }
+    get samuraiUnlocked() { return FEAT.abilities && this.skLv('a_samurai') > 0; }
     /** 定格时间：0.8s + 0.3L（3 级 → 1.7s） */
     get samuraiDuration() { return this.sk('a_samuraidur'); }
     /** 处决收益倍率 M_samurai：1.0 + 0.3L */
