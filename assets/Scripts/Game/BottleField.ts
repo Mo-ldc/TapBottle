@@ -286,6 +286,12 @@ export class BottleField extends Component {
         //   现在只重建一次邻域（脏时才重建），每帧扫查询圆外接方覆盖的几格。
         //   ⚠️ 精确判定（距离 < r）与门控顺序保持原样，候选外扩用 r + HOVER_DY
         //   （因为"判定点"相对 node.position 上移了 HOVER_DY，外扩这么多才不会漏）。
+        // ★ 第121轮：悬停翻转默认解锁后，新手引导期间必须**整段停用**悬停触发 ——
+        //   否则玩家手指/光标一停进引导洞（洞正罩着瓶子），瓶子就每 150ms 自我翻飞；
+        //   瓶子在空中时 b.idle=false，点击命中落空 → Tutorial.notifyTap 不计数 →
+        //   「点击 2 次」永远凑不满，引导卡死在第一步。引导教的就是点击，引导结束
+        //   （Tutorial.active=false）后悬停自动恢复。
+        if (!Tutorial.active) {
         if (this.gridDirty) { this.rebuildGrid(); }
         const cand = this.gridOut;
         const cn = this.grid.queryCircle(this.pointer.x, this.pointer.y, r + HOVER_DY, cand);
@@ -307,6 +313,7 @@ export class BottleField extends Component {
                 }
             }
         }
+        }   // end !Tutorial.active（悬停触发整段门控）
         void dt;
     }
 
