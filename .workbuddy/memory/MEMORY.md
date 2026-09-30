@@ -1,210 +1,69 @@
 # TapBottle 长期备忘
 
 竖屏点瓶子（Bottle Flip Inc 复刻），Cocos 3.8.8（`D:\CoCosIDE\Creator\3.8.8`）。
-逐轮细节见 `.workbuddy/memory/2026-09-2*.md`；本文件只留**最难重新发现的规则**。
+逐轮细节见 `.workbuddy/memory/YYYY-MM-DD.md`；本文件只留**最难重新发现的规则**。
 
-## 仓库与分支（2026-09-24）
-- 远端 `https://github.com/Mo-ldc/TapBottle`。
-  - `main` = 主线（正在做预制体化改造）。
-  - `legacy-runtime-ui` = **无预制体、运行时程序生成 UI** 的存档版，停在 `7a3168a`。
-- 本地两个副本：`TapBottle`（开发用）/ `TapBottle_old`（clone 的纯净副本，跑 legacy-runtime-ui 分支）。
-- 推送一律走系统代理：`unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy` +
-  `-c http.proxy=http://127.0.0.1:10808`（沙箱注入的 58048 时通时不通，别依赖）。
-- **★ 提交前必做**：先补 `.gitignore` **再** `git add -A`。`.workbuddy` 里绝不能入库的是
-  无头验收 profile（`_prof_*`/`cdp_prof_*`，每个 20~80MB，实测攒到 3.6GB）、`tmp/`、
-  验收截图 `_*.png`、一次性 `_*.tpl`/`_*.json`、所有 `*_bak/`、`unused_park/`
-  （规则已固化在 .gitignore，2026-09-28 清理过 20572 个误提交文件）。
-- 提交信息一律**标题 + 详细 Description**（用户硬性要求）；大改动拆成「chore 清理 / feat 功能」两个 commit。
+## 仓库
+- 远端 `github.com/Mo-ldc/TapBottle`：`main` 主线；`legacy-runtime-ui`（无预制体存档版，停 `7a3168a`）。
+- 本地 TapBottle（开发）/ TapBottle_old（纯净 clone）。推送：unset 代理变量 +
+  `-c credential.helper=manager -c http.proxy=http://127.0.0.1:10808 push`
+  （**缺 credential.helper=manager 会报 terminal prompts disabled**）。
+- ★ 提交前：.gitignore 先行；`_prof_*`/`tmp/`/验收截图/一次性 `_*.tpl`/`*_bak/`/`unused_park/` 不入库。
+  提交信息=标题+详细 Description（用户硬性要求）。
 
-## 架构（2026-09-24 起大改：代码生成 → 预制体化）
-- **★★ 第七十九轮铁律（2026-09-29，用户硬性要求）「以预制体为主」**：编辑器里改 prefab
-  必须直接生效 → 代码**绝不允许**对 prefab 里的节点写 position/contentSize（只许填文字/切
-  active/挂事件）；UI 位置一律在编辑器里调。一次性 bake 脚本已移入
-  `.workbuddy/tools/_oneshot/`（重跑=整棵重建覆盖手改，**别再跑**）。改完 prefab 的验证闭环：
-  `CDP_LOG_MAX=40000` 跑 `_workbench/_tpl/_q79_prefab_drift.tpl` →
-  `python .workbuddy/tools/drift_check.py E:/LDC_Fby/_cdp_log.txt` → 各弹窗应为「漂移 0 处」。
-  引擎接管例外（不算漂移）：ScrollView 的 content（引擎贴视口左上）、Widget 平铺节点的尺寸、
-  ToggleRow.knob / StepperRow.fill（@property 运行期状态）。
-  **第八十轮补充**：列表行（商店/升级/技能树共用 `UpgradeRow.prefab`）也已纳入 ——
-  `UpgradeRows.ts` 用 `snap()` 快照（`RowUI.L`）替代 8 处硬写，applyRow 只做数据活；
-  调行内布局 = 直接拖 prefab（改完跑 `_q80_row_prefab.tpl` 与 `dump_prefab.py` diff）。
-  注意 `set_prefab_node.py` 可按节点路径改 prefab pos/size；constructCell 兜底常量要与 prefab 同步。
-  lvLb/nameImg/ztk 层是运行时懒建（prefab 无此节点）；btnLb.x 有「无图标居中/ad 让位」两态。
-- **旧状态已废**：此前 UI 全由 `Scripts/UI/*` 运行时 Graphics 生成、无 Prefab。
-  现在全面迁移为「场景实体化 + Prefab + 编辑器可调」，参考工程
-  `E:\LDC_Cocos_PJ\Cocos3X_2D\开个便利店_竖屏\项目\StartConvenienceStore4`：
-  GameEntry 场景(@property 进度条) → ResMgr/预制体按需加载 → UIMgr(pageRoot/dialogRoot/tipRoot)
-  + PoolMgr(Map<string,Node[]>) → director.preloadScene 进主场景。
-- 新基础设施：`Core/Prefabs.ts`（预制体清单+随 Res 预加载+make 实例化）、`Core/Pool.ts`（对象池）。
-- **★ 目录规范（第二十六轮重组，2026-09-24）**：按资源类型归位，不按界面分目录——
-  UI 预制体 = `resources/Prefabs/UI/<Name>.prefab`（`UIMgr.UI_ROOT='Prefabs/UI'`）；
-  UI 脚本 = `assets/Scripts/UI/` 内**按职责分层**（依赖单向 Base ← Widgets ← Hud/Panels ← Pages/Dialogs）：
-  `Base/`(UIBase/UIKit/Theme/Modal/Toast/Ads) `Widgets/`(行控件+AdButtons+UpgradeRows)
-  `Hud/`(Hud/BottomPanel/Guidance) `Panels/`(Panel+3个openXxx面板) `Pages/` `Dialogs/` `_legacy/`(UIFit)；
-  UI 贴图 = `resources/Textures/ui/<八分类>/`（nine/panel/button/icon/bar/deco/pixel/misc）。
-  旧 `UIRes/`、`UI/Common/` 已删；迁移工具 `reorg_ui.py` + `reorg_ui_scripts.py`，备份 `.workbuddy/reorg_bak/`。
-  ⚠️ 任何资源移动都要**连 .meta 一起移**（uuid 不变 → prefab 引用/cid 全不用改）。
-- 九宫格皮肤：`Textures/ui/nine/{nine_base,nine_gloss,nine_stroke}`(inset 26) +
-  `nine/{nine_chip,nine_chip_gloss,nine_chip_stroke}`(inset 27)，
-  白底三层叠加可整体 tint；meta 已写 borderSlice；Theme.woodPlate/chipPlate/woodButton 走 Sprite(SLICED)。
-  生成工具 `.workbuddy/tools/gen_nineslice.py`。
-- 数值唯一真理源 `GDD v1.1.md` → `Core/GameConfig.ts`；状态单例 `G`；资源单例 `Res.I`
-  （贴图登记 `TEXTURE_PATHS`，**任何一条路径失败 → 整批加载不到**）。
-- 底栏五件（商店138/升级138/技能树154/下拉框188/列表展开把手56，NAV_W/NAV_X）内嵌面板，口径对齐
-  `E:\LDC_Fby\BottleFlipInc\_analysis\model.json`；两列网格 CELL 322×78；跳转 API `showTreeCategory(page)`。
-  ★ **第一〇一轮（2026-09-29）面板 = bd11 木板底板 + bd12 列表背景框嵌套**：
-  `panel/bg`→`skin/main/panel_wood`（bd11 压缩导入，763×1199 border30）、`panel/inner`→`skin/main/row_bg`
-  （**= bd12 同图**，704×343 border24），stroke 子节点关、color 复位白，全部**烘进 Game.scene**。
-  底部块重排：abilityY −140 / beltY −251(h108) / navY −343 / panelY −502(h228)，视口 SCROLL_H 204→170。
-  ★ 列表展开把手（bd16 整图 `expandBtn`）：面板底边钉死向上长 210（228→438，可视 2行→4行=8格），
-  盖住底栏/履带；把手 y 跟面板顶边走、scaleY 翻转（伸出/回收），挂 bottomPanel 末位保证 z 最高；
-  内容超 4 格或已展开才显示（★ 展开态必须强制显示，否则收不回去）。
-  ★ **布局真源 = 场景/预制体（用户硬性约定）**：BottomPanel 的 layW/layH/layY/laySH/layCY 在
-  bindScene 从场景烘焙值读取，常量只兜底；后续 UI 位置/大小/贴图调整**直接改场景或预制体**，
-  代码不做 setFrame/setSize 覆盖（reskinPanel 已删）——「改了场景游戏内不变」就是被旧常量覆盖了。
-- 购买引导走 `UI/Guidance.ts`，跳转用注入的 NavBridge（直接 import 面板会成环）。
+## 架构
+- ★★「以预制体为主」铁律（第79轮）：代码**绝不允许**对 prefab/场景节点写 position/contentSize
+  （只许文字/active/事件）；UI 位置编辑器里调。验证闭环 `_q79_prefab_drift.tpl` + `drift_check.py`=漂移0。
+  列表行 `UpgradeRow.prefab` 用 `snap()` 快照（第80轮）；constructCell 兜底常量要与 prefab 同步。
+- 场景实体化 + Prefab + 对象池（参考 StartConvenienceStore4）；`Core/Prefabs.ts` / `Core/Pool.ts`。
+- 目录：UI 预制体 `resources/Prefabs/UI/`；UI 脚本 `assets/Scripts/UI/` 按层
+  Base←Widgets←Hud/Panels←Pages/Dialogs；贴图 `resources/Textures/ui/八分类`。资源移动必须**连 .meta**。
+- 面板 = bd11 木板底板 + bd12 列表框嵌套（烘进 Game.scene）；展开把手 bd16 向上长 210。
+  **布局真源=场景**（bindScene 烘焙值），常量只兜底——「改了场景游戏内不变」就是被旧常量覆盖。
+- ★ **第121轮（2026-09-30）：「悬停翻转」全阶默认解锁** —— 真源在 Save.ts：
+  `emptyTierStats()` 把 hover 列预置 1、`normalize()` 对老档幂等补齐=1；`hoverUnlocked` 照常读档
+  → `haloTriggerOn` 开局 true、光圈即吸附形态(r=55)、升级页/技能树 hover 行因 statMax 消失、
+  `p_cursorsize` 开局出现。**新手引导期间悬停触发整段停用**（`BottleField.update` 加 `!Tutorial.active`
+  门控）：否则瓶子在引导洞里自动翻飞、空中 `b.idle=false` 点击落空 → `notifyTap` 不计数 → 引导卡死。
+- FEAT（Core/Features.ts）：`abilities=false`（可乐/狂暴/处决停用未删，恢复=改 true 重建）；
+  `upgradeTab=true`（已恢复）。
 
 ## 流程
-1. 改完先 `python .workbuddy/tools/typecheck.py`（源码 0 错）再构建 —— 命令行构建**不因 TS 报错失败**。
-2. 构建：`unset ELECTRON_RUN_AS_NODE` 后
-   `"D:/CoCosIDE/Creator/3.8.8/CocosCreator.exe" --project <项目> --build "platform=web-mobile;debug=true"`（~25s）。
-   **exit code 会骗人**（编辑器占 3000 端口 → 返回 36，但产物已写好）→ 看日志
-   `build Task (web-mobile) Finished` + 在 index.js grep 新字符串。
-3. 验收：`E:\LDC_Fby\_cdp.py`（无头 Chrome+CDP+本地 http）跑 `.tpl`（sleep/eval/jsclick/jsdrag/shot）。
-   参数：`<webroot> <out.png> <http端口8901+> <WAIT**毫秒**> <宽> <高> <模板.tpl> <profile目录> <调试端口9350+>`。
-   ⚠️ 用 `C:/Users/A/.workbuddy/binaries/python/envs/default/Scripts/python.exe` 跑（裸 `python` 没有 requests）。
-   - ⚠️ **模板路径必须绝对**（内部 os.chdir，相对路径静默跳过）；HTTP 端口传 8901+，**绝不能传 9333**（调试口）。
-   - ⚠️ 连跑换独立 profile（第 8 参）+ 调试端口（第 9 参）；先 `unset http_proxy ...` + `NO_PROXY=127.0.0.1`；
-     **Bash 沙箱内 Chrome 网络偶发丢请求 → 用 dangerouslyDisableSandbox 跑**。
-     ★ **profile 目录一律放 `点瓶子_竖屏\_workbench\_prof\<名字>`**（2026-09-28 用户硬性要求），
-     不要丢进 `E:\LDC_Fby\`（残留已清理）。临时排查中间文件同理，用完即删。
-   - ⚠️ headless 首次 `Input.dispatchMouseEvent` 会被丢弃 → 先 jsdrag 预热再点。
-   - ⚠️ headless **游戏时间快进**：短 dur 动画截图前就播完（疑「不渲染」实为已回池）→
-     验证动画截图必须 dur 拉到 10s+；`jsdrag:` 的 JS 要返回**两组**坐标 `[[x,y],[x+30,y]]`；
-     `_cdp.py` 跑完模板会用第 2 参 OUT 再截一张，**覆盖模板里第一张同名 shot**。
-   - ⚠️ **`jsclick:` 的坐标是屏幕像素（原点左上角）**，不是世界坐标：
-     `screenX=(wp.x-vo.x)*k`、`screenY=H-(wp.y-vo.y)*k`，`k=window.innerHeight/view.getVisibleSize().height`。
-     传错只表现为「点了没反应」，极易误判成业务 bug。
-   - ⚠️ `_cdp.py` 窗口传 720×1280 时 `window.innerWidth/Height` 实测只有 **704×1185**（窗口框吃高度）→
-     可见区是 1440×2424 而非 2560；排查适配偏差先打这个数。
-   - ⚠️ swiftshader 截图对带 CSS transition 的 fixed 层出陈旧纹理伪影 → DOM 求值状态才是真相。
-   - ⚠️ `window.cc` 无 `cc.UITransform` 等 → 用 `getComponent('cc.UITransform')`；`__tb.*` 类在 `.I`。
-     `F(scene,'bottles')` 命中的是**外层容器**（children=shadows/bottles/label），取瓶子用 `__tb.field.I.bottles[0].node`。
-   - ⚠️ `jsclick:`/`jsdrag:` 行 = 先 eval JS 拿 `[x,y]` 再 dispatchMouseEvent；**普通 `eval:` 行返回坐标不会点击**（只记录）——模板里点击必须用 `jsclick:` 前缀，写错是静默空操作（实测踩过）。
-   - 脚本被中途打断时 `finally` 不执行 → chrome 会泄漏（每次 ~10 进程/150MB）。
-     已修（taskkill /T /F + 按 user-data-dir 兜底），另加 `python _cdp.py cleanup` 一键清进程+profile。
-4. **同一文件一次只发一处编辑**（并行多处互相覆盖且都返回 success）。
+1. `python .workbuddy/tools/typecheck.py` 0 错再构建；构建 exit code 会骗人，看日志 `build Task Finished`。
+2. 构建：`unset ELECTRON_RUN_AS_NODE` + `CocosCreator.exe --project <p> --build "platform=web-mobile;debug=true"`。
+3. 验收 `E:\LDC_Fby\_cdp.py`：`<webroot> <out.png> <http 8901+> <WAIT ms> <w> <h> <tpl 绝对路径> <profile> <dbg 9350+>`；
+   python 用 `envs/default`；dangerouslyDisableSandbox；profile 放 `点瓶子_竖屏\_workbench\_prof\`；
+   连跑换端口+profile；模板库 `_workbench\_tpl\`（先读 README）；日志落 `E:\LDC_Fby\_cdp_log.txt`。
+4. 同一文件一次只发一处编辑。
 
-## 手写 .scene / .prefab 的硬性格式（缺一条编辑器就打不开）
-- **prefab 三件套**：`arr[0]=cc.Prefab`(data→1)；每个 Node 有 `_prefab`→`cc.PrefabInfo`
-  （root→1、asset→0、fileId 22 字符，DFS **后序**插在该节点组件之后）；
-  每个 Component 有 `__prefab`→`cc.CompPrefabInfo`（紧跟组件后）。
-- **prefab 里所有 node/component 的 `_id` 必须是空串 `""`**；**scene 里 `_id` 是标准 uuid**。
-  写反了编辑器当脏数据，双击打不开。（参考工程 463 个 prefab 节点 `_id` 全为空）
-- **scene 根 Canvas 的 `_parent` 必须显式指回 `arr[1]`(cc.Scene)**：否则 `node.scene===null`
-  → 整棵树 `UITransform.hitTest` 抛 `Cannot read properties of null (reading 'renderScene')`
-  → 表现是「画面完全正常，但所有点击全废」。
-- 验证闭环：`prefab_validate` → `prefab_edit{action:open}`（等价于双击）→ 看 `mode:"prefab-edit"`；
-  再 `close{save:true}` 后 diff，**只应差 fileId 随机值**（实测已验证字节级等价）。
-- ⚠️ **编辑器「保存」会把 prefab 的 JSON 重排成缩进多行**（仓库里老 prefab 多是单行紧凑 JSON）
-  → diff 可能长得像「1 行 → 2013 行」，**别按 diff 行数判断改动大小**。判真实改动的办法：
-  两端 `json.loads` 后**按下标逐对象配对比对**（对象数一致 ⇒ 无增删节点），再看
-  `_lpos / _contentSize / _fontSize / _lineHeight / _overflow` 等数值差异。
-  第九十七轮实测 ConfirmDialog：87 个对象一一对应，只有 13 处真改（其余全是缩进格式化）。
+## 编译产物热补丁（应急验证用）
+- 直接 patch `build/web-mobile/assets/main/index.js` 可先验手感再落源码；**插桩点必须确认变量定义顺序**
+  （第121轮曾把用 `G` 的循环插在 `var G=new State()` 之前 → 模块执行抛 TypeError → 整页黑屏；
+  `node --check` 只查语法不查引用顺序）。验证完必须源码落地 + 重建覆盖，不留补丁痕迹。
 
-## 空间索引（第九十六轮，2026-09-29）
-- `Core/SpatialGrid.ts` = 均匀网格（多叉分桶，cell 48，桶+槽位数组全程复用 → 零分配）。
-  选它不选四叉树：对象同尺寸/近均匀/边界固定 → 四叉树退化成「网格+递归指针」；
-  瓶子落位频繁改位置 → 四叉树重建要 new 节点对象（GC），网格重建只是按中心点写回桶。
-- 接入 `BottleField`：`grid/gridOut/tapOut/gridDirty`；脏标记 3 处
-  （`sortDepth()` / `onLanded()` **开头**（fail 分支提前 return，漏标留旧位置）/ `sync()` 末尾）。
-  **不要每帧重建** —— 重建要遍历全部对象，跟原来的全遍历同价。
-- ★ 网格按**本地坐标** `b.node.position` 建；`hitBottles(wx,wy,out)` 入参是**世界坐标**
-  （tapWorld 口径）→ 内部必须 `convertToNodeSpaceAR` 一次；漏了会「命中恒 0 且不报错」。
-- 实测 200 瓶：悬停 3.20→0.60µs（5.3×）、点击 22.07→2.53µs（8.7×）；
-  3000 随机点等价性 MISMATCH=0。命中**顺序**=格遍历序（≠原数组序），对点击无影响。
-- ⚠️ 量级：省下 ~0.02ms/帧，**不是卡顿主因**。真成本在渲染：120 瓶 8.6ms（影子占 3.3ms），
-  而 headless 下即使隐藏全部瓶子帧时间仍 55ms（软件渲染基线）。
+## 手写 .scene/.prefab 硬格式
+- prefab 三件套（PrefabInfo DFS 后序 / CompPrefabInfo 紧跟组件）；**prefab 所有 _id=""，scene _id=uuid**；
+  scene 根 Canvas `_parent` 指回 scene，否则画面正常但点击全废。编辑器保存会重排 JSON 缩进 →
+  按对象下标配对判真实改动，别看 diff 行数。
+
+## 空间索引（第96轮）
+- `Core/SpatialGrid` 均匀网格；脏标记 3 处（sortDepth / onLanded **开头** / sync 末尾），别每帧重建；
+  网格按**本地坐标**建，`hitBottles` 入参世界坐标要先 convertToNodeSpaceAR（漏了命中恒 0 且不报错）。
 
 ## 坑（真金白银）
-- **★ 编辑器预览(7456)点击全灭 = 引擎输入时序 bug，非项目代码**：mouse-input 构造在模块求值时
-  取 GameCanvas，预览页 canvas 插入更晚 → `?.` 静默跳过全部 canvas 监听（window 有监听/canvas 0 个
-  即可实锤）。修复 `Core/PreviewInputBridge.ts`（LoadScene+GameRoot onLoad 调，幂等）。
-  无头测预览的 jsclick 坐标要走 canvasRect 映射（设备模拟画布不满窗），全窗换算必失手。
-- **★ 2D 场景相机必须 `_projection:0`（ORTHO，ORTHO=0/PERSPECTIVE=1）**：透视相机会让
-  cc.Canvas/Widget/AutoNodeScale/Bottle.hitTest 全链路错位——症状=竖屏 UI 全消失、横屏反而"正常"、
-  改 FOV 能"看起来对"但点击失效。fov 是透视专用补偿值，正交下无效；看到有人调 fov 就是投影错的信号。
-  另：GameRoot Widget 边距 345/380 曾被当补偿值调出（→内容居中缩小四周黑边），必须 0（平铺可见区）。
-  排查时 headless 截图常是陈旧帧 → 截图前先 jsdrag 强制出帧，节点 DOM 状态才是真相。
-- **一个节点只能挂一个渲染组件**（Sprite/Graphics/Label 都是 UIRenderer）：第二个 addComponent **静默失败**，多层效果各占子节点。
-- 运行时改色**必须整体赋值** `new Color(...)`：`Color.fromHEX(sp.color,..)`/`sp.color.set(..)` 就地改
-  内部 `_color`，引用未变 → setter 提前 return → 静默不变色。Graphics 改色要 clear()+重描。
-- 依赖贴图的构建必须在资源加载回调之后（早了静默空白只剩清屏色）。
-- 容器层「建完再顶到末尾」`setSiblingIndex(len-1)`；兄弟创建序 = 渲染序。
-- **全局 input 监听不受 BlockInputEvents 约束** → 模态必须 Modal.push/pop。
-- ScrollView content 锚点 (0.5,1) → y 写 `viewH/2 - TOP_PAD`；滚动区下沿落进行间隙。
-- UI 出场「中央 Q 弹」popIn/popOut；popOut 会把 UIOpacity 复位 255，不能对已淡出节点再调。
-- 瓶身 `body_0..6.png` 画的是**瓶口朝下**（angle=180 才正立）；点击命中自己算（Bottle.hitTest 世界坐标判矩形 150×375/ay 0.34）。
+- 编辑器预览(7456)点击全灭 = 引擎输入时序 bug → `Core/PreviewInputBridge.ts`（幂等桥）。
+- 2D 相机必须 `_projection:0`（ORTHO）；透视 = 竖屏 UI 全消失、点击失效；GameRoot Widget 边距必须 0。
+- 一节点只能挂一个渲染组件；改色必须整体赋值 `new Color(...)`；Graphics 改色 clear()+重描。
+- 全局 input 不受 BlockInputEvents 约束 → 模态必须 Modal.push/pop。
+- `body_0..6` 瓶口朝下（angle=180 正立）；Bottle.hitTest 世界坐标矩形 150×375/ay 0.34。
+- 场景反序列化 Sprite/Label 整树不渲染 → `GameRoot.rebindSceneRenderers()` removeChild+addChild 重挂。
 - 本机 bash `tail/dirname` 不可用；`&&` 链会整条短路。
 
-## 功能开关（2026-09-29 第八十三轮起，用户口径「先不用」）
-- **`Core/Features.ts`：`FEAT = { abilities: false, upgradeTab: false }`** —— 特殊技能（可乐/狂暴/处决）
-  与底栏「升级」页签**整体停用但未删除**。数据层（SKILLS/价格/存档/购买逻辑）一字未动，
-  场景里的 `abilityBar`/`tab_up`/`ad_berserk` 节点都在、运行时隐藏。**恢复 = 改 true 重建**，
-  老档已买等级直接回来。
-- 摘除手法：三能力唯一闸门 = State 的 `*Unlocked` getter 加 `FEAT.abilities &&`；底栏件位 =
-  `navItems()` 动态计算（停用页签自动重排居中，别再写 NAV_X[4] 这种固定下标）。
-- 停用期间无处购买的升级项：`p_cursorsize`（光圈大小）、`p_machineinc`（瓶盖机收入）、
-  `h_bronze..h_diamond`（助手许可）。技能树其余（瓶子天赋/履带/挂机/手部）正常。
+## 数值
+- 落地纯概率：成功 50%（倒立:正立恒 1:4），mastery 每级 +5% 满 10=100%；mastery 的 base 兼价格基数。
+- 瓶盖=成功落地 1 枚，没买瓶盖机器（$1000）归零；pendingCaps 运到滚筒才入账。
+- 光圈：`haloRadius = haloTriggerOn ? p_cursorsize : HALO_DOT_R(14)`；广告光圈 = 满级×1.5 且全阶放行。
 
-## 数值与经济
-- **落地判定 = 纯概率制**（覆盖 GDD §3.1-3 角度容差）：成功树立 50%（倒立:正立恒 1:4 分池），
-  mastery 每级 +5%，满 10 级=100%。`FLIP.*` + `G.successChance/rollOutcome`；
-  `rollLanding/p_stability` 已不参与。⚠️ mastery 的 `base` 同时是价格基数。
-- **瓶盖 = 每次成功落地 1 枚**（ok/crit 都给），失败无；没买瓶盖机器（$1000）时归零；
-  瓶盖先进 pendingCaps，CapMachine 运到滚筒才入账。助手 `h_unlock` 1200 盖、1.5s/次、超 10 只静默结算。
-- 瓶盖无爆散动画，抛物线飞右端入料机；履带**向左运**到左端出售箱（binX -252/feederX +252）。
-
-## 适配层（2026-09-24 第二十五轮起：Widget 平铺 + AutoNodeScale）
-- **唯一适配组件** `Core/AutoNodeScale.ts`（从参考工程 `Init/Scripts/Tool/` 搬来，关掉 executeInEditMode）。
-  `s = min(父宽/自身宽, 父高/自身高)`，锚点 0.5 天然居中。编辑器实体化，不再运行时算尺寸。
-- **两边结构对称**：
-  - 游戏：`Canvas` → `GameRoot`[Widget(45) 平铺可见区] → `gameRoot`[UT 720×1280 + AutoNodeScale]；
-    `uiRoot`[Widget(45)] 1:1 平铺（**不**挂 AutoNodeScale）。
-  - UI 预制体：`<Name>`[Widget(45) 跟随画布] → `mask`[Widget(45) 铺满] / `fit`[UT 720×1280 + AutoNodeScale]。
-- **★ 引擎事实**：`cc.Canvas` **不会**把节点 `UITransform` 改成可见区（只管相机 orthoHeight）。
-  所以 `GameRoot.alignCanvas()` 必须自己 `Canvas.UITransform.setContentSize(view.getVisibleSize())`，
-  否则 Widget 铺的是场景里手写的 1440×2560，AutoNodeScale 会算大（实测 s=2 vs 正确 1.8936）。
-- **等价性**：父节点铺满可见区时 `s ≡ 旧的 sA×DS`（FIXED_WIDTH 下父宽恒 1440 → 1440/720=2）。
-  三视口实测 1.8936 / 1.845 / 0.5563 与改造前逐位一致。
-- 旧 `UIFit.ts`（现 `Scripts/UI/_legacy/`）已退役，保留仅供回溯。
-- 改造脚本：`.workbuddy/tools/fit_prefabs.py`（6 个 UI prefab）、`fit_game_scene.py`（Game.scene）。
-  **改法**：只「原地改写已有组件」+「数组末尾追加 [组件, 其 CompPrefabInfo]」，**绝不删除/重排**
-  （`__id__` 是数组下标，重排要全量 remap）。备份在 `.workbuddy/prefab_bak/`。
-
-## 布局口径（设计 1280，y 以屏幕中心为 0）
-- 顶栏 barY 520/h134 → 木桌 statusY 386 → 底部块 abilityY −140 / beltY −251 / navY −343 /
-  panelY −502(h228)（内嵌面板，第一〇一轮重排）。`SAFE_BLOCKS.botTopY −85` 要跟着「底部块最上面是谁」走。
-- 瓶子 bottleH 96，BOTTLE_SCALE=0.256；顶栏只留金币+瓶盖两个筹码。
-- 奶油底 #F6E3C5 配深棕字 #7A4210；深木牌底才 #F1E0C0；模态面必须实心 6 位 hex。
-
-## 手写 .scene / .prefab（见下方格式节）
-- 生成器 `.workbuddy/tools/gen_scene.py` + `build_main_scene.py` / `build_prefabs.py`，
-  校验器 `check_prefab.py`（对参考工程 46 个 prefab 全通过才算规则归纳对）。
-  脚本组件 `__type__` 用**编译期 cid**（`scan_cid.py` 扫 `temp/programming`），不是脚本 uuid。
-
-## 资产与工具
-- 贴图 141 张已压到 <200K/张（PNG8），工具 `tex_compress.py`/`tex_dryrun.py`，原图备份
-  `.workbuddy/texture_src/`（unused/ 含死资源可拷回）。字体 NotoSansSC-Bold 10.5MB 是下一个包体大头（未子集化）。
-- 音频全转 MP3（lameenc；bgm 96k 立体声），备份 `.workbuddy/audio_src/`。
-  ⚠️ lameenc 低码率会悄悄降采样率 → set_out_sample_rate；mp3 循环有 ~0.04s 间隙；
-  `clip.duration` 返回 undefined，要用 `clip.getDuration()`。
-- 美术流水线 `E:\LDC_Fby\_art_pipe.py`；抠底要先造 L 二值掩膜再 thresh=0 泛洪（floodfill 直接抠会静默失败）。
-- 打平台包需本机 npm（`D:\nodejs`）；npm 操作前 `NODE_OPTIONS= NODE_PATH=`；改 PATH 必须完全重启编辑器。
-
-## 场景渲染注册坑（2026-09-24）
-- 场景反序列化的 Sprite/Label 可能整树不渲染（节点/贴图/颜色全正常）：preload 提前实例化时
-  markForUpdateRenderData 被丢且永不重发。**修复 = removeChild+addChild 重挂子树**，已固化在
-  `GameRoot.rebindSceneRenderers()`（afterReady 重挂 hudRoot/navRoot/adRoot）。详见 cocos-3.8.8 技能 pitfalls。
-- 玩法 UI 已全部实体化进 Game.scene（build_gameplay_ui.py，580 对象）；组件 bindScene 按节点名接手，
-  construct() 是运行时兜底，**两边节点名必须同构**（Hud 曾因 moneyLb 摆放位置不一致每帧 TypeError）。
+## 适配
+- `Core/AutoNodeScale` 唯一适配组件；cc.Canvas **不会**自动改 UITransform →
+  `alignCanvas()` 自己 `setContentSize(view.getVisibleSize())`，否则 AutoNodeScale 算大。
