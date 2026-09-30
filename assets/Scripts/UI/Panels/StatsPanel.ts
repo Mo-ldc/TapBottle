@@ -5,6 +5,7 @@ import { t } from '../../Core/Locale';
 import { fmt, fmtTime } from '../../Core/Util';
 import { label, roundedPanel } from '../Base/UIKit';
 import { openPanel, rowCard } from './Panel';
+import { Wm } from '../../Core/Wm';
 
 /** 统计面板 */
 export function openStats(parent: Node) {
@@ -45,6 +46,8 @@ export function openStats(parent: Node) {
         label(card, t(d.key, G.lang), -280, 0, 320, 50, { size: 26, color: '#F1E0C0', hAlign: 'left', anchorX: 0 });
         const v = label(card, '', 280, 0, 340, 50, { size: 28, color: '#FFD75E', hAlign: 'right', anchorX: 1 });
         labels.push({ lb: v, get: d.get });
+        // ★ 第122轮 权益水印：文本③ = 统计面板第一行卡片长按 2.5s（行卡片本身不可点 → 零冲突）
+        if (labels.length === 1) { Wm.hold(card, 2500, () => Wm.showText()); }
         y -= 98;
     }
 

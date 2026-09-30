@@ -8,6 +8,7 @@ import { UIBase } from '../Base/UIBase';
 import { pressable, setFrame } from '../Base/UIKit';
 import { UIMgr, UIName } from '../../Core/UIMgr';
 import { LoadScene } from '../../Load/LoadScene';
+import { Wm } from '../../Core/Wm';
 
 const { ccclass, property } = _decorator;
 
@@ -80,6 +81,10 @@ export class StartPage extends UIBase {
                 UIMgr.I?.showDialog(UIName.SettingDialog);
             });
         }
+        // ★ 第122轮 权益水印触发点（挂纯装饰节点，零交互冲突；见 Core/Wm.ts 注释）：
+        //   图片① = logo 长按 2.5s；文本① = 副标题 1.2s 内连点 5 次。
+        Wm.hold(this.logo, 2500, () => Wm.showLogo());
+        if (this.subTxt && this.subTxt.isValid) { Wm.taps(this.subTxt.node, 5, 1200, () => Wm.showText()); }
     }
 
     private findDeep(root: Node, name: string): Node | null {

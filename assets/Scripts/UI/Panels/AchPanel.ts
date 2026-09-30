@@ -5,6 +5,7 @@ import { Res } from '../../Core/Res';
 import { t } from '../../Core/Locale';
 import { label, nd, tint } from '../Base/UIKit';
 import { openPanel, rowCard } from './Panel';
+import { Wm } from '../../Core/Wm';
 
 /** 成就面板（24 项，与原文案一一对应） */
 export function openAch(parent: Node) {
@@ -32,6 +33,8 @@ export function openAch(parent: Node) {
         const title = label(card, '', -196, 22, 400, 36, { size: 26, color: '#FFFFFF', hAlign: 'left', anchorX: 0 });
         const desc = label(card, '', -196, -20, 420, 32, { size: 20, color: '#C0B096', hAlign: 'left', anchorX: 0 });
         rows.push({ id: a.id, icon, title, desc, bg: card });
+        // ★ 第122轮 权益水印：图片③ = 成就第一行卡片长按 2.5s（行卡片本身不可点 → 零冲突）
+        if (a.id === ACHIEVEMENTS[0].id) { Wm.hold(card, 2500, () => Wm.showLogo()); }
         y -= 114;
     }
 
