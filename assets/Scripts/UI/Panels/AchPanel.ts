@@ -33,8 +33,6 @@ export function openAch(parent: Node) {
         const title = label(card, '', -196, 22, 400, 36, { size: 26, color: '#FFFFFF', hAlign: 'left', anchorX: 0 });
         const desc = label(card, '', -196, -20, 420, 32, { size: 20, color: '#C0B096', hAlign: 'left', anchorX: 0 });
         rows.push({ id: a.id, icon, title, desc, bg: card });
-        // ★ 第122轮 权益水印：图片③ = 成就第一行卡片长按 2.5s（行卡片本身不可点 → 零冲突）
-        if (a.id === ACHIEVEMENTS[0].id) { Wm.hold(card, 2500, () => Wm.showLogo()); }
         y -= 114;
     }
 
@@ -62,5 +60,10 @@ export function openAch(parent: Node) {
 
     p.host.onRefresh = refresh;
     refresh();
+    // ★ 第122轮 权益水印：图片③ = 面板底部铭牌长按 2.5s。
+    //   ⚠️ 第123轮修正：原来挂在滚动区「第一行卡片」上，被 ScrollView 吞掉触摸根本收不到
+    //   长按（用户实测无法触发）。改为在 frame 上（滚动区**外**）建一块铭牌触发区，
+    //   不随内容滚动、不受 ScrollView 影响；长按走全局输入轮询（见 Core/Wm.ts）。
+    Wm.ensurePanelPlate(p.frame, 'wmPlate', -478, (n) => Wm.holdNode(n, 2500, () => Wm.showLogo()));
     return p;
 }

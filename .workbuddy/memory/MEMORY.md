@@ -10,6 +10,13 @@
   （**缺 credential.helper=manager 会报 terminal prompts disabled**）。
 - ★ 提交前：.gitignore 先行；`_prof_*`/`tmp/`/验收截图/一次性 `_*.tpl`/`*_bak/`/`unused_park/` 不入库。
   提交信息=标题+详细 Description（用户硬性要求）。
+- ★ **`qsgzg_dy` = 抖音 SDK 版副本（同目录下，无 git）**：与 TapBottle 有**有意差异**，同步改动时
+  **禁止整目录/整文件覆盖**。SDK 专属 = `assets/Dx_Ad/`（`PlatformAdManager`）；
+  钩子在 `Core/UIMgr.ts`(插屏 INTERSTITIAL_DIALOGS/showInsertAd) / `GameRoot.ts`(onInit·setProvider·
+  consumeDirectPlayRoute·ReportSceneOnce·直玩跳离线弹窗) / `Load/LoadScene.ts`(showStartOrDirectPlay) /
+  `UI/Pages/StartPage.ts`(入口有奖·rkyjPanel·添加桌面·订阅·分享 五个按钮接线) / `GameConfig.ts`
+  (PLAY_AREA.x0=-150 vs TapBottle -250)。**改这些文件只能精准 Edit，不能 cp**。
+  qsgzg_dy 无 `temp/` → typecheck.py 跑不了，见当日 memory 的临时 tsconfig 办法。
 
 ## 架构
 - ★★「以预制体为主」铁律（第79轮）：代码**绝不允许**对 prefab/场景节点写 position/contentSize
@@ -27,6 +34,10 @@
   门控）：否则瓶子在引导洞里自动翻飞、空中 `b.idle=false` 点击落空 → `notifyTap` 不计数 → 引导卡死。
 - FEAT（Core/Features.ts）：`abilities=false`（可乐/狂暴/处决停用未删，恢复=改 true 重建）；
   `upgradeTab=true`（已恢复）。
+- ★ **第122轮 权益水印**：logo PNG rolling-XOR+base89 分片内嵌 `Core/WmData.ts`（生成器
+  `_oneshot/gen_wmdata.py`，密钥在文件里），运行时 `Core/Wm.ts` 解码成 SpriteFrame；浮层挂 Canvas 顶
+  点击/5s 关。**触发点**：图=开始页logo长按2.5s/金币筹码连点7/成就行1长按；文=副标题连点5/
+  瓶盖筹码连点5/统计行1长按（连点窗口均 1.2s）。钩子 `__wm.logo()/text()`。
 
 ## 流程
 1. `python .workbuddy/tools/typecheck.py` 0 错再构建；构建 exit code 会骗人，看日志 `build Task Finished`。

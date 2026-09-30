@@ -7,6 +7,7 @@ import { button, img, label, nd, pressable, rect, setFrame, setSize, sizeOf, TEX
 import { chipPlate, WOOD, woodButton } from '../Base/Theme';
 import { Toast } from '../Base/Toast';
 import { Wm } from '../../Core/Wm';
+import { Tutorial } from '../../Game/Tutorial';
 
 const { ccclass, property } = _decorator;
 
@@ -85,8 +86,15 @@ export class Hud extends Component {
         G.addListener(() => this.refresh());
         // ★ 第122轮 权益水印触发点（筹码是纯显示节点，无任何监听 → 零冲突；见 Core/Wm.ts）：
         //   图片② = 金币筹码 1.2s 内连点 7 次；文本② = 瓶盖筹码 1.2s 内连点 5 次。
-        Wm.taps(this.node.getChildByName('chipCoin'), 7, 1200, () => Wm.showLogo());
-        Wm.taps(this.node.getChildByName('chipCap'), 5, 1200, () => Wm.showText());
+        //   ⚠️ 第123轮修正：① 长按/连点统一改全局输入轮询（不受 ScrollView / BlockInputEvents 影响）；
+        //   ② **新手引导期间停用** —— 引导幕布四块都挂了 BlockInputEvents，筹码被幕布盖住
+        //      （新玩家一进游戏就在引导里，否则触发点等于不存在）。引导结束后自动可用。
+        const tapChip = (node: Node | null, n: number, cb: () => void) => {
+            if (!node || !node.isValid) { return; }
+            Wm.tapsRect(() => (Tutorial.active ? null : Wm.nodeWorldRect(node)), n, 1200, cb);
+        };
+        tapChip(this.node.getChildByName('chipCoin'), 7, () => Wm.showLogo());
+        tapChip(this.node.getChildByName('chipCap'), 5, () => Wm.showText());
     }
 
     /**

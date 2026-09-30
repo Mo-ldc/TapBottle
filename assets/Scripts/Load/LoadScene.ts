@@ -5,6 +5,7 @@ import { Res, bootFlags } from '../Core/Res';
 import { UIMgr, UIName } from '../Core/UIMgr';
 import { installPreviewInputBridge } from '../Core/PreviewInputBridge';
 import { installErrorGuard } from '../Core/ErrorGuard';
+import { wmTick } from '../Core/Wm';
 
 const { ccclass, property } = _decorator;
 
@@ -170,6 +171,7 @@ export class LoadScene extends Component {
     update(dt: number) {
         // ErrorGuard 看门狗心跳（标题页也要报活，见 Core/ErrorGuard.ts）
         (globalThis as any).__tbHeart = Date.now();
+        wmTick();   // 权益水印长按轮询（标题页也要跑，见 Core/Wm.ts）
         // 窗口尺寸变了（旋屏/拖拽）：背景与 uiRoot 跟着可见区重排（幂等，开销极小）
         const vs = view.getVisibleSize();
         if (Math.abs(vs.width - this.lastVw) > 0.5 || Math.abs(vs.height - this.lastVh) > 0.5) {

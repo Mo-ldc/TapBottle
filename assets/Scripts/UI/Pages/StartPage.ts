@@ -83,8 +83,11 @@ export class StartPage extends UIBase {
         }
         // ★ 第122轮 权益水印触发点（挂纯装饰节点，零交互冲突；见 Core/Wm.ts 注释）：
         //   图片① = logo 长按 2.5s；文本① = 副标题 1.2s 内连点 5 次。
-        Wm.hold(this.logo, 2500, () => Wm.showLogo());
-        if (this.subTxt && this.subTxt.isValid) { Wm.taps(this.subTxt.node, 5, 1200, () => Wm.showText()); }
+        //   ⚠️ 第123轮修正：prefab 里没有 logo / 副标题节点（@property 全空），改为
+        //   Wm.ensureStartNodes 建两个透明占位节点（开始页在主界面，不在新手引导里）。
+        Wm.ensureStartNodes(this.node,
+            (n) => Wm.holdNode(n, 2500, () => Wm.showLogo()),
+            (n) => Wm.taps(n, 5, 1200, () => Wm.showText()));
     }
 
     private findDeep(root: Node, name: string): Node | null {

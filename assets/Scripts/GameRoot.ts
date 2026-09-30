@@ -3,6 +3,7 @@ import { BOTTLE_STATS, AUTHOR_H, AUTHOR_W, DESIGN_H, DESIGN_W, DS, fitPlayAreaTo
 import { AutoNodeScale } from './Core/AutoNodeScale';
 import { G } from './Core/State';
 import { Res } from './Core/Res';
+import { wmTick } from './Core/Wm';
 import { t } from './Core/Locale';
 import { button, img, label, MASK_SIZE, nd, rect, setFrame, setSize } from './UI/Base/UIKit';
 import { Toast } from './UI/Base/Toast';
@@ -593,6 +594,7 @@ export class GameRoot extends Component {
     update(dt: number) {
         // ErrorGuard 看门狗心跳：主循环活着就刷新（页面可见时 6s 无心跳 = 卡死）
         (globalThis as any).__tbHeart = Date.now();
+        wmTick();   // 权益水印长按轮询（全局输入，见 Core/Wm.ts）
         const d = Math.min(dt, 0.05);
         G.tick(d);
         if (G.hasIdle) { G.idleOn = true; }

@@ -46,8 +46,6 @@ export function openStats(parent: Node) {
         label(card, t(d.key, G.lang), -280, 0, 320, 50, { size: 26, color: '#F1E0C0', hAlign: 'left', anchorX: 0 });
         const v = label(card, '', 280, 0, 340, 50, { size: 28, color: '#FFD75E', hAlign: 'right', anchorX: 1 });
         labels.push({ lb: v, get: d.get });
-        // ★ 第122轮 权益水印：文本③ = 统计面板第一行卡片长按 2.5s（行卡片本身不可点 → 零冲突）
-        if (labels.length === 1) { Wm.hold(card, 2500, () => Wm.showText()); }
         y -= 98;
     }
 
@@ -81,5 +79,8 @@ export function openStats(parent: Node) {
 
     p.host.onRefresh = refresh;
     refresh();
+    // ★ 第122轮 权益水印：文本③ = 面板底部铭牌长按 2.5s。
+    //   ⚠️ 第123轮修正：同成就面板 —— 挪出滚动区（原挂第一行卡片会被 ScrollView 吞触摸）。
+    Wm.ensurePanelPlate(p.frame, 'wmPlate', -478, (n) => Wm.holdNode(n, 2500, () => Wm.showText()));
     return p;
 }
