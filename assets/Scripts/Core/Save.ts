@@ -61,10 +61,13 @@ export interface SaveData {
 }
 
 function emptyTierStats(): number[][] {
+    // ★ 第121轮（用户口径）：「悬停翻转」改为全阶默认解锁 —— hover 词条列直接预置 1，
+    //   statMax 恒真 → 升级页/技能树不再出现 hover 购买行，光圈开局即吸附形态（haloTriggerOn=true）。
+    const hi = BOTTLE_STATS.findIndex((s) => s.id === 'hover');
     const out: number[][] = [];
     for (let t = 0; t < TIERS.length; t++) {
         const row: number[] = [];
-        for (let i = 0; i < BOTTLE_STATS.length; i++) { row.push(0); }
+        for (let i = 0; i < BOTTLE_STATS.length; i++) { row.push(i === hi ? 1 : 0); }
         out.push(row);
     }
     return out;
@@ -124,6 +127,11 @@ function normalize(o: any): SaveData {
             }
             return r;
         });
+    }
+    // ★ 第121轮（用户口径）：「悬停翻转」全阶默认解锁 —— 老档迁移时统一补齐 hover 列（幂等）。
+    const hoverIdx = BOTTLE_STATS.findIndex((s) => s.id === 'hover');
+    if (hoverIdx >= 0) {
+        for (let t = 0; t < m.tierStats.length; t++) { m.tierStats[t][hoverIdx] = 1; }
     }
     // 数值兜底
     if (typeof m.money !== 'number' || !isFinite(m.money)) { m.money = 0; }

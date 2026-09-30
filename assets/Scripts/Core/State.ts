@@ -200,7 +200,9 @@ export class State {
         return true;
     }
 
-    /* ---- 悬停翻转：每阶瓶子各自一次性解锁（§4.2 / §4.4-3） ---- */
+    /* ---- 悬停翻转：每阶瓶子各自一次性解锁（§4.2 / §4.4-3） ----
+     * ★ 第121轮（用户口径）：改为**全阶默认解锁** —— Save 层把 tierStats 的 hover 列预置/迁移成 1，
+     *   这里照常按存档读（>0 即解锁），不再有「未解锁」形态；buyHover/升级页 hover 行随之自然失效。 */
     hoverUnlocked(tier: number): boolean { return this.statLv(tier, 'hover') > 0; }
     hoverCost(tier: number): number { return TIERS[tier].hoverCost; }
     /**
