@@ -5,7 +5,6 @@ import { t } from '../../Core/Locale';
 import { fmt, fmtTime } from '../../Core/Util';
 import { label, roundedPanel } from '../Base/UIKit';
 import { openPanel, rowCard } from './Panel';
-import { Wm } from '../../Core/Wm';
 
 /** 统计面板 */
 export function openStats(parent: Node) {
@@ -79,8 +78,8 @@ export function openStats(parent: Node) {
 
     p.host.onRefresh = refresh;
     refresh();
-    // ★ 第122轮 权益水印：文本③ = 面板底部铭牌长按 2.5s。
-    //   ⚠️ 第123轮修正：同成就面板 —— 挪出滚动区（原挂第一行卡片会被 ScrollView 吞触摸）。
-    Wm.ensurePanelPlate(p.frame, 'wmPlate', -478, (n) => Wm.holdNode(n, 2500, () => Wm.showText()));
+    // ⚠️ 死代码（同 AchPanel.ts）：运行时走 `UIMgr.showDialog(UIName.StatsDialog)`
+    //    → `Prefabs/UI/StatsDialog.prefab` + `UI/Dialogs/StatsDialog.ts`。
+    //    第124轮触发点已迁到 Dialogs/StatsDialog.ts（挂关闭按钮）。
     return p;
 }

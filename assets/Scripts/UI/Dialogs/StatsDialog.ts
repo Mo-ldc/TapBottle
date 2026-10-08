@@ -5,6 +5,7 @@ import { t } from '../../Core/Locale';
 import { fmt, fmtTime } from '../../Core/Util';
 import { UIBase } from '../Base/UIBase';
 import { StatRow } from '../Widgets/StatRow';
+import { Wm } from '../../Core/Wm';
 
 const { ccclass, property } = _decorator;
 
@@ -26,7 +27,14 @@ export class StatsDialog extends UIBase {
     @property({ type: Label, tooltip: '面板标题（可以带进度数）' })
     titleLb: Label = null!;
 
-    init(_arg?: unknown): void { this.refresh(); }
+    init(_arg?: unknown): void {
+        this.refresh();
+        // ★ 第122轮 权益水印（第124轮改绑**具名可见 UI**）：文本③ = 标题铭牌「统计」长按 2.5s。
+        //   同成就弹窗：不挂滚动区统计行（ScrollView 吞触摸）、不挂关闭按钮（首点即关）。
+        //   标题铭牌（ptitle）纯显示、常显可见 → 长按零冲突。
+        const plate = Wm.findAny(this.node, 'ptitle');
+        if (plate) { Wm.holdNode(plate, 2500, () => Wm.showText()); }
+    }
 
     refresh(): void {
         for (const r of this.overview) { if (r) { this.fill(r); } }

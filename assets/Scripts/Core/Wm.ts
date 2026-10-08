@@ -16,9 +16,24 @@ import { WM_CC, WM_CHUNKS, WM_KEY } from './WmData';
  *   全局 input 不受 ScrollView / BlockInputEvents 约束。
  *   判定口径统一：把节点/矩形换算成**世界坐标系**，再和输入事件的世界坐标比较。
  *
- * 触发点（6 处，避开新手引导、避开「点设置标题」老套路）：
- *   图片：开始页 logo 长按 ／ 顶栏金币筹码 1.2s 连点 7 次 ／ 成就面板底部铭牌长按
- *   文本：开始页副标题 1.2s 连点 5 次 ／ 顶栏瓶盖筹码 1.2s 连点 5 次 ／ 统计面板底部铭牌长按
+ * ★ 触发点绑定口径（第124轮，用户口径「改成对某个 ui 操作」）：
+ *   全部挂到**界面上本来就有、有名字、看得见**的节点上 —— 不再有「隐形占位节点」和
+ *   「面板底部铭牌」这种说不清的虚拟区域。留档时每一条都能指着屏幕上的某个按钮说出来。
+ *   避开老套路（点设置标题 3 次）、避开新手引导（引导幕布挂了 BlockInputEvents，
+ *   且筹码的 tapsRect 里做了 Tutorial.active 门控）。
+ *
+ *   图片 ① 游戏顶栏「金币筹码」chipCoin      1.2s 内连点 7 次
+ *   图片 ② 成就弹窗「标题铭牌」成就 0/24     长按 2.5s
+ *   文本 ① 游戏顶栏「瓶盖筹码」chipCap       1.2s 内连点 5 次
+ *   文本 ② 统计弹窗「标题铭牌」统计          长按 2.5s
+ *
+ *   ❌ 已排除的候选及原因（避免以后再踩）：
+ *   · 开始界面全部触发点 —— 用户口径「开始界面的触发点（版权标识）不需要」；
+ *   · 开始页 logo / 副标题 —— prefab 里没有这两个节点（@property 全空）；
+ *   · 弹窗关闭按钮 —— 首点即关闭弹窗，连点永远数不满（pressable 在 TOUCH_END 无条件触发）；
+ *   · 设置按钮连点 —— 首点打开设置弹窗挡住按钮；
+ *   · 滚动区里的行卡片 —— ScrollView 把触摸转成滚动，收不到稳定配对；
+ *   · 设置弹窗标题 —— 「点设置标题 3 次」是已被发现的老套路，必须避开。
  */
 
 /** 文案（charCode 表还原，不在源码/数据段留明文） */
@@ -261,59 +276,68 @@ export class Wm {
         tween(op).to(0.18, { opacity: 255 }).start();
     }
 
-    /* ---------------- 隐藏触发器节点（烘焙进 prefab，此处仅兜底现建） ---------------- */
+    /* ---------------- 具名节点查找 ---------------- */
 
     /**
-     * 开始页：补 logo / 副标题两个**透明占位节点**（prefab 里已烘好的走 findDeep）。
-     * ⚠️ 本轮之前 prefab 无这两个节点、@property 为空 → 触发点挂不上，故代码兜底。
+     * 按名字（可带 `/` 路径）在子树里找节点。
+     * ★ 第124轮：触发点一律绑**界面里本来就有的具名节点**，找不到就静默跳过（不建占位节点）——
+     *   所以这里的 null 返回是「这个名字在当前 prefab 里不存在」的直接信号，
+     *   排查时用 `Wm.probe()` 打一张表最快。
      */
-    static ensureStartNodes(page: Node, onLogo: (n: Node) => void, onSub: (n: Node) => void): void {
-        const root = page;
-        let logo = Wm.findDeep(root, 'wmLogo');
-        if (!logo) {
-            logo = new Node('wmLogo');
-            logo.addComponent(UITransform).setContentSize(560, 560);
-            root.addChild(logo);
-            logo.setPosition(0, 250, 0);
-            logo.setSiblingIndex(root.children.length - 1);
+    static find(root: Node | null | undefined, path: string): Node | null {
+        if (!root || !root.isValid) { return null; }
+        const parts = path.split('/').filter((s) => s.length > 0);
+        let cur: Node | null = root;
+        for (const p of parts) {
+            if (!cur) { return null; }
+            cur = cur.getChildByName(p);
         }
-        onLogo(logo);
-        let sub = Wm.findDeep(root, 'wmSub');
-        if (!sub) {
-            sub = new Node('wmSub');
-            sub.addComponent(UITransform).setContentSize(420, 60);
-            root.addChild(sub);
-            sub.setPosition(0, -60, 0);
-        }
-        onSub(sub);
+        return cur;
     }
 
     /**
-     * 面板（成就/统计等）：在滚动区**下方**补一块铭牌触发区，
-     * 不放进滚动内容 → 不会被 ScrollView 吞事件，也不会随内容滚走。
+     * 在子树里按**名字**做深度优先查找（用于行内子节点，名字全局唯一时最省事）。
+     * 命中第一个即返回。
      */
-    static ensurePanelPlate(frame: Node, name: string, y: number, onPlate: (n: Node) => void): Node {
-        let p = frame.getChildByName(name);
-        if (!p) {
-            p = new Node(name);
-            p.addComponent(UITransform).setContentSize(560, 72);
-            frame.addChild(p);
-            p.setPosition(0, y, 0);
-            p.setSiblingIndex(frame.children.length - 1);
-        }
-        onPlate(p);
-        return p;
-    }
-
-    private static findDeep(root: Node, name: string): Node | null {
+    static findAny(root: Node | null | undefined, name: string): Node | null {
+        if (!root || !root.isValid) { return null; }
         if (root.name === name) { return root; }
         for (const c of root.children) {
-            const r = Wm.findDeep(c, name);
+            const r = Wm.findAny(c, name);
             if (r) { return r; }
         }
         return null;
     }
+
+    /**
+     * 触发点自检表（无头验收 / 实机排查共用）：把当前注册的触发点逐个算出矩形，
+     * 打一行日志。**不改动任何状态**，可以随时在控制台调：
+     * `Wm.probe()`。
+     * 输出形如 `[Wm] hold#0 2500ms  rect=120,340 320x110`；矩形为 null = 当前不可触发
+     * （节点不在场上 / 被隐藏 / 引导期间被门控）。
+     */
+    static probe(): void {
+        const line = (tag: string, ms: string, r: WRect | null) => {
+            const rect = r ? `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.w)}x${Math.round(r.h)}` : '<不可触发>';
+            console.log(`[Wm] ${tag} ${ms}  rect=${rect}`);
+        };
+        holdJobs.forEach((j, i) => line('hold#' + i, j.ms + 'ms', j.rect()));
+        tapJobs.forEach((j, i) => line('tap#' + i, j.n + '次/' + j.winMs + 'ms', j.rect()));
+    }
+
+    /**
+     * 触发点总开关：`Wm.off()` 之后所有触发点都不再响应（展示浮层仍可用
+     * `__wm.logo()` / `__wm.text()` 手动拉）。用于实机排查「到底是谁在触发」。
+     */
+    static off(): void { holdJobs.length = 0; tapJobs.length = 0; holdActive = null; }
 }
 
-// 无头验收调试钩子（玩家不可见）：__wm.logo() / __wm.text() 直接拉浮层
-(globalThis as any).__wm = { logo: () => Wm.showLogo(), text: () => Wm.showText() };
+// 无头验收 / 实机排查调试钩子（玩家不可见）：
+//   __wm.logo() / __wm.text() 直接拉浮层
+//   __wm.probe() 打触发点矩形表  __wm.off() 关掉全部触发点
+(globalThis as any).__wm = {
+    logo: () => Wm.showLogo(),
+    text: () => Wm.showText(),
+    probe: () => Wm.probe(),
+    off: () => Wm.off(),
+};

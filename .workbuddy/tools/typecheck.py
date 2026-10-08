@@ -18,6 +18,14 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 NODE = r"C:\Users\A\.workbuddy\binaries\node\versions\22.22.2-3\node.exe"
+# 托管 node 版本目录名会变（22.22.2-3 → -6 …），找不到就自动挑一个可用的
+if not os.path.exists(NODE):
+    _base = r"C:\Users\A\.workbuddy\binaries\node\versions"
+    for _d in sorted(os.listdir(_base), reverse=True) if os.path.isdir(_base) else []:
+        _c = os.path.join(_base, _d, "node.exe")
+        if os.path.exists(_c):
+            NODE = _c
+            break
 TSC = r"D:\CoCosIDE\Creator\3.8.8\resources\app.asar.unpacked\node_modules\typescript\lib\tsc.js"
 CHECK_CFG = os.path.join(ROOT, ".workbuddy", "tools", "tsconfig.check.json")
 # 这些前缀下的报错来自引擎/扩展自身声明，与项目代码无关

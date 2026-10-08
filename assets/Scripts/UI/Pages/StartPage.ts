@@ -8,7 +8,6 @@ import { UIBase } from '../Base/UIBase';
 import { pressable, setFrame } from '../Base/UIKit';
 import { UIMgr, UIName } from '../../Core/UIMgr';
 import { LoadScene } from '../../Load/LoadScene';
-import { Wm } from '../../Core/Wm';
 
 const { ccclass, property } = _decorator;
 
@@ -81,13 +80,9 @@ export class StartPage extends UIBase {
                 UIMgr.I?.showDialog(UIName.SettingDialog);
             });
         }
-        // ★ 第122轮 权益水印触发点（挂纯装饰节点，零交互冲突；见 Core/Wm.ts 注释）：
-        //   图片① = logo 长按 2.5s；文本① = 副标题 1.2s 内连点 5 次。
-        //   ⚠️ 第123轮修正：prefab 里没有 logo / 副标题节点（@property 全空），改为
-        //   Wm.ensureStartNodes 建两个透明占位节点（开始页在主界面，不在新手引导里）。
-        Wm.ensureStartNodes(this.node,
-            (n) => Wm.holdNode(n, 2500, () => Wm.showLogo()),
-            (n) => Wm.taps(n, 5, 1200, () => Wm.showText()));
+        // ★ 权益水印：**开始界面不放触发点**（用户口径：开始界面的触发点不需要）。
+        //   曾试过「订阅 / 分享」按钮长按，现全部移除；触发点只留在
+        //   「游戏内顶栏筹码 ×2」+「成就/统计弹窗标题铭牌 ×2」共 4 处，见 Core/Wm.ts 顶部清单。
     }
 
     private findDeep(root: Node, name: string): Node | null {

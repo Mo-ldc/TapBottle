@@ -43,6 +43,9 @@ node_modules/
 .workbuddy/_*.tpl
 .workbuddy/_*.json
 
+# 一次性验收模板（验收完即弃；生成器 .py 仍入库）
+.workbuddy/tools/_oneshot/_*.tpl
+
 # 各类备份目录（仅本地保留，需要时从 git 历史找回）
 .workbuddy/*_bak/
 .workbuddy/unused_park/

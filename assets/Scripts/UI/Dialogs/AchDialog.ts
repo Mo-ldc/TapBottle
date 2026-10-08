@@ -4,6 +4,7 @@ import { G } from '../../Core/State';
 import { t } from '../../Core/Locale';
 import { UIBase } from '../Base/UIBase';
 import { AchRow } from '../Widgets/AchRow';
+import { Wm } from '../../Core/Wm';
 
 const { ccclass, property } = _decorator;
 
@@ -30,6 +31,13 @@ export class AchDialog extends UIBase {
             console.warn('[AchDialog] prefab 行数', this.rows.length, '≠ 配置', ACHIEVEMENTS.length);
         }
         this.refresh();
+        // ★ 第122轮 权益水印（第124轮改绑**具名可见 UI**）：图片③ = 标题铭牌「成就 0/24」长按 2.5s。
+        //   ⚠️ 不挂滚动区里的成就行 —— ScrollView 把触摸转成滚动，行节点收不到稳定配对
+        //      （用户实测「成就页面第一栏没法触发」就是这个原因）。
+        //   ⚠️ 不挂关闭按钮 —— 首点就关闭弹窗，连点 5 次永远数不满（pressable 在 TOUCH_END
+        //      无条件触发）。标题铭牌（ptitle）是纯显示节点、不在滚动区、常显可见 → 零冲突。
+        const plate = Wm.findAny(this.node, 'ptitle');
+        if (plate) { Wm.holdNode(plate, 2500, () => Wm.showLogo()); }
     }
 
     refresh(): void {

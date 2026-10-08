@@ -84,17 +84,19 @@ export class Hud extends Component {
         this.reskinChips();
         this.wire(cb);
         G.addListener(() => this.refresh());
-        // ★ 第122轮 权益水印触发点（筹码是纯显示节点，无任何监听 → 零冲突；见 Core/Wm.ts）：
-        //   图片② = 金币筹码 1.2s 内连点 7 次；文本② = 瓶盖筹码 1.2s 内连点 5 次。
-        //   ⚠️ 第123轮修正：① 长按/连点统一改全局输入轮询（不受 ScrollView / BlockInputEvents 影响）；
-        //   ② **新手引导期间停用** —— 引导幕布四块都挂了 BlockInputEvents，筹码被幕布盖住
+        // ★ 第122轮 权益水印触发点（第124轮改为绑定**具名可见 UI**；见 Core/Wm.ts 注释）：
+        //   图片② = 「金币筹码」（chipCoin）1.2s 内连点 7 次；
+        //   文本② = 「瓶盖筹码」（chipCap）1.2s 内连点 5 次。
+        //   ⚠️ 这两个筹码是**纯显示节点**（无监听），全局轮询对它们零干扰。
+        //   ⚠️ **新手引导期间停用** —— 引导幕布四块都挂了 BlockInputEvents，筹码被幕布盖住
         //      （新玩家一进游戏就在引导里，否则触发点等于不存在）。引导结束后自动可用。
-        const tapChip = (node: Node | null, n: number, cb: () => void) => {
+        const tapChip = (name: string, n: number, cb: () => void) => {
+            const node = Wm.find(this.node, name);
             if (!node || !node.isValid) { return; }
             Wm.tapsRect(() => (Tutorial.active ? null : Wm.nodeWorldRect(node)), n, 1200, cb);
         };
-        tapChip(this.node.getChildByName('chipCoin'), 7, () => Wm.showLogo());
-        tapChip(this.node.getChildByName('chipCap'), 5, () => Wm.showText());
+        tapChip('chipCoin', 7, () => Wm.showLogo());
+        tapChip('chipCap', 5, () => Wm.showText());
     }
 
     /**

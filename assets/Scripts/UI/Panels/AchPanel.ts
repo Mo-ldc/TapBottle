@@ -5,7 +5,6 @@ import { Res } from '../../Core/Res';
 import { t } from '../../Core/Locale';
 import { label, nd, tint } from '../Base/UIKit';
 import { openPanel, rowCard } from './Panel';
-import { Wm } from '../../Core/Wm';
 
 /** 成就面板（24 项，与原文案一一对应） */
 export function openAch(parent: Node) {
@@ -60,10 +59,9 @@ export function openAch(parent: Node) {
 
     p.host.onRefresh = refresh;
     refresh();
-    // ★ 第122轮 权益水印：图片③ = 面板底部铭牌长按 2.5s。
-    //   ⚠️ 第123轮修正：原来挂在滚动区「第一行卡片」上，被 ScrollView 吞掉触摸根本收不到
-    //   长按（用户实测无法触发）。改为在 frame 上（滚动区**外**）建一块铭牌触发区，
-    //   不随内容滚动、不受 ScrollView 影响；长按走全局输入轮询（见 Core/Wm.ts）。
-    Wm.ensurePanelPlate(p.frame, 'wmPlate', -478, (n) => Wm.holdNode(n, 2500, () => Wm.showLogo()));
+    // ⚠️ 本文件是**死代码**（全工程无人 import）：运行时走的是 UIMgr.showDialog(UIName.AchDialog)
+    //    → `Prefabs/UI/AchDialog.prefab` + `UI/Dialogs/AchDialog.ts`。
+    //    第123轮把水印触发点挂在这里 → 永远不执行，是「成就页面触发不了」的另一半根因。
+    //    第124轮触发点已迁到 Dialogs/AchDialog.ts（挂关闭按钮）。本文件的触发注册已移除。
     return p;
 }
